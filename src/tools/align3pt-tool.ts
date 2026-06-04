@@ -2,6 +2,7 @@ import { Container, Label } from '@playcanvas/pcui';
 import { Mat4, Quat, Vec3 } from 'playcanvas';
 
 import { EntityTransformOp } from '../edit-ops';
+import { ElementType } from '../element';
 import { Events } from '../events';
 import { Scene } from '../scene';
 import { Splat } from '../splat';
@@ -319,6 +320,30 @@ class Align3PointTool {
             clicked = false;
         };
 
+        const pickSplatPoint = async (splat: Splat, nx: number, ny: number): Promise<Vec3 | null> => {
+            scene.camera.pickPrep(splat, 'set');
+            const splatId = await scene.camera.pick(nx, ny);
+            if (splatId === 0xffffffff) {
+                return null;
+            }
+            const worldPos = new Vec3();
+            return splat.calcSplatWorldPosition(splatId, worldPos) ? worldPos : null;
+        };
+
+        const pickTargetPoint = async (nx: number, ny: number): Promise<{ splat: Splat, worldPos: Vec3 } | null> => {
+            const splats = scene.getElementsByType(ElementType.splat) as Splat[];
+            for (const splat of splats) {
+                if (splat === sourceSplat) continue;
+                if (targetSplat && splat !== targetSplat) continue;
+
+                const worldPos = await pickSplatPoint(splat, nx, ny);
+                if (worldPos) {
+                    return { splat, worldPos };
+                }
+            }
+            return null;
+        };
+
         const pointerup = async (e: PointerEvent) => {
             if (!active || !clicked || !isPrimary(e) || !sourceSplat) {
                 clicked = false;
@@ -328,44 +353,28 @@ class Align3PointTool {
             clicked = false;
 
             const rect = canvasContainer.dom.getBoundingClientRect();
-            const nx = (e.clientX - rect.left) / Math.max(1, rect.width);
-            const ny = (e.clientY - rect.top) / Math.max(1, rect.height);
-
-            const result = await scene.camera.intersect(
-                Math.min(1, Math.max(0, nx)),
-                Math.min(1, Math.max(0, ny))
-            );
-
-            if (!result?.splat) {
-                return;
-            }
-
-            const hitSplat = result.splat;
+            const nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / Math.max(1, rect.width)));
+            const ny = Math.min(1, Math.max(0, (e.clientY - rect.top) / Math.max(1, rect.height)));
 
             if (sourcePoints.length < 3) {
-                if (hitSplat !== sourceSplat) {
-                    return;
-                }
-                collectLocalPoint(sourceSplat, result.position, sourcePoints);
+                const worldPos = await pickSplatPoint(sourceSplat, nx, ny);
+                if (!worldPos) return;
+
+                collectLocalPoint(sourceSplat, worldPos, sourcePoints);
                 scene.forceRender = true;
                 updatePrompt();
                 return;
             }
 
-            if (hitSplat === sourceSplat) {
-                return;
-            }
+            const hit = await pickTargetPoint(nx, ny);
+            if (!hit) return;
 
             if (!targetSplat) {
-                targetSplat = hitSplat;
-            }
-
-            if (targetSplat !== hitSplat) {
-                return;
+                targetSplat = hit.splat;
             }
 
             if (targetPoints.length < 3) {
-                collectLocalPoint(targetSplat, result.position, targetPoints);
+                collectLocalPoint(targetSplat, hit.worldPos, targetPoints);
                 updatePrompt();
             }
 

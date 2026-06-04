@@ -39,6 +39,7 @@ const defaultShortcuts: Record<string, ShortcutBinding> = {
     'tool.move': { keys: ['1'] },
     'tool.rotate': { keys: ['2'] },
     'tool.scale': { keys: ['3'] },
+    'tool.align3Point': { keys: ['4'] },
     'tool.rectSelection': { keys: ['r'] },
     'tool.lassoSelection': { keys: ['l'] },
     'tool.polygonSelection': { keys: ['p'] },

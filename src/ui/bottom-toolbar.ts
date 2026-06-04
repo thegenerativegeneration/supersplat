@@ -115,6 +115,12 @@ class BottomToolbar extends Container {
             icon: 'E358'
         });
 
+        const align3Point = new Button({
+            id: 'bottom-toolbar-align3pt',
+            class: 'bottom-toolbar-tool',
+            text: '3P'
+        });
+
         const coordSpace = new Button({
             id: 'bottom-toolbar-coord-space',
             class: 'bottom-toolbar-toggle',
@@ -156,6 +162,7 @@ class BottomToolbar extends Container {
         this.append(translate);
         this.append(rotate);
         this.append(scale);
+        this.append(align3Point);
         this.append(new Element({ class: 'bottom-toolbar-separator' }));
         this.append(measure);
         this.append(coordSpace);
@@ -174,6 +181,7 @@ class BottomToolbar extends Container {
         translate.dom.addEventListener('click', () => events.fire('tool.move'));
         rotate.dom.addEventListener('click', () => events.fire('tool.rotate'));
         scale.dom.addEventListener('click', () => events.fire('tool.scale'));
+        align3Point.dom.addEventListener('click', () => events.fire('tool.align3Point'));
         measure.dom.addEventListener('click', () => events.fire('tool.measure'));
         coordSpace.dom.addEventListener('click', () => events.fire('tool.toggleCoordSpace'));
         origin.dom.addEventListener('click', () => events.fire('pivot.toggleOrigin'));
@@ -196,6 +204,7 @@ class BottomToolbar extends Container {
             translate.class[toolName === 'move' ? 'add' : 'remove']('active');
             rotate.class[toolName === 'rotate' ? 'add' : 'remove']('active');
             scale.class[toolName === 'scale' ? 'add' : 'remove']('active');
+            align3Point.class[toolName === 'align3Point' ? 'add' : 'remove']('active');
             measure.class[toolName === 'measure' ? 'add' : 'remove']('active');
             eyedropper.class[toolName === 'eyedropperSelection' ? 'add' : 'remove']('active');
         });
@@ -234,6 +243,7 @@ class BottomToolbar extends Container {
         tooltips.register(translate, tooltip('tooltip.bottom-toolbar.translate', 'tool.move'));
         tooltips.register(rotate, tooltip('tooltip.bottom-toolbar.rotate', 'tool.rotate'));
         tooltips.register(scale, tooltip('tooltip.bottom-toolbar.scale', 'tool.scale'));
+        tooltips.register(align3Point, tooltip('tooltip.bottom-toolbar.align-3-point', 'tool.align3Point'));
         tooltips.register(measure, tooltip('tooltip.bottom-toolbar.measure'));
         tooltips.register(coordSpace, tooltip('tooltip.bottom-toolbar.local-space', 'tool.toggleCoordSpace'));
         tooltips.register(origin, tooltip('tooltip.bottom-toolbar.bound-center'));

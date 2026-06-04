@@ -9,18 +9,14 @@ import { Transform } from '../transform';
 import { localize } from '../ui/localization';
 
 const veca = new Vec3();
-const vecb = new Vec3();
-const vecc = new Vec3();
 const vecd = new Vec3();
 
 const mat = new Mat4();
 const mat2 = new Mat4();
 const mat3 = new Mat4();
+const rotMat = new Mat4();
 
 const quat = new Quat();
-const quat2 = new Quat();
-
-const toDeg = 180 / Math.PI;
 
 const isPrimary = (e: PointerEvent) => {
     return e.pointerType === 'mouse' ? e.button === 0 : e.isPrimary;
@@ -28,38 +24,6 @@ const isPrimary = (e: PointerEvent) => {
 
 const averageEdgeLength = (a: Vec3, b: Vec3, c: Vec3) => {
     return (a.distance(b) + a.distance(c) + b.distance(c)) / 3;
-};
-
-const orthogonalAxis = (v: Vec3, out: Vec3) => {
-    if (Math.abs(v.x) <= Math.abs(v.y) && Math.abs(v.x) <= Math.abs(v.z)) {
-        out.set(0, -v.z, v.y);
-    } else if (Math.abs(v.y) <= Math.abs(v.z)) {
-        out.set(-v.z, 0, v.x);
-    } else {
-        out.set(-v.y, v.x, 0);
-    }
-    out.normalize();
-};
-
-const setFromTo = (out: Quat, from: Vec3, to: Vec3) => {
-    const dot = Math.max(-1, Math.min(1, from.dot(to)));
-
-    if (dot > 1 - 1e-6) {
-        out.set(0, 0, 0, 1);
-        return;
-    }
-
-    if (dot < -1 + 1e-6) {
-        orthogonalAxis(from, vecd);
-        out.setFromAxisAngle(vecd, 180);
-        return;
-    }
-
-    vecd.cross(from, to);
-    const s = Math.sqrt((1 + dot) * 2);
-    const invs = 1 / s;
-    out.set(vecd.x * invs, vecd.y * invs, vecd.z * invs, s * 0.5);
-    out.normalize();
 };
 
 const calcBasis = (p0: Vec3, p1: Vec3, p2: Vec3, u: Vec3, v: Vec3, w: Vec3) => {
@@ -80,6 +44,35 @@ const calcBasis = (p0: Vec3, p1: Vec3, p2: Vec3, u: Vec3, v: Vec3, w: Vec3) => {
     v.normalize();
 
     return true;
+};
+
+const buildRotation = (
+    sourceU: Vec3,
+    sourceV: Vec3,
+    sourceW: Vec3,
+    targetU: Vec3,
+    targetV: Vec3,
+    targetW: Vec3,
+    out: Mat4
+) => {
+    const d = out.data;
+
+    const c0x = targetU.x * sourceU.x + targetV.x * sourceV.x + targetW.x * sourceW.x;
+    const c0y = targetU.y * sourceU.x + targetV.y * sourceV.x + targetW.y * sourceW.x;
+    const c0z = targetU.z * sourceU.x + targetV.z * sourceV.x + targetW.z * sourceW.x;
+
+    const c1x = targetU.x * sourceU.y + targetV.x * sourceV.y + targetW.x * sourceW.y;
+    const c1y = targetU.y * sourceU.y + targetV.y * sourceV.y + targetW.y * sourceW.y;
+    const c1z = targetU.z * sourceU.y + targetV.z * sourceV.y + targetW.z * sourceW.y;
+
+    const c2x = targetU.x * sourceU.z + targetV.x * sourceV.z + targetW.x * sourceW.z;
+    const c2y = targetU.y * sourceU.z + targetV.y * sourceV.z + targetW.y * sourceW.z;
+    const c2z = targetU.z * sourceU.z + targetV.z * sourceV.z + targetW.z * sourceW.z;
+
+    d[0] = c0x; d[1] = c0y; d[2] = c0z; d[3] = 0;
+    d[4] = c1x; d[5] = c1y; d[6] = c1z; d[7] = 0;
+    d[8] = c2x; d[9] = c2y; d[10] = c2z; d[11] = 0;
+    d[12] = 0; d[13] = 0; d[14] = 0; d[15] = 1;
 };
 
 const solveSimilarity = (source: Vec3[], target: Vec3[], outTranslation: Vec3, outRotation: Quat, outScale: number) => {
@@ -107,24 +100,11 @@ const solveSimilarity = (source: Vec3[], target: Vec3[], outTranslation: Vec3, o
 
     const scale = targetMetric / sourceMetric;
 
-    setFromTo(quat, su, tu);
-    quat.transformVector(sv, veca);
+    buildRotation(su, sv, sw, tu, tv, tw, rotMat);
+    outRotation.setFromMat4(rotMat);
 
-    vecb.copy(veca).sub(vecd.copy(tu).mulScalar(veca.dot(tu)));
-    vecc.copy(tv).sub(vecd.copy(tu).mulScalar(tv.dot(tu)));
-
-    if (vecb.lengthSq() > 1e-10 && vecc.lengthSq() > 1e-10) {
-        vecb.normalize();
-        vecc.normalize();
-        vecd.cross(vecb, vecc);
-        const angle = Math.atan2(tu.dot(vecd), Math.max(-1, Math.min(1, vecb.dot(vecc))));
-        quat2.setFromAxisAngle(tu, angle * toDeg);
-        outRotation.mul2(quat2, quat);
-    } else {
-        outRotation.copy(quat);
-    }
-
-    outRotation.transformVector(source[0], veca).mulScalar(scale);
+    rotMat.transformPoint(source[0], veca);
+    veca.mulScalar(scale);
     outTranslation.copy(target[0]).sub(veca);
 
     return { ok: true, scale };

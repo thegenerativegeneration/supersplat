@@ -1,5 +1,5 @@
 import { Container, Label } from '@playcanvas/pcui';
-import { Mat4, Quat, Vec3 } from 'playcanvas';
+import { Mat4, Quat, Ray, Vec3 } from 'playcanvas';
 
 import { EntityTransformOp } from '../edit-ops';
 import { ElementType } from '../element';
@@ -11,13 +11,12 @@ import { localize } from '../ui/localization';
 
 const veca = new Vec3();
 const vecd = new Vec3();
+const ray = new Ray();
 
 const mat = new Mat4();
 const mat2 = new Mat4();
 const mat3 = new Mat4();
 const rotMat = new Mat4();
-
-const quat = new Quat();
 
 const isPrimary = (e: PointerEvent) => {
     return e.pointerType === 'mouse' ? e.button === 0 : e.isPrimary;
@@ -321,13 +320,21 @@ class Align3PointTool {
         };
 
         const pickSplatPoint = async (splat: Splat, nx: number, ny: number): Promise<Vec3 | null> => {
-            scene.camera.pickPrep(splat, 'set');
-            const splatId = await scene.camera.pick(nx, ny);
-            if (splatId === 0xffffffff) {
+            const camera = scene.camera;
+            camera.picker.prepareDepth(splat);
+            const normalizedDepth = await camera.picker.readDepth(nx, ny);
+            if (normalizedDepth === null) {
                 return null;
             }
+
+            const linearDepth = normalizedDepth * (camera.far - camera.near) + camera.near;
+            const screenX = nx * scene.canvas.clientWidth;
+            const screenY = ny * scene.canvas.clientHeight;
+
+            camera.getRay(screenX, screenY, ray);
+            const t = linearDepth / ray.direction.dot(camera.forward);
             const worldPos = new Vec3();
-            return splat.calcSplatWorldPosition(splatId, worldPos) ? worldPos : null;
+            return worldPos.copy(ray.origin).add(veca.copy(ray.direction).mulScalar(t));
         };
 
         const pickTargetPoint = async (nx: number, ny: number): Promise<{ splat: Splat, worldPos: Vec3 } | null> => {

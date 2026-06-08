@@ -3,7 +3,7 @@
 .menu-panel {
     position: absolute;
 
-    &::not(.pcui-hidden) {
+    &:not(.pcui-hidden) {
         display: flex;
     }
     flex-direction: column;

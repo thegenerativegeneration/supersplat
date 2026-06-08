@@ -3,9 +3,14 @@ import { Quat, Vec3 } from 'playcanvas';
 
 import { Events } from '../events';
 import { localize } from './localization';
+import { MenuPanel } from './menu-panel';
 import { Pivot } from '../pivot';
 
 const v = new Vec3();
+
+let clipPosition: number[] | null = null;
+let clipRotation: number[] | null = null;
+let clipScale: number | null = null;
 
 class Transform extends Container {
     constructor(events: Events, args: ContainerArgs = {}) {
@@ -92,6 +97,7 @@ class Transform extends Container {
 
         let uiUpdating = false;
         let mouseUpdating = false;
+        let hasSelection = false;
 
         // update UI with pivot
         const updateUI = (pivot: Pivot) => {
@@ -153,7 +159,8 @@ class Transform extends Container {
 
         // toggle ui availability based on selection
         events.on('selection.changed', (selection) => {
-            positionVector.enabled = rotationVector.enabled = scaleInput.enabled = !!selection;
+            hasSelection = !!selection;
+            positionVector.enabled = rotationVector.enabled = scaleInput.enabled = hasSelection;
         });
 
         events.on('pivot.placed', (pivot: Pivot) => {
@@ -169,6 +176,131 @@ class Transform extends Container {
         events.on('pivot.ended', (pivot: Pivot) => {
             updateUI(pivot);
         });
+
+        // apply current UI input values as an undoable pivot move
+        const applyPivotChange = () => {
+            const pivot = events.invoke('pivot') as Pivot;
+            pivot.start();
+            updatePivot(pivot);
+            pivot.end();
+        };
+
+        const positionMenu = new MenuPanel([{
+            text: 'Copy Position',
+            isEnabled: () => hasSelection,
+            onSelect: () => {
+                clipPosition = [...positionVector.value];
+            }
+        }, {
+            text: 'Paste Position',
+            isEnabled: () => hasSelection && clipPosition !== null,
+            onSelect: () => {
+                if (clipPosition !== null) {
+                    positionVector.value = [...clipPosition];
+                    applyPivotChange();
+                }
+            }
+        }]);
+
+        const rotationMenu = new MenuPanel([{
+            text: 'Copy Rotation',
+            isEnabled: () => hasSelection,
+            onSelect: () => {
+                clipRotation = [...rotationVector.value];
+            }
+        }, {
+            text: 'Paste Rotation',
+            isEnabled: () => hasSelection && clipRotation !== null,
+            onSelect: () => {
+                if (clipRotation !== null) {
+                    rotationVector.value = [...clipRotation];
+                    applyPivotChange();
+                }
+            }
+        }]);
+
+        const scaleMenu = new MenuPanel([{
+            text: 'Copy Scale',
+            isEnabled: () => hasSelection,
+            onSelect: () => {
+                clipScale = scaleInput.value;
+            }
+        }, {
+            text: 'Paste Scale',
+            isEnabled: () => hasSelection && clipScale !== null,
+            onSelect: () => {
+                if (clipScale !== null) {
+                    scaleInput.value = clipScale;
+                    applyPivotChange();
+                }
+            }
+        }]);
+
+        const allMenu = new MenuPanel([{
+            text: 'Copy Transform',
+            isEnabled: () => hasSelection,
+            onSelect: () => {
+                clipPosition = [...positionVector.value];
+                clipRotation = [...rotationVector.value];
+                clipScale = scaleInput.value;
+            }
+        }, {
+            text: 'Paste Transform',
+            isEnabled: () => hasSelection && clipPosition !== null && clipRotation !== null && clipScale !== null,
+            onSelect: () => {
+                if (clipPosition && clipRotation && clipScale !== null) {
+                    positionVector.value = [...clipPosition];
+                    rotationVector.value = [...clipRotation];
+                    scaleInput.value = clipScale;
+                    applyPivotChange();
+                }
+            }
+        }]);
+
+        const contextMenus = [positionMenu, rotationMenu, scaleMenu, allMenu];
+        contextMenus.forEach(menu => document.body.appendChild(menu.dom));
+
+        const showMenu = (menu: MenuPanel, x: number, y: number) => {
+            contextMenus.forEach((m) => {
+                m.hidden = true;
+            });
+            menu.dom.style.position = 'fixed';
+            menu.dom.style.zIndex = '9999';
+            menu.dom.style.left = `${x}px`;
+            menu.dom.style.top = `${y}px`;
+            menu.hidden = false;
+        };
+
+        position.dom.addEventListener('contextmenu', (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            showMenu(positionMenu, event.clientX, event.clientY);
+        });
+
+        rotation.dom.addEventListener('contextmenu', (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            showMenu(rotationMenu, event.clientX, event.clientY);
+        });
+
+        scale.dom.addEventListener('contextmenu', (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            showMenu(scaleMenu, event.clientX, event.clientY);
+        });
+
+        this.dom.addEventListener('contextmenu', (event: MouseEvent) => {
+            event.preventDefault();
+            showMenu(allMenu, event.clientX, event.clientY);
+        });
+
+        window.addEventListener('pointerdown', (event: PointerEvent) => {
+            if (!contextMenus.some(m => m.dom.contains(event.target as Node))) {
+                contextMenus.forEach(m => {
+                    m.hidden = true;
+                });
+            }
+        }, true);
     }
 }
 

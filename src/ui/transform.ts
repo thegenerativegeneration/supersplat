@@ -2,7 +2,7 @@ import { Container, ContainerArgs, Label, NumericInput, VectorInput } from '@pla
 import { Quat, Vec3 } from 'playcanvas';
 
 import { Events } from '../events';
-import { localize } from './localization';
+import { i18n } from './localization';
 import { MenuPanel } from './menu-panel';
 import { Pivot } from '../pivot';
 
@@ -27,9 +27,9 @@ class Transform extends Container {
         });
 
         const positionLabel = new Label({
-            class: 'transform-label',
-            text: localize('panel.scene-manager.transform.position')
+            class: 'transform-label'
         });
+        i18n.bindText(positionLabel, 'panel.scene.transform.position');
 
         const positionVector = new VectorInput({
             class: 'transform-expand',
@@ -49,9 +49,9 @@ class Transform extends Container {
         });
 
         const rotationLabel = new Label({
-            class: 'transform-label',
-            text: localize('panel.scene-manager.transform.rotation')
+            class: 'transform-label'
         });
+        i18n.bindText(rotationLabel, 'panel.scene.transform.rotation');
 
         const rotationVector = new VectorInput({
             class: 'transform-expand',
@@ -71,9 +71,9 @@ class Transform extends Container {
         });
 
         const scaleLabel = new Label({
-            class: 'transform-label',
-            text: localize('panel.scene-manager.transform.scale')
+            class: 'transform-label'
         });
+        i18n.bindText(scaleLabel, 'panel.scene.transform.scale');
 
         const scaleInput = new NumericInput({
             class: 'transform-expand',
@@ -99,7 +99,9 @@ class Transform extends Container {
         let mouseUpdating = false;
         let hasSelection = false;
 
-        // update UI with pivot
+        // the panel shows the pivot in world coordinates. with a user-defined
+        // local frame set (see Splat.getPivot), the pivot is that frame, so
+        // zeroing the values aligns the frame with the world origin and axes
         const updateUI = (pivot: Pivot) => {
             uiUpdating = true;
             const transform = pivot.transform;
@@ -296,7 +298,7 @@ class Transform extends Container {
 
         window.addEventListener('pointerdown', (event: PointerEvent) => {
             if (!contextMenus.some(m => m.dom.contains(event.target as Node))) {
-                contextMenus.forEach(m => {
+                contextMenus.forEach((m) => {
                     m.hidden = true;
                 });
             }

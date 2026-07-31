@@ -1,9 +1,9 @@
-import type { FileSystem, Writer } from '@playcanvas/splat-transform';
+import { logger as splatTransformLogger, type FileSystem, type LogEvent, type Writer } from '@playcanvas/splat-transform';
 
 import { Events } from './events';
 import { GZipWriter } from './io';
-import { serializePly, ExperienceSettings, SerializeSettings } from './splat-serialize';
-import { localize } from './ui/localization';
+import { writeSplatFile, ExperienceSettings, SerializeSettings } from './splat-serialize';
+import { i18n } from './ui/localization';
 
 /**
  * Simple FileSystem wrapper around a single Writer.
@@ -27,7 +27,8 @@ class WriterFileSystem implements FileSystem {
                 return inner.bytesWritten;
             },
             write: (data: Uint8Array) => inner.write(data),
-            close: () => Promise.resolve()
+            close: () => Promise.resolve(),
+            abort: () => Promise.resolve()
         };
     }
 
@@ -126,6 +127,7 @@ const updateSceneSettings = async (user: User, sceneHash: string, settings: Expe
 class PublishWriter implements Writer {
     write: (data: Uint8Array) => void;
     close: () => Promise<any>;
+    abort: () => Promise<void> = () => Promise.resolve();
 
     private cursor = 0;
 
@@ -315,7 +317,7 @@ const registerPublishEvents = (events: Events) => {
         try {
             events.fire('progressStart', 'Publishing...');
             events.fire('progressUpdate', {
-                text: localize('popup.publish.converting', { ellipsis: true }),
+                text: i18n.t('popup.publish.converting', { ellipsis: true }),
                 progress: 0
             });
 
@@ -344,8 +346,8 @@ const registerPublishEvents = (events: Events) => {
 
                 await events.invoke('showPopup', {
                     type: 'info',
-                    header: localize('popup.publish.succeeded'),
-                    message: localize('popup.publish.message'),
+                    header: i18n.t('popup.publish.succeeded'),
+                    message: i18n.t('popup.publish.message'),
                     link: `${origin}/scene/${overwriteHash}/edit`
                 });
             } else {
@@ -361,10 +363,19 @@ const registerPublishEvents = (events: Events) => {
 
                 const progressFunc = (loaded: number, total: number) => {
                     events.fire('progressUpdate', {
-                        text: localize('popup.publish.uploading', { ellipsis: true }),
+                        text: i18n.t('popup.publish.uploading', { ellipsis: true }),
                         progress: 100 * loaded / total
                     });
                 };
+
+                // bridge splat-transform's write progress bar to the publish UI
+                splatTransformLogger.setRenderer({
+                    handle: (event: LogEvent) => {
+                        if (event.kind === 'barTick') {
+                            progressFunc(event.current, event.total);
+                        }
+                    }
+                });
 
                 // create the writer chain: gzip->stream->upload
                 const publishWriter = await PublishWriter.create(publishSettings);
@@ -374,7 +385,7 @@ const registerPublishEvents = (events: Events) => {
 
                 // serialize using WriterFileSystem wrapper (close is managed by caller)
                 const fs = new WriterFileSystem(gzipWriter);
-                await serializePly(splats, publishSettings.serializeSettings, fs, 'output.ply', progressFunc);
+                await writeSplatFile(splats, publishSettings.serializeSettings, 'ply', 'output.ply', {}, fs);
 
                 await gzipWriter.close();
                 const response = await publishWriter.close();
@@ -382,14 +393,14 @@ const registerPublishEvents = (events: Events) => {
                 if (!response) {
                     await events.invoke('showPopup', {
                         type: 'error',
-                        header: localize('popup.publish.failed'),
-                        message: localize('popup.publish.please-try-again')
+                        header: i18n.t('popup.publish.failed'),
+                        message: i18n.t('popup.publish.please-try-again')
                     });
                 } else {
                     await events.invoke('showPopup', {
                         type: 'info',
-                        header: localize('popup.publish.succeeded'),
-                        message: localize('popup.publish.message'),
+                        header: i18n.t('popup.publish.succeeded'),
+                        message: i18n.t('popup.publish.message'),
                         link: `${origin}/scene/${response.hash}/edit`
                     });
                 }
@@ -397,7 +408,7 @@ const registerPublishEvents = (events: Events) => {
         } catch (error) {
             await events.invoke('showPopup', {
                 type: 'error',
-                header: localize('popup.publish.failed'),
+                header: i18n.t('popup.publish.failed'),
                 message: `'${error.message ?? error}'`
             });
         } finally {

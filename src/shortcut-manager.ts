@@ -17,6 +17,7 @@ const defaultShortcuts: Record<string, ShortcutBinding> = {
     'camera.toggleOverlay': { keys: ['Tab'] },
     'camera.toggleMode': { keys: ['m'] },
     'grid.toggleVisible': { keys: ['g'] },
+    'camera.toggleShowInfo': { keys: ['i'] },
     'select.hide': { keys: ['h'] },
     'select.unhide': { keys: ['h'], shift: 'required' },
 
@@ -36,9 +37,12 @@ const defaultShortcuts: Record<string, ShortcutBinding> = {
     'select.delete': { keys: ['Delete', 'Backspace'] },
 
     // Tools
-    'tool.move': { keys: ['1'] },
-    'tool.rotate': { keys: ['2'] },
-    'tool.scale': { keys: ['3'] },
+    // 1/2/3 don't fire tool.move/rotate/scale directly: while a shape
+    // selection tool (box/sphere) is active they switch its gizmo mode
+    // instead of switching tools (see ToolManager)
+    'tool.moveShortcut': { keys: ['1'] },
+    'tool.rotateShortcut': { keys: ['2'] },
+    'tool.scaleShortcut': { keys: ['3'] },
     'tool.align3Point': { keys: ['4'] },
     'tool.rectSelection': { keys: ['r'] },
     'tool.lassoSelection': { keys: ['l'] },

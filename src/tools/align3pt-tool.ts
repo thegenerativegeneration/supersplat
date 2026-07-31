@@ -7,7 +7,7 @@ import { Events } from '../events';
 import { Scene } from '../scene';
 import { Splat } from '../splat';
 import { Transform } from '../transform';
-import { localize } from '../ui/localization';
+import { i18n } from '../ui/localization';
 
 const veca = new Vec3();
 const vecd = new Vec3();
@@ -222,21 +222,21 @@ class Align3PointTool {
 
         const updatePrompt = () => {
             if (!sourceSplat) {
-                promptLabel.text = localize('align.3pt.no-selection');
+                promptLabel.text = i18n.t('align.3pt.no-selection');
                 return;
             }
 
             if (sourcePoints.length < 3) {
-                promptLabel.text = `${localize('align.3pt.pick-source')} (${sourcePoints.length + 1}/3)`;
+                promptLabel.text = `${i18n.t('align.3pt.pick-source')} (${sourcePoints.length + 1}/3)`;
                 return;
             }
 
             if (!targetSplat) {
-                promptLabel.text = localize('align.3pt.pick-target-splat');
+                promptLabel.text = i18n.t('align.3pt.pick-target-splat');
                 return;
             }
 
-            promptLabel.text = `${localize('align.3pt.pick-target')} (${targetPoints.length + 1}/3)`;
+            promptLabel.text = `${i18n.t('align.3pt.pick-target')} (${targetPoints.length + 1}/3)`;
         };
 
         const reset = () => {
@@ -270,8 +270,8 @@ class Align3PointTool {
             if (!solved.ok) {
                 events.invoke('showPopup', {
                     type: 'error',
-                    header: localize('popup.error'),
-                    message: localize('align.3pt.invalid-points')
+                    header: i18n.t('popup.error'),
+                    message: i18n.t('align.3pt.invalid-points')
                 });
                 return false;
             }

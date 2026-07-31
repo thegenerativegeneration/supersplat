@@ -6,15 +6,15 @@ import { Events } from './events';
 import { BrowserFileSystem, MappedReadFileSystem } from './io';
 import { Scene } from './scene';
 import { Splat } from './splat';
-import { serializePly, serializePlyCompressed, SerializeSettings, serializeSog, serializeSplat, serializeViewer, SogSettings, ViewerExportSettings } from './splat-serialize';
-import { localize } from './ui/localization';
+import { SerializeSettings, serializeSog, serializeSpz, serializeViewer, SogSettings, SpzSettings, ViewerExportSettings, WebGPUUnavailableError, writeSplatFile } from './splat-serialize';
+import { i18n } from './ui/localization';
 
 // ts compiler and vscode find this type, but eslint does not
 type FilePickerAcceptType = unknown;
 
-type ExportType = 'ply' | 'splat' | 'sog' | 'viewer';
+type ExportType = 'ply' | 'splat' | 'sog' | 'spz' | 'viewer';
 
-type FileType = 'ply' | 'compressedPly' | 'splat' | 'sog' | 'htmlViewer' | 'packageViewer';
+type FileType = 'ply' | 'compressedPly' | 'splat' | 'sog' | 'spz' | 'htmlViewer' | 'packageViewer';
 
 interface SceneExportOptions {
     filename: string;
@@ -26,6 +26,9 @@ interface SceneExportOptions {
 
     // sog
     sogIterations?: number;
+
+    // spz
+    spzVersion?: 3 | 4;
 
     // viewer
     viewerExportSettings?: ViewerExportSettings;
@@ -54,8 +57,7 @@ const filePickerTypes: { [key: string]: FilePickerAcceptType } = {
     'lcc': {
         description: 'LCC Scene',
         accept: {
-            'application/json': ['.lcc'],
-            'application/octet-stream': ['.bin']
+            'application/x-lcc': ['.lcc', '.lcc2', '.bin']
         }
     },
     'splat': {
@@ -102,8 +104,7 @@ const allImportTypes = {
         'application/ply': ['.ply'],
         'application/x-gaussian-splat': ['.json', '.sog', '.splat', '.ksplat', '.spz'],
         'image/webp': ['.webp'],
-        'application/json': ['.lcc'],
-        'application/octet-stream': ['.bin'],
+        'application/x-lcc': ['.lcc', '.lcc2', '.bin'],
         'text/plain': ['.txt']
     }
 };
@@ -132,16 +133,17 @@ const isPlySequence = (filenames: string[]) => {
     return true;
 };
 
-// sog comprises a single meta.json file and zero or more .webp files
+// SOG has a meta.json file; streamed SOG has a lod-meta.json file.
 const isSog = (filenames: string[]) => {
     const count = (extension: string) => filenames.reduce((sum, f) => sum + (f.endsWith(extension) ? 1 : 0), 0);
-    return count('meta.json') === 1;
+    return count('lod-meta.json') === 1 || count('meta.json') === 1;
 };
 
-// The LCC file contains meta.lcc, index.bin, data.bin and shcoef.bin (optional)
+// The LCC file contains meta.lcc, index.bin, data.bin and shcoef.bin (optional).
+// LCC2 comprises a meta.lcc2 file and .sog/.spz chunk files.
 const isLcc = (filenames: string[]) => {
     const count = (extension: string) => filenames.reduce((sum, f) => sum + (f.endsWith(extension) ? 1 : 0), 0);
-    return count('.lcc') === 1;
+    return count('.lcc') === 1 || count('.lcc2') === 1;
 };
 
 type ImportFile = {
@@ -258,7 +260,7 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
     const showLoadError = async (message: string, filename: string) => {
         await events.invoke('showPopup', {
             type: 'error',
-            header: localize('popup.error-loading'),
+            header: i18n.t('popup.error-loading'),
             message: `${message} while loading '${filename}'`
         });
     };
@@ -270,10 +272,10 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
 
             // Determine the main file based on format
             let mainIndex: number;
-            if (filenames.some(f => f === 'meta.json')) {
-                mainIndex = filenames.findIndex(f => f === 'meta.json');
-            } else if (filenames.some(f => f.endsWith('.lcc'))) {
-                mainIndex = filenames.findIndex(f => f.endsWith('.lcc'));
+            if (filenames.some(f => f === 'meta.json' || f === 'lod-meta.json')) {
+                mainIndex = filenames.findIndex(f => f === 'meta.json' || f === 'lod-meta.json');
+            } else if (filenames.some(f => f.endsWith('.lcc') || f.endsWith('.lcc2'))) {
+                mainIndex = filenames.findIndex(f => f.endsWith('.lcc') || f.endsWith('.lcc2'));
             } else {
                 mainIndex = 0;  // Single file case
             }
@@ -287,12 +289,22 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
                 if (f.contents) fileSystem.addFile(f.filename, f.contents);
             });
 
+            // Multi-file container formats must load by their relative name so the
+            // library resolves sibling files against the file system's baseUrl
+            // (path-joining a full URL corrupts the 'http://' prefix)
+            const lowerMainFilename = mainFile.filename.toLowerCase();
+            const isContainer = lowerMainFilename === 'meta.json' || lowerMainFilename === 'lod-meta.json' || lowerMainFilename.endsWith('.lcc') || lowerMainFilename.endsWith('.lcc2');
+
             // For URL-only single file, use full URL as filename
-            const filename = (files.length === 1 && !mainFile.contents && mainFile.url) ?
+            const filename = (files.length === 1 && !mainFile.contents && mainFile.url && !isContainer) ?
                 mainFile.url :
                 mainFile.filename;
 
             const model = await scene.assetLoader.load(filename, fileSystem, animationFrame);
+            if (!model) {
+                // user cancelled the load
+                return null;
+            }
             await scene.add(model);
             return model;
         } catch (error) {
@@ -309,20 +321,9 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
 
         if (isPlySequence(filenames)) {
             // handle ply sequence
-            events.fire('plysequence.setFrames', files.map(f => f.contents));
+            events.fire('sequence.setPlyFrames', files.map(f => f.contents));
             events.fire('timeline.frame', 0);
         } else if (isSog(filenames) || isLcc(filenames)) {
-            if (isLcc(filenames)) {
-                const response = await events.invoke('showPopup', {
-                    type: 'okcancel',
-                    header: 'LCC',
-                    message: localize('popup.lcc-upload-warning'),
-                    link: `${window.location.origin}/upload`
-                });
-                if (response.action === 'cancel') {
-                    return result;
-                }
-            }
             const model = await importSplatModel(files, animationFrame);
             if (model) result.push(model);
         } else {
@@ -369,7 +370,7 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
         fileSelector = document.createElement('input');
         fileSelector.setAttribute('id', 'file-selector');
         fileSelector.setAttribute('type', 'file');
-        fileSelector.setAttribute('accept', '.ply,.splat,meta.json,.json,.webp,.ssproj,.sog,.lcc,.bin,.txt,.ksplat,.spz');
+        fileSelector.setAttribute('accept', '.ply,.splat,meta.json,.json,.webp,.ssproj,.sog,.lcc,.lcc2,.bin,.txt,.ksplat,.spz');
         fileSelector.setAttribute('multiple', 'true');
 
         fileSelector.onchange = () => {
@@ -475,7 +476,7 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
                         }
                     }
                 }
-                events.fire('plysequence.setFrames', files);
+                events.fire('sequence.setPlyFrames', files);
                 events.fire('timeline.frame', 0);
             }
         } catch (error) {
@@ -501,7 +502,8 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
         const fileType: FileType =
             (exportType === 'viewer') ? (options.viewerExportSettings!.type === 'zip' ? 'packageViewer' : 'htmlViewer') :
                 (exportType === 'ply') ? (options.compressedPly ? 'compressedPly' : 'ply') :
-                    (exportType === 'sog') ? 'sog' : 'splat';
+                    (exportType === 'sog') ? 'sog' :
+                        (exportType === 'spz') ? 'spz' : 'splat';
 
         if (hasFilePicker) {
             try {
@@ -522,8 +524,8 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
     });
 
     events.function('scene.write', async (fileType: FileType, options: SceneExportOptions, stream?: FileSystemWritableFileStream) => {
-        // SOG and viewer exports have their own progress UI, other formats use spinner
-        const useSpinner = fileType !== 'sog' && fileType !== 'htmlViewer' && fileType !== 'packageViewer';
+        // SOG, SPZ and viewer exports have their own progress UI, other formats use spinner
+        const useSpinner = fileType !== 'sog' && fileType !== 'spz' && fileType !== 'htmlViewer' && fileType !== 'packageViewer';
 
         if (useSpinner) {
             events.fire('startSpinner');
@@ -544,15 +546,15 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
 
             switch (fileType) {
                 case 'ply':
-                    await serializePly(splats, serializeSettings, fs);
+                    await writeSplatFile(splats, serializeSettings, 'ply', 'output.ply', {}, fs);
                     break;
                 case 'compressedPly':
                     serializeSettings.minOpacity = 1 / 255;
                     serializeSettings.removeInvalid = true;
-                    await serializePlyCompressed(splats, serializeSettings, fs);
+                    await writeSplatFile(splats, serializeSettings, 'compressed-ply', 'output.compressed.ply', {}, fs);
                     break;
                 case 'splat':
-                    await serializeSplat(splats, serializeSettings, fs);
+                    await writeSplatFile(splats, serializeSettings, 'splat', 'output.splat', {}, fs);
                     break;
                 case 'sog': {
                     const sogSettings: SogSettings = {
@@ -565,6 +567,17 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
                     await serializeSog(splats, sogSettings, fs);
                     break;
                 }
+                case 'spz': {
+                    const spzSettings: SpzSettings = {
+                        ...serializeSettings,
+                        minOpacity: 1 / 255,
+                        removeInvalid: true,
+                        version: options.spzVersion ?? 4,
+                        events
+                    };
+                    await serializeSpz(splats, spzSettings, fs);
+                    break;
+                }
                 case 'htmlViewer':
                 case 'packageViewer':
                     await serializeViewer(splats, serializeSettings, { ...viewerExportSettings!, events }, fs);
@@ -572,11 +585,20 @@ const initFileHandler = (scene: Scene, events: Events, dropTarget: HTMLElement) 
             }
 
         } catch (error) {
-            await events.invoke('showPopup', {
-                type: 'error',
-                header: localize('popup.error-loading'),
-                message: `${error.message ?? error} while saving file`
-            });
+            if (error instanceof WebGPUUnavailableError) {
+                await events.invoke('showPopup', {
+                    type: 'error',
+                    header: i18n.t('popup.error'),
+                    message: i18n.t('popup.webgpu-unavailable')
+                });
+            } else {
+                const message = error instanceof Error ? error.message : String(error);
+                await events.invoke('showPopup', {
+                    type: 'error',
+                    header: i18n.t('popup.error'),
+                    message: `${message} while saving file`
+                });
+            }
         } finally {
             if (useSpinner) {
                 events.fire('stopSpinner');

@@ -131,6 +131,8 @@ class Ticks extends Container {
                 label.addEventListener('contextmenu', (event: MouseEvent) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    // on macOS ctrl+click also raises contextmenu; it stamps the key instead
+                    if (event.ctrlKey && event.button === 0) return;
                     events.fire('timeline.keyContextMenu', keyFrame, event.clientX, event.clientY);
                 });
 
@@ -140,7 +142,7 @@ class Ticks extends Container {
                 let toFrame = -1;
 
                 label.addEventListener('pointerdown', (event) => {
-                    if (!dragging && event.isPrimary) {
+                    if (!dragging && event.isPrimary && event.button === 0) {
                         dragging = true;
                         copying = event.shiftKey;
                         label.setPointerCapture(event.pointerId);

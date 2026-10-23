@@ -24,7 +24,7 @@ type BalanceInput = {
 
 type BalanceResult =
     { ok: true, frames: number[], iterations: number } |
-    { ok: false, reason: 'tooFewKeys' | 'lingerTooLong' | 'tooFewFrames' };
+    { ok: false, reason: 'tooFewKeys' | 'lingerTooLong' | 'tooFewFrames' | 'keysChanged' };
 
 const MAX_ITERATIONS = 10;
 const SAMPLES_PER_SEGMENT = 32;

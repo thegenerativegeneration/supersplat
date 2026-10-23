@@ -19,12 +19,24 @@ const registerTimingEvents = (events: Events) => {
             fov: p.fov ?? fallbackFov
         }));
 
+        const snapshot = poses.map(p => `${p.name}@${p.frame}`).join('|');
         const sampleStart = performance.now();
         // too few keys fails below without needing the scene
         const distances = (poses.length >= 2 ?
             await events.invoke('camera.sampleDistances', samples) :
             []) as (number | null)[];
         const sampleMs = performance.now() - sampleStart;
+
+        // the keys moved while sampling; the computed frames would not match them
+        const current = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
+        if (current.map(p => `${p.name}@${p.frame}`).join('|') !== snapshot) {
+            await events.invoke('showPopup', {
+                type: 'error',
+                header: i18n.t('popup.balance.failed'),
+                message: i18n.t('popup.balance.keysChanged')
+            });
+            return { ok: false, reason: 'keysChanged' };
+        }
 
         const keys: BalanceKey[] = samples.map((s, i) => ({
             position: s.position,

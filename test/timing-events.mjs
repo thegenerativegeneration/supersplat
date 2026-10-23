@@ -7,7 +7,7 @@ import { Events } from './.build/src/events.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 
-const setup = (frames, lingers = []) => {
+const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) => (i === 1 ? null : 1))) => {
     const events = new Events();
     events.function('timeline.frames', () => 181);
     events.function('timeline.frameRate', () => 30);
@@ -16,7 +16,7 @@ const setup = (frames, lingers = []) => {
     events.function('timeline.frame', () => 0);
     events.function('timeline.rotationWeight', () => 1);
     events.function('camera.fov', () => 60);
-    events.function('camera.sampleDistances', async poses => poses.map((_, i) => (i === 1 ? null : 1)));
+    events.function('camera.sampleDistances', poses => sample(poses, events));
 
     const popups = [];
     events.function('showPopup', async (args) => {
@@ -59,9 +59,32 @@ const timingEventsChecks = {
         const result = await events.invoke('timing.balance');
         assert.equal(result.ok, false);
         assert.equal(popups.length, 1);
+        assert.equal(result.reason, 'lingerTooLong');
         assert.equal(popups[0].type, 'error');
         assert.equal(ops.length, 0);
         assert.deepEqual(sortedKeys(events), [0, 10, 20]);
+    },
+
+    async 'timing: undo restores the original frames'() {
+        const { events, ops } = setup([0, 10, 20]);
+        await events.invoke('timing.balance');
+        assert.deepEqual(sortedKeys(events), [0, 90, 180]);
+        ops[0].undo();
+        assert.deepEqual(sortedKeys(events), [0, 10, 20]);
+        ops[0].do();
+        assert.deepEqual(sortedKeys(events), [0, 90, 180]);
+    },
+
+    async 'timing: keys changing while sampling abort the balance'() {
+        const { events, ops, popups } = setup([0, 10, 20], [], async (poses, ev) => {
+            ev.fire('track.moveKey', 20, 25);
+            return poses.map(() => 1);
+        });
+        const result = await events.invoke('timing.balance');
+        assert.deepEqual(result, { ok: false, reason: 'keysChanged' });
+        assert.equal(popups.length, 1);
+        assert.equal(ops.length, 1);
+        assert.deepEqual(sortedKeys(events), [0, 10, 25]);
     }
 };
 

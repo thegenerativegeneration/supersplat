@@ -33,12 +33,23 @@ class KeyLingerPopover extends Container {
         let syncing = false;
 
         const close = () => {
+            // blur first: a typed value only commits on blur, and must do so while visible
+            if (!this.hidden) {
+                input.blur();
+            }
             this.hidden = true;
         };
 
         const lingerOf = (keyFrame: number) => {
             const lingers = events.invoke('camera.keyLingers') as { frame: number, linger: number }[] ?? [];
             return lingers.find(l => l.frame === keyFrame)?.linger ?? 0;
+        };
+
+        const cancel = () => {
+            syncing = true;
+            input.value = lingerOf(frame);
+            close();
+            syncing = false;
         };
 
         input.on('change', (value: number) => {
@@ -77,7 +88,7 @@ class KeyLingerPopover extends Container {
         window.addEventListener('keydown', (event: KeyboardEvent) => {
             if (event.key === 'Escape' && !this.hidden) {
                 event.stopPropagation();
-                close();
+                cancel();
             }
         }, true);
     }

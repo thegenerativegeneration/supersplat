@@ -125,6 +125,16 @@ class Tooltips extends Container {
             targets.set(target, { dom: target.dom, enter, leave });
         };
 
+        // a context menu or popover opening over a target replaces its tooltip
+        const hide = () => {
+            if (timer >= 0) {
+                clearTimeout(timer);
+            }
+            timer = -1;
+            style.display = 'none';
+        };
+        window.addEventListener('contextmenu', hide, true);
+
         this.unregister = (target: Element) => {
             const value = targets.get(target);
             if (value) {
@@ -135,6 +145,7 @@ class Tooltips extends Container {
         };
 
         this.destroy = () => {
+            window.removeEventListener('contextmenu', hide, true);
             for (const target of targets.keys()) {
                 this.unregister(target);
             }

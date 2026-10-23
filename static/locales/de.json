@@ -291,6 +291,8 @@
     "popup.export.loop-mode.none": "Keine",
     "popup.export.loop-mode.repeat": "Wiederholen",
     "popup.export.loop-mode.pingpong": "Ping Pong",
+    "popup.export.loop-mismatch": "Der Loop-Modus weicht von der Loop-Einstellung der Zeitleiste ab. Das ausgewogene Timing wird eventuell falsch abgespielt.",
+    "popup.export.loop-match": "An Zeitleiste anpassen",
     "popup.export.background-color": "Hintergrund",
     "popup.export.fov": "Sichtfeld (FoV)",
     "popup.export.compress-ply": "PLY komprimieren",

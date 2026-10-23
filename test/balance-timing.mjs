@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { balanceTiming } from './.build/src/anim/balance-timing.js';
+import { loopModeMatchesTimeline } from './.build/src/anim/loop-mode.js';
 
 const key = (px, py, pz, tx, ty, tz, { fov = 60, linger = 0, distance = 1 } = {}) => ({
     position: { x: px, y: py, z: pz },
@@ -148,6 +149,15 @@ const balanceTimingChecks = {
         assert.deepEqual(a, b);
         assert.equal(a.ok, true);
         strictlyIncreasing(a.frames);
+    },
+
+    async 'loop: mode matching'() {
+        assert.equal(loopModeMatchesTimeline('repeat', true), true);
+        assert.equal(loopModeMatchesTimeline('none', false), true);
+        assert.equal(loopModeMatchesTimeline('pingpong', false), true);
+        assert.equal(loopModeMatchesTimeline('repeat', false), false);
+        assert.equal(loopModeMatchesTimeline('none', true), false);
+        assert.equal(loopModeMatchesTimeline('pingpong', true), false);
     }
 };
 

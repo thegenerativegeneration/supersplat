@@ -291,6 +291,8 @@
     "popup.export.loop-mode.none": "无",
     "popup.export.loop-mode.repeat": "重复",
     "popup.export.loop-mode.pingpong": "乒乓",
+    "popup.export.loop-mismatch": "Loop mode differs from the timeline's loop setting. Balanced timing may play wrong.",
+    "popup.export.loop-match": "Match timeline",
     "popup.export.background-color": "背景颜色",
     "popup.export.fov": "视野角",
     "popup.export.compress-ply": "压缩 PLY",

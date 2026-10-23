@@ -67,6 +67,27 @@
                     display: flex;
                 }
 
+                &.loop-mismatch-row {
+                    height: auto;
+                    align-items: flex-start;
+                    gap: 8px;
+                }
+
+                .loop-mismatch-message {
+                    flex: 1;
+                    margin: 0;
+                    line-height: 18px;
+                    text-wrap: wrap;
+                    color: $text-secondary;
+                }
+
+                .loop-mismatch-button {
+                    flex-shrink: 0;
+                    margin: 0;
+                    height: 24px;
+                    line-height: 22px;
+                }
+
                 .label {
                     width: 140px;
                     margin: 0px;

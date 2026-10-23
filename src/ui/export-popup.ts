@@ -2,6 +2,7 @@ import { BooleanInput, Button, ColorPicker, Container, Element, Label, SelectInp
 
 import { Pose } from '../camera-poses';
 import { i18n } from './localization';
+import { createLoopMismatchRow } from './loop-mismatch-row';
 import { Events } from '../events';
 import { ExportChoices, ExportDialogResult, ExportType } from '../export-options';
 import { ExportSettings } from '../export-settings';
@@ -144,6 +145,7 @@ class ExportPopup extends Container {
         const loopRow = new Container({ class: 'row' });
         loopRow.append(loopLabel);
         loopRow.append(loopSelect);
+        const loopMismatch = createLoopMismatchRow(events, loopSelect, () => animationToggle.value);
 
         // viewer: clear color
 
@@ -319,6 +321,7 @@ class ExportPopup extends Container {
         content.append(viewerTypeRow);
         content.append(animationRow);
         content.append(loopRow);
+        content.append(loopMismatch.row);
         content.append(colorRow);
         content.append(fovRow);
         content.append(compressRow);
@@ -507,6 +510,7 @@ class ExportPopup extends Container {
 
         animationToggle.on('change', (value: boolean) => {
             loopSelect.enabled = value;
+            loopMismatch.update();
         });
 
         const reset = (exportType: FileDialogType, splatNames: string[], hasPoses: boolean) => {
@@ -571,6 +575,7 @@ class ExportPopup extends Container {
             animationToggle.enabled = hasPoses;
             loopSelect.value = events.invoke('timeline.loop') ? 'repeat' : 'none';
             loopSelect.enabled = hasPoses;
+            loopMismatch.update();
 
             colorPicker.value = [bgClr.r, bgClr.g, bgClr.b];
 

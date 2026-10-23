@@ -3,6 +3,7 @@ import { BooleanInput, Button, ColorPicker, Container, Element, Label, SelectInp
 import { Pose } from '../camera-poses';
 import { Events } from '../events';
 import { i18n } from './localization';
+import { createLoopMismatchRow } from './loop-mismatch-row';
 import { PublishLimits, PublishSettings, UserStatus } from '../publish';
 import { AnimTrack, ExperienceSettings, defaultPostEffectSettings } from '../splat-serialize';
 import sceneExport from './svg/export.svg';
@@ -169,6 +170,7 @@ class PublishSettingsDialog extends Container {
         const loopRow = new Container({ class: 'row' });
         loopRow.append(loopLabel);
         loopRow.append(loopSelect);
+        const loopMismatch = createLoopMismatchRow(events, loopSelect, () => loopSelect.enabled);
 
         // background color
 
@@ -244,6 +246,7 @@ class PublishSettingsDialog extends Container {
         content.append(fovRow);
         content.append(animationRow);
         content.append(loopRow);
+        content.append(loopMismatch.row);
         content.append(bandsRow);
         content.append(generateLodsRow);
         content.append(generateLodsRequiredMessage);
@@ -326,6 +329,7 @@ class PublishSettingsDialog extends Container {
                 loopRow.hidden = false;
                 loopSelect.enabled = animOn && hasPosesState;
             }
+            loopMismatch.update();
 
             // uploading a model is what the limits apply to; an animation-only update is always allowed
             const uploadsModel = isNew || modelOn;

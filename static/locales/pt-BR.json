@@ -291,6 +291,8 @@
     "popup.export.loop-mode.none": "Nenhum",
     "popup.export.loop-mode.repeat": "Repetir",
     "popup.export.loop-mode.pingpong": "Ping Pong",
+    "popup.export.loop-mismatch": "Loop mode differs from the timeline's loop setting. Balanced timing may play wrong.",
+    "popup.export.loop-match": "Match timeline",
     "popup.export.background-color": "Cor de Fundo",
     "popup.export.fov": "Campo de Visão",
     "popup.export.compress-ply": "Comprimir PLY",

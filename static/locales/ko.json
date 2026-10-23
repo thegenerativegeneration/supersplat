@@ -291,6 +291,8 @@
     "popup.export.loop-mode.none": "없음",
     "popup.export.loop-mode.repeat": "반복",
     "popup.export.loop-mode.pingpong": "핑퐁",
+    "popup.export.loop-mismatch": "Loop mode differs from the timeline's loop setting. Balanced timing may play wrong.",
+    "popup.export.loop-match": "Match timeline",
     "popup.export.background-color": "배경색",
     "popup.export.fov": "시야각",
     "popup.export.compress-ply": "PLY 압축",

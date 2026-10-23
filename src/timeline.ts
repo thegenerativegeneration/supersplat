@@ -11,6 +11,7 @@ const registerTimelineEvents = (events: Events) => {
     let frames = 180;
     let frameRate = 30;
     let smoothness = 1;
+    let rotationWeight = 1;
     let loop = true;
 
     // current frame
@@ -85,6 +86,24 @@ const registerTimelineEvents = (events: Events) => {
 
     events.on('timeline.setSmoothness', (value: number) => {
         setSmoothness(value);
+    });
+
+    // rotation weight, clamped to [0, 4]
+
+    const setRotationWeight = (value: number) => {
+        const clamped = Math.min(4, Math.max(0, value));
+        if (clamped !== rotationWeight) {
+            rotationWeight = clamped;
+            events.fire('timeline.rotationWeight', rotationWeight);
+        }
+    };
+
+    events.function('timeline.rotationWeight', () => {
+        return rotationWeight;
+    });
+
+    events.on('timeline.setRotationWeight', (value: number) => {
+        setRotationWeight(value);
     });
 
     // loop
@@ -201,6 +220,7 @@ const registerTimelineEvents = (events: Events) => {
             frameRate,
             frame,
             smoothness,
+            rotationWeight,
             loop
         };
     });
@@ -211,6 +231,7 @@ const registerTimelineEvents = (events: Events) => {
         frameRate = data.frameRate ?? 30;
         frame = data.frame ?? 0;
         smoothness = data.smoothness ?? 1;
+        rotationWeight = data.rotationWeight ?? 1;
         loop = data.loop ?? true;
 
         // Fire events to update UI (always fire to ensure rebuild)
@@ -218,6 +239,7 @@ const registerTimelineEvents = (events: Events) => {
         events.fire('timeline.frameRate', frameRate);
         events.fire('timeline.frame', frame);
         events.fire('timeline.smoothness', smoothness);
+        events.fire('timeline.rotationWeight', rotationWeight);
         events.fire('timeline.loop', loop);
     });
 };

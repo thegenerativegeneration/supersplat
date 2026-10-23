@@ -4,6 +4,7 @@ import { Vec3 } from 'playcanvas';
 
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
 import { Events } from './.build/src/events.js';
+import { registerTimelineEvents } from './.build/src/timeline.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 
 const setup = (frames) => {
@@ -76,6 +77,26 @@ const cameraTrackChecks = {
         const other = setup([]);
         other.events.invoke('docDeserialize.poseSets', sets);
         assert.deepEqual(other.events.invoke('camera.keyLingers'), [{ frame: 30, linger: 1.5 }]);
+    },
+
+    async 'timeline: rotation weight defaults to 1 and round-trips'() {
+        const events = new Events();
+        registerTimelineEvents(events);
+
+        events.invoke('docDeserialize.timeline', {});
+        assert.equal(events.invoke('timeline.rotationWeight'), 1);
+
+        events.fire('timeline.setRotationWeight', 2.5);
+        const data = events.invoke('docSerialize.timeline');
+        assert.equal(data.rotationWeight, 2.5);
+
+        const restored = new Events();
+        registerTimelineEvents(restored);
+        restored.invoke('docDeserialize.timeline', data);
+        assert.equal(restored.invoke('timeline.rotationWeight'), 2.5);
+
+        events.fire('timeline.setRotationWeight', 9);
+        assert.equal(events.invoke('timeline.rotationWeight'), 4);
     }
 };
 

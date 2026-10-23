@@ -1,4 +1,5 @@
 import { AnimTrack } from './anim-track';
+import { CameraAnimTrack } from './camera-poses';
 import { AnimTrackEditOp } from './edit-ops';
 import { Events } from './events';
 
@@ -55,6 +56,16 @@ const registerTrackManagerEvents = (events: Events) => {
     // Copy key in active track
     events.on('track.copyKey', (fromFrame: number, toFrame: number) => {
         trackEdit('copyKey', track => track.copyKey(fromFrame, toFrame));
+    });
+
+    // Set how long the camera holds at a key
+    events.on('track.setLinger', (frame: number, seconds: number) => {
+        trackEdit('setLinger', track => (track as CameraAnimTrack).setLinger(frame, seconds));
+    });
+
+    // Reassign key frames in order
+    events.on('track.retime', (frames: number[]) => {
+        trackEdit('retime', track => (track as CameraAnimTrack).retime(frames));
     });
 };
 

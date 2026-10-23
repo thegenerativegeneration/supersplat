@@ -13,6 +13,7 @@ import { EditorError } from './.build/src/editor-command.js';
 import { Events } from './.build/src/events.js';
 import { runSelectionGesture } from './.build/src/selection-gesture.js';
 import { balanceTimingChecks } from './balance-timing.mjs';
+import { cameraTrackChecks } from './camera-track.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { webmcpChecks } from './webmcp.mjs';
 
@@ -65,6 +66,7 @@ const quietly = async (fn) => {
 
 const checks = {
     ...balanceTimingChecks,
+    ...cameraTrackChecks,
     ...editorCommandChecks,
     ...webmcpChecks,
 

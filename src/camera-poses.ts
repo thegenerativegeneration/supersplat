@@ -9,8 +9,12 @@ type Pose = {
     frame: number,
     position: Vec3,
     target: Vec3,
-    fov?: number
+    fov?: number,
+    // seconds to hold at this key; absent or 0 means none
+    linger?: number
 };
+
+const MAX_LINGER = 60;
 
 /**
  * Camera animation track that manages camera keyframes and interpolation.
@@ -70,7 +74,8 @@ class CameraAnimTrack implements AnimTrack {
             frame,
             position: new Vec3(pose.position.x, pose.position.y, pose.position.z),
             target: new Vec3(pose.target.x, pose.target.y, pose.target.z),
-            fov: pose.fov
+            fov: pose.fov,
+            linger: existingIndex === -1 ? undefined : this.poses[existingIndex].linger
         };
 
         if (existingIndex === -1) {
@@ -131,11 +136,42 @@ class CameraAnimTrack implements AnimTrack {
             frame: toFrame,
             position: source.position.clone(),
             target: source.target.clone(),
-            fov: source.fov
+            fov: source.fov,
+            linger: source.linger
         });
 
         this.rebuildSpline();
         this.events.fire('track.keyAdded', toFrame);
+        return true;
+    }
+
+    setLinger(frame: number, seconds: number): boolean {
+        const pose = this.poses.find(p => p.frame === frame);
+        if (!pose) return false;
+
+        const linger = Math.min(MAX_LINGER, Math.max(0, seconds));
+        if (linger === (pose.linger ?? 0)) return false;
+
+        pose.linger = linger;
+        this.events.fire('track.keyUpdated', frame);
+        return true;
+    }
+
+    /**
+     * Assign frames[i] to the i-th pose ordered by current frame, including
+     * poses beyond the timeline end.
+     */
+    retime(frames: number[]): boolean {
+        if (frames.length !== this.poses.length) return false;
+
+        const ordered = this.poses.slice().sort((a, b) => a.frame - b.frame);
+        if (ordered.every((p, i) => p.frame === frames[i])) return false;
+
+        ordered.forEach((p, i) => {
+            p.frame = frames[i];
+        });
+        this.rebuildSpline();
+        this.events.fire('track.keysLoaded');
         return true;
     }
 
@@ -155,7 +191,8 @@ class CameraAnimTrack implements AnimTrack {
             frame: p.frame,
             position: p.position.clone(),
             target: p.target.clone(),
-            fov: p.fov
+            fov: p.fov,
+            linger: p.linger
         }));
     }
 
@@ -165,7 +202,8 @@ class CameraAnimTrack implements AnimTrack {
             frame: p.frame,
             position: p.position.clone(),
             target: p.target.clone(),
-            fov: p.fov
+            fov: p.fov,
+            linger: p.linger
         }));
         this.rebuildSpline();
         this.events.fire('track.keysLoaded');
@@ -285,6 +323,12 @@ const registerCameraPosesEvents = (events: Events) => {
         return track.getPoses();
     });
 
+    events.function('camera.keyLingers', () => {
+        return track.getPoses()
+        .filter(p => (p.linger ?? 0) > 0)
+        .map(p => ({ frame: p.frame, linger: p.linger }));
+    });
+
     events.on('camera.loadPoses', (poses: Pose[]) => {
         track.loadPoses(poses);
     });
@@ -307,7 +351,8 @@ const registerCameraPosesEvents = (events: Events) => {
                     frame: pose.frame,
                     position: pack3(pose.position),
                     target: pack3(pose.target),
-                    fov: pose.fov
+                    fov: pose.fov,
+                    ...(pose.linger > 0 ? { linger: pose.linger } : {})
                 };
             })
         }];
@@ -328,7 +373,8 @@ const registerCameraPosesEvents = (events: Events) => {
                 frame: docPose.frame ?? (index * fps),
                 position: new Vec3(docPose.position),
                 target: new Vec3(docPose.target),
-                fov: docPose.fov ?? defaultFov
+                fov: docPose.fov ?? defaultFov,
+                linger: docPose.linger ?? 0
             };
         });
 

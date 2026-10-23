@@ -9,12 +9,14 @@ Balance spreads your camera keys in time so the camera moves at an even speed th
 3. The keys move in time. Their order stays the same.
 
 - Total length stays the **Total Frames** value.
+- With loop off, Balance always puts the first key at frame 0 and the last key at the final frame. A pre-roll or post-roll you set by hand is replaced; use linger on the end keys instead.
+- Keys beyond **Total Frames** are pulled back into range.
 - One Ctrl+Z undoes the whole Balance.
 - Balance counts moving, turning, zoom and closeness to the scene. Close passes get more time.
 
 ## Rotation weight
 
-The number next to **Balance** sets how much turning counts. Range 0 to 4, default 1.
+The number next to **Balance** ("How much turning counts compared to moving") sets how much turning counts. Range 0 to 4, default 1.
 
 - Higher: turns get more time.
 - 0: turning counts for nothing.
@@ -39,6 +41,7 @@ If Balance fails, a box titled **Couldn't Balance Timing** opens. The message sa
 
 - "Add at least two camera keys to balance their timing."
 - "There are too few frames for this many keys. Increase Total Frames or remove keys."
+- "The keys changed while balancing. Try again." Balance stops if you move or edit keys while it works.
 - "The keys' linger times don't fit in the animation. Shorten the linger times or increase Total Frames."
 
 ## Export

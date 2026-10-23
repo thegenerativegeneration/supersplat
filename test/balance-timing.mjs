@@ -95,6 +95,19 @@ const balanceTimingChecks = {
         near(result.frames, [0, 50, 100, 150], 1);
     },
 
+    async 'balance: loop with a linger'() {
+        // 200 frames, key 1 lingers 30 frames: 170 left, 42.5 per segment, and
+        // key 1's 30 frames split 15/15 onto segments 0 and 1 -> 57.5, 57.5, 42.5, 42.5
+        const result = run([
+            at(0, {}, 0),
+            at(1, { linger: 1 }, 0),
+            at(1, {}, 1),
+            at(0, {}, 1)
+        ], { loop: true, frames: 200 });
+        assert.equal(result.ok, true);
+        near(result.frames, [0, 58, 115, 158], 2);
+    },
+
     async 'balance: loop with two keys'() {
         const result = run([at(0), at(1)], { loop: true, frames: 200 });
         assert.equal(result.ok, true);

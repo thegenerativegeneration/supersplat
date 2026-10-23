@@ -16,6 +16,8 @@ A live version of this tool is available at: https://superspl.at/editor
 
 To learn more about using SuperSplat, please refer to the [User Guide](https://developer.playcanvas.com/user-manual/gaussian-splatting/editing/supersplat/).
 
+Guides: [Balance timing](docs/balance-timing.md)
+
 ## Local Development
 
 To initialize a local development environment for SuperSplat, ensure you have [Node.js](https://nodejs.org/) 20.19 or later installed. Follow these steps:

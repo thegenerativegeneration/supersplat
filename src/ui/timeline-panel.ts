@@ -97,19 +97,36 @@ class Ticks extends Container {
                 return padding + width + 10 + Math.min(index, 3) * 2;
             };
 
-            // keys that linger get a band from the previous key to the next one
+            // keys that linger get a band between their neighbours. Without
+            // looping, the first/last key hold from the start / to the end;
+            // with looping they wrap around, drawn as two pieces.
+            const looping = !!events.invoke('timeline.loop');
             const lingers = events.invoke('camera.keyLingers') as { frame: number, linger: number }[] ?? [];
             const sortedKeys = [...inRangeKeys].sort((a, b) => a - b);
-            lingers.forEach(({ frame: lingerFrame }) => {
-                const index = sortedKeys.indexOf(lingerFrame);
-                if (index === -1) return;
-                const from = index > 0 ? sortedKeys[index - 1] : 0;
-                const to = index < sortedKeys.length - 1 ? sortedKeys[index + 1] : numFrames - 1;
+            const lastFrame = numFrames - 1;
+            const addBand = (from: number, to: number) => {
                 const band = document.createElement('div');
                 band.classList.add('linger-band');
                 band.style.left = `${offsetFromFrame(from)}px`;
                 band.style.width = `${Math.max(0, offsetFromFrame(to) - offsetFromFrame(from))}px`;
                 workArea.dom.appendChild(band);
+            };
+            lingers.forEach(({ frame: lingerFrame }) => {
+                const index = sortedKeys.indexOf(lingerFrame);
+                if (index === -1) return;
+                const isFirst = index === 0;
+                const isLast = index === sortedKeys.length - 1;
+                if (looping && sortedKeys.length > 1 && (isFirst || isLast)) {
+                    if (isFirst) {
+                        addBand(0, sortedKeys[1]);
+                        addBand(sortedKeys[sortedKeys.length - 1], lastFrame);
+                    } else {
+                        addBand(sortedKeys[index - 1], lastFrame);
+                        addBand(0, sortedKeys[0]);
+                    }
+                } else {
+                    addBand(isFirst ? 0 : sortedKeys[index - 1], isLast ? lastFrame : sortedKeys[index + 1]);
+                }
             });
 
             const createKey = (keyFrame: number, pinnedIndex = -1) => {

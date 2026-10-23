@@ -19,6 +19,7 @@ import { registerSelectionEvents } from './selection';
 import { registerSequenceEvents } from './sequence';
 import { ShortcutManager } from './shortcut-manager';
 import { registerTimelineEvents } from './timeline';
+import { registerTimingEvents } from './timing-events';
 import { BoxSelection } from './tools/box-selection';
 import { BrushSelection } from './tools/brush-selection';
 import { EyedropperSelection } from './tools/eyedropper-selection';
@@ -116,6 +117,7 @@ const main = async () => {
     registerTimelineEvents(events);
     registerCameraPosesEvents(events);
     registerTrackManagerEvents(events);
+    registerTimingEvents(events);
     registerTransformHandlerEvents(events);
     registerPublishEvents(events);
     registerIframeApi(events);

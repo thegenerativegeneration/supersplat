@@ -23,7 +23,7 @@ type BalanceInput = {
 };
 
 type BalanceResult =
-    { ok: true, frames: number[] } |
+    { ok: true, frames: number[], iterations: number } |
     { ok: false, reason: 'tooFewKeys' | 'lingerTooLong' | 'tooFewFrames' };
 
 const MAX_ITERATIONS = 10;
@@ -123,7 +123,8 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
     }
 
     let boundaries: number[] = [];
-    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    let iterations = 0;
+    for (; iterations < MAX_ITERATIONS; iterations++) {
         const total = costs.reduce((a, b) => a + b, 0);
         const durations = costs.map((c, s) => (total > 0 ? available * c / total : available / segs) + share[s]);
         const next = roundBoundaries(start, durations, end);
@@ -163,7 +164,7 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
         }
     }
 
-    return { ok: true, frames: boundaries.slice(0, n) };
+    return { ok: true, frames: boundaries.slice(0, n), iterations };
 };
 
 export { balanceTiming, BalanceKey, BalanceInput, BalanceResult };

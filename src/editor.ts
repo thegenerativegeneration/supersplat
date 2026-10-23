@@ -1213,6 +1213,35 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
         };
     });
 
+    // median scene distance seen from each pose over a 5x5 grid across the
+    // central 40% of the view, or null where fewer than 3 points hit. All
+    // poses are picked in one command slot.
+    const distanceGrid: { x: number, y: number }[] = [];
+    for (let j = 0; j < 5; j++) {
+        for (let i = 0; i < 5; i++) {
+            distanceGrid.push({ x: 0.3 + 0.1 * i, y: 0.3 + 0.1 * j });
+        }
+    }
+
+    events.function('camera.sampleDistances', (poses: { position: Vec3, target: Vec3, fov: number }[]) => {
+        const camera = scene.camera;
+        const frames = poses.map(({ position, target, fov }) => camera.frameAtPose(
+            new Vec3(position.x, position.y, position.z),
+            new Vec3(target.x, target.y, target.z),
+            fov
+        ));
+        return scene.commandQueue.enqueue(async (ctx) => {
+            const result: (number | null)[] = [];
+            for (const frame of frames) {
+                const hits = await camera.pickDepths(ctx, frame, distanceGrid);
+                const distances = hits.filter(Boolean).map(h => h.distance).sort((a, b) => a - b);
+                const n = distances.length;
+                result.push(n < 3 ? null : (distances[(n - 1) >> 1] + distances[n >> 1]) / 2);
+            }
+            return result;
+        });
+    });
+
     events.on('camera.setPose', (pose: { position: Vec3, target: Vec3, fov?: number }, speed = 1) => {
         // assign fov before setPose so distance is computed using the new fovFactor
         if (pose.fov !== undefined) {

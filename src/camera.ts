@@ -739,27 +739,30 @@ class Camera extends Element {
     }
 
     fitClippingPlanes(cameraPosition: Vec3, forwardVec: Vec3) {
+        const { near, far } = this.clipPlanes(cameraPosition, forwardVec, this.ortho);
+        this.far = far;
+        this.near = near;
+    }
+
+    private clipPlanes(cameraPosition: Vec3, forwardVec: Vec3, ortho: boolean) {
         const bound = this.scene.bound;
         const boundRadius = bound.halfExtents.length();
 
         vec.sub2(bound.center, cameraPosition);
         const dist = vec.dot(forwardVec);
 
-        if (this.ortho) {
+        if (ortho) {
             // orthographic has no perspective divide, so the near plane can sit
             // behind the camera. Span the whole scene bound (near goes negative
             // when the camera is inside it) so scene content is never clipped in
             // front of or behind the camera.
             const radius = Math.max(boundRadius, 1e-2);
-            this.far = dist + radius;
-            this.near = dist - radius;
-        } else {
-            const far = Math.max(dist + boundRadius, 1e-2);
-            const near = Math.max(dist - boundRadius, far / (1024 * 16));
-
-            this.far = far;
-            this.near = Math.min(1.0, near);
+            return { near: dist - radius, far: dist + radius };
         }
+
+        const far = Math.max(dist + boundRadius, 1e-2);
+        const near = Math.max(dist - boundRadius, far / (1024 * 16));
+        return { near: Math.min(1.0, near), far };
     }
 
     onPreRender() {
@@ -859,6 +862,35 @@ class Camera extends Element {
             viewport: { width: scene.canvas.clientWidth, height: scene.canvas.clientHeight },
             target: { width, height },
             pixelScale: this.worldSizePerPixel(1)
+        };
+    }
+
+    // a perspective frame at a camera pose, otherwise matching the live one
+    // (target size, aspect, fov axis), for picking from where a key would put
+    // the camera. Oriented as setPose orients the live camera, clip planes fit
+    // to the scene from the pose, and view/projection built as the camera
+    // component builds them (cameraRoot is identity, GL clip range).
+    frameAtPose(position: Vec3, target: Vec3, fov: number): CameraFrame {
+        const live = this.captureFrame();
+        vec.sub2(target, position);
+        const l = vec.length() || 1;
+        const azim = Math.atan2(-vec.x / l, -vec.z / l) * math.RAD_TO_DEG;
+        const elev = Math.asin(Math.max(-1, Math.min(1, vec.y / l))) * math.RAD_TO_DEG;
+        const rotation = new Quat().setFromEulerAngles(elev, azim, 0);
+        const forward = rotation.transformVector(Vec3.FORWARD, new Vec3());
+        const { near, far } = this.clipPlanes(position, forward, false);
+        const projection = new Mat4().setPerspective(fov, live.aspectRatio, near, far, live.horizontalFov);
+        return {
+            ...live,
+            position: position.clone(),
+            rotation,
+            fov,
+            ortho: false,
+            near,
+            far,
+            view: new Mat4().setTRS(position, rotation, Vec3.ONE).invert(),
+            projection,
+            pixelScale: (2 / projection.data[5]) / Math.max(1, live.viewport.height)
         };
     }
 

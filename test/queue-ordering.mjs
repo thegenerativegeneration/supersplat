@@ -15,6 +15,7 @@ import { runSelectionGesture } from './.build/src/selection-gesture.js';
 import { balanceTimingChecks } from './balance-timing.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
+import { timingEventsChecks } from './timing-events.mjs';
 import { webmcpChecks } from './webmcp.mjs';
 
 const barrier = () => {
@@ -68,6 +69,7 @@ const checks = {
     ...balanceTimingChecks,
     ...cameraTrackChecks,
     ...editorCommandChecks,
+    ...timingEventsChecks,
     ...webmcpChecks,
 
     async 'enqueue is strictly FIFO'() {

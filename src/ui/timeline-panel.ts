@@ -2,6 +2,8 @@ import { Button, Container, Element, NumericInput, SelectInput } from '@playcanv
 
 import { Events } from '../events';
 import { ShortcutManager } from '../shortcut-manager';
+import { BalanceControls } from './balance-controls';
+import { KeyLingerPopover } from './key-linger-popover';
 import { i18n } from './localization';
 import { Tooltips } from './tooltips';
 
@@ -95,6 +97,21 @@ class Ticks extends Container {
                 return padding + width + 10 + Math.min(index, 3) * 2;
             };
 
+            // keys that linger get a band from the previous key to the next one
+            const lingers = events.invoke('camera.keyLingers') as { frame: number, linger: number }[] ?? [];
+            const sortedKeys = [...inRangeKeys].sort((a, b) => a - b);
+            lingers.forEach(({ frame: lingerFrame }) => {
+                const index = sortedKeys.indexOf(lingerFrame);
+                if (index === -1) return;
+                const from = index > 0 ? sortedKeys[index - 1] : 0;
+                const to = index < sortedKeys.length - 1 ? sortedKeys[index + 1] : numFrames - 1;
+                const band = document.createElement('div');
+                band.classList.add('linger-band');
+                band.style.left = `${offsetFromFrame(from)}px`;
+                band.style.width = `${Math.max(0, offsetFromFrame(to) - offsetFromFrame(from))}px`;
+                workArea.dom.appendChild(band);
+            });
+
             const createKey = (keyFrame: number, pinnedIndex = -1) => {
                 const outOfRange = pinnedIndex !== -1;
 
@@ -111,6 +128,12 @@ class Ticks extends Container {
                     i18n.t('tooltip.timeline.key-out-of-range', { frame: keyFrame }) :
                     i18n.t('tooltip.timeline.key')), 'top');
                 keyElements.push(wrapper);
+                label.addEventListener('contextmenu', (event: MouseEvent) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    events.fire('timeline.keyContextMenu', keyFrame, event.clientX, event.clientY);
+                });
+
                 let dragging = false;
                 let copying = false;
                 let clone: HTMLElement = null;
@@ -439,6 +462,7 @@ class TimelinePanel extends Container {
         settingsControls.append(frames);
         settingsControls.append(smoothness);
         settingsControls.append(loop);
+        settingsControls.append(new BalanceControls(events, tooltips));
 
         // append control groups
 
@@ -463,6 +487,7 @@ class TimelinePanel extends Container {
 
         this.append(controlsWrap);
         this.append(ticks);
+        this.append(new KeyLingerPopover(events));
 
         // ui handlers
 

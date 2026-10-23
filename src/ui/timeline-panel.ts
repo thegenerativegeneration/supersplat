@@ -142,11 +142,12 @@ class Ticks extends Container {
                 let toFrame = -1;
 
                 label.addEventListener('pointerdown', (event) => {
+                    // keep any press on a key from reaching the scrub handler
+                    event.stopPropagation();
                     if (!dragging && event.isPrimary && event.button === 0) {
                         dragging = true;
                         copying = event.shiftKey;
                         label.setPointerCapture(event.pointerId);
-                        event.stopPropagation();
 
                         if (copying) {
                             // create a visual clone to drag; original stays in place
@@ -241,7 +242,7 @@ class Ticks extends Container {
         let scrubbing = false;
 
         workArea.dom.addEventListener('pointerdown', (event: PointerEvent) => {
-            if (!scrubbing && event.isPrimary) {
+            if (!scrubbing && event.isPrimary && event.button === 0) {
                 scrubbing = true;
                 workArea.dom.setPointerCapture(event.pointerId);
                 events.fire('timeline.setFrame', frameFromOffset(event.offsetX));

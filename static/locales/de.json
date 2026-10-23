@@ -176,6 +176,7 @@
     "popup.balance.tooFewKeys": "Fügen Sie mindestens zwei Kamera-Keyframes hinzu, um deren Timing auszugleichen.",
     "popup.balance.lingerTooLong": "Die Verweilzeiten der Keyframes passen nicht in die Animation. Verkürzen Sie die Verweilzeiten oder erhöhen Sie die Gesamtanzahl der Frames.",
     "popup.balance.tooFewFrames": "Für so viele Keyframes gibt es zu wenige Frames. Erhöhen Sie die Gesamtanzahl der Frames oder entfernen Sie Keyframes.",
+    "popup.balance.keysChanged": "Die Keyframes haben sich während des Ausgleichs geändert. Bitte erneut versuchen.",
     "popup.webgpu-unavailable": "Dieser Export erfordert WebGPU, das in diesem Browser nicht verfügbar ist. Bitte verwenden Sie eine aktuelle Version von Chrome, Edge oder Safari.",
     "popup.overwrite-source": "Diese Datei wird von der aktuellen Szene verwendet und kann nicht überschrieben werden. Bitte wählen Sie einen anderen Dateinamen.",
     "popup.save-as": "Speichern unter",

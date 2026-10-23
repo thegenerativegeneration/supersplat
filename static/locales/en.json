@@ -176,6 +176,7 @@
     "popup.balance.tooFewKeys": "Add at least two camera keys to balance their timing.",
     "popup.balance.lingerTooLong": "The keys' linger times don't fit in the animation. Shorten the linger times or increase Total Frames.",
     "popup.balance.tooFewFrames": "There are too few frames for this many keys. Increase Total Frames or remove keys.",
+    "popup.balance.keysChanged": "The keys changed while balancing. Try again.",
     "popup.webgpu-unavailable": "This export requires WebGPU, which is not available in this browser. Please try a recent version of Chrome, Edge or Safari.",
     "popup.overwrite-source": "This file is in use by the current scene and can't be overwritten. Choose a different filename.",
     "popup.save-as": "Save As",

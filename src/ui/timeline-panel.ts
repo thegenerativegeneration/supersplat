@@ -5,6 +5,7 @@ import { ShortcutManager } from '../shortcut-manager';
 import { BalanceControls } from './balance-controls';
 import { KeyLingerPopover } from './key-linger-popover';
 import { i18n } from './localization';
+import { SuggestViewsButton } from './suggest-views-button';
 import { Tooltips } from './tooltips';
 
 class Ticks extends Container {
@@ -483,6 +484,7 @@ class TimelinePanel extends Container {
         settingsControls.append(smoothness);
         settingsControls.append(loop);
         settingsControls.append(new BalanceControls(events, tooltips));
+        settingsControls.append(new SuggestViewsButton(events, tooltips));
 
         // append control groups
 

@@ -1,0 +1,251 @@
+@use 'colors.scss' as *;
+
+#settings-controls > #suggest-views {
+    height: 24px;
+    margin: 0 0 0 4px;
+    padding: 0 8px;
+    flex-shrink: 0;
+    border-radius: 4px;
+    line-height: 24px;
+
+    &:not(.pcui-disabled):hover {
+        color: #ff9900;
+        cursor: pointer;
+        box-shadow: none;
+        border-color: #ff990088;
+    }
+}
+
+body.candidates-busy #canvas-container {
+    cursor: progress;
+}
+
+#candidates-panel {
+    top: 102px;
+    right: 90px;
+    max-height: calc(100% - 126px);
+    width: 340px;
+    display: flex;
+    flex-direction: column;
+
+    &.wide {
+        width: 660px;
+
+        .candidates-grid {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    > .panel-header {
+        flex-shrink: 0;
+        gap: 2px;
+        padding: 2px 4px 2px 8px;
+    }
+
+    .candidates-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        flex-shrink: 0;
+    }
+
+    .candidates-row-label {
+        width: 80px;
+        flex-shrink: 0;
+        margin: 0;
+        color: $text-secondary;
+    }
+
+    .candidates-setup {
+        flex-shrink: 0;
+        padding: 4px 0 8px;
+        border-bottom: 1px solid $bcg-darker;
+
+        > .candidates-primary-button {
+            display: block;
+            width: calc(100% - 16px);
+            margin: 6px 8px 0;
+        }
+    }
+
+    .candidates-eye-input {
+        width: 70px;
+        margin: 0;
+    }
+
+    .candidates-level-select {
+        flex-grow: 1;
+        margin: 0;
+    }
+
+    .candidates-small-button,
+    .candidates-icon-button {
+        height: 24px;
+        margin: 0;
+        padding: 0 8px;
+        flex-shrink: 0;
+        border-radius: 4px;
+        line-height: 24px;
+
+        &.active {
+            color: $clr-hilight;
+            border-color: $clr-hilight;
+        }
+    }
+
+    .candidates-icon-button {
+        width: 32px;
+        padding: 0;
+    }
+
+    .candidates-primary-button {
+        height: 28px;
+        margin: 0;
+        border-radius: 4px;
+        flex-grow: 1;
+        color: $text-primary;
+        background-color: $clr-hilight;
+        border-color: $clr-hilight;
+
+        &:not(.pcui-disabled):hover {
+            background-color: #ff9900;
+            box-shadow: none;
+        }
+
+        &.pcui-disabled {
+            background-color: $bcg-dark;
+            border-color: $bcg-darker;
+        }
+    }
+
+    .candidates-warning {
+        margin: 4px 8px 0;
+        border-radius: 4px;
+        background-color: rgba(255, 170, 0, 0.12);
+        border: 1px solid rgba(255, 170, 0, 0.5);
+    }
+
+    .candidates-warning-text {
+        margin: 0;
+        white-space: normal;
+        color: #ffcc66;
+    }
+
+    > .candidates-small-button {
+        margin: 6px 8px;
+        flex-shrink: 0;
+    }
+
+    .candidates-progress {
+        gap: 8px;
+    }
+
+    .candidates-bar {
+        flex-grow: 1;
+        height: 6px;
+        border-radius: 3px;
+        background-color: $bcg-darkest;
+        overflow: hidden;
+    }
+
+    .candidates-bar-fill {
+        height: 100%;
+        width: 0;
+        background-color: $clr-hilight;
+        transition: width 0.15s;
+    }
+
+    .candidates-progress-text {
+        margin: 0;
+        min-width: 60px;
+        text-align: right;
+        color: $text-secondary;
+    }
+
+    .candidates-message {
+        margin: 8px;
+        white-space: normal;
+        color: $text-secondary;
+        flex-shrink: 0;
+    }
+
+    .candidates-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        // rows would otherwise shrink to fit the panel height
+        grid-auto-rows: max-content;
+        gap: 6px;
+        padding: 6px 8px;
+        overflow-y: auto;
+        flex: 1 1 auto;
+        min-height: 0;
+        align-content: start;
+
+        &.pending .candidates-cell {
+            cursor: progress;
+        }
+    }
+
+    .candidates-cell {
+        position: relative;
+        aspect-ratio: 320 / 200;
+        border-radius: 4px;
+        overflow: hidden;
+        background-color: $bcg-darkest;
+        cursor: pointer;
+        outline: 2px solid transparent;
+        outline-offset: -2px;
+
+        // absolute, so the canvas' own 320x200 size never feeds into the row height
+        > canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        &:hover {
+            outline-color: $clr-default;
+        }
+
+        &.picked {
+            outline: 3px solid $clr-hilight;
+            outline-offset: -3px;
+        }
+    }
+
+    .candidates-badge {
+        position: absolute;
+        top: 4px;
+        left: 4px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        box-sizing: border-box;
+        border-radius: 9px;
+        font-size: 11px;
+        font-weight: bold;
+        line-height: 18px;
+        text-align: center;
+        color: white;
+        background-color: $clr-hilight;
+        display: none;
+    }
+
+    .picked > .candidates-badge {
+        display: block;
+    }
+
+    .candidates-footer {
+        border-top: 1px solid $bcg-darker;
+        padding: 6px 8px;
+    }
+
+    // after the display rules above, so hidden wins over them
+    &.pcui-hidden,
+    .pcui-hidden {
+        display: none;
+    }
+}

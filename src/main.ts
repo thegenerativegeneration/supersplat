@@ -39,6 +39,7 @@ import { ToolManager } from './tools/tool-manager';
 import { registerTrackManagerEvents } from './track-manager';
 import { registerTransformHandlerEvents } from './transform-handler';
 import { BoundDimensionsOverlay } from './ui/bound-dimensions-overlay';
+import { CandidatesPanel } from './ui/candidates-panel';
 import { EditorUI } from './ui/editor';
 import { i18n } from './ui/localization';
 import { registerSelectCursor } from './ui/select-cursor';
@@ -274,6 +275,10 @@ const main = async () => {
     toolManager.register('scale', new ScaleTool(events, scene));
     toolManager.register('measure', new MeasureTool(events, scene, editorUI.canvasContainer, editorUI.annotationContainer.dom));
     toolManager.register('orient', new OrientTool(events, scene, editorUI.toolsContainer.dom, editorUI.canvasContainer, editorUI.annotationContainer.dom));
+
+    const candidatesPanel = new CandidatesPanel(events, scene, editorUI.tooltips);
+    editorUI.canvasContainer.append(candidatesPanel);
+    toolManager.register('candidatesSetup', candidatesPanel.setup);
 
     const boundDimensionsOverlay = new BoundDimensionsOverlay(events, scene, editorUI.canvasContainer, editorUI.annotationContainer.dom);
 

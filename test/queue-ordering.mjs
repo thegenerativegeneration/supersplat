@@ -14,6 +14,7 @@ import { Events } from './.build/src/events.js';
 import { runSelectionGesture } from './.build/src/selection-gesture.js';
 import { balanceTimingChecks } from './balance-timing.mjs';
 import { candidatesChecks } from './candidates.mjs';
+import { candidatesPanelChecks } from './candidates-panel.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { timingEventsChecks } from './timing-events.mjs';
@@ -69,6 +70,7 @@ const quietly = async (fn) => {
 const checks = {
     ...balanceTimingChecks,
     ...candidatesChecks,
+    ...candidatesPanelChecks,
     ...cameraTrackChecks,
     ...editorCommandChecks,
     ...timingEventsChecks,

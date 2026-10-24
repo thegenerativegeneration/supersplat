@@ -36,10 +36,11 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     const invalidate = () => {
         points = null;
     };
-    for (const name of [
-        'scene.elementAdded', 'scene.elementRemoved', 'splat.moved', 'splat.visibility',
-        'splat.stateChanged', 'splat.positionsChanged', 'splat.replaced'
-    ]) {
+    // only splats matter: the area box joins and leaves the scene as well
+    for (const name of ['scene.elementAdded', 'scene.elementRemoved']) {
+        events.on(name, (element: { type: ElementType }) => element?.type === ElementType.splat && invalidate());
+    }
+    for (const name of ['splat.moved', 'splat.visibility', 'splat.stateChanged', 'splat.positionsChanged', 'splat.replaced']) {
         events.on(name, invalidate);
     }
 

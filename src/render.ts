@@ -2,6 +2,7 @@ import { WebPCodec } from '@playcanvas/splat-transform';
 import { BufferTarget, EncodedPacket, EncodedVideoPacketSource, MkvOutputFormat, MovOutputFormat, Mp4OutputFormat, Output, StreamTarget, WebMOutputFormat } from 'mediabunny';
 import { Color, path, Quat, Vec3 } from 'playcanvas';
 
+import { EditorError } from './editor-command';
 import { ElementType } from './element';
 import { EquirectRenderer } from './equirect-renderer';
 import { Events } from './events';
@@ -148,7 +149,12 @@ const registerRenderEvents = (scene: Scene, events: Events) => {
         }
     });
 
+    // another locked render (video, view candidates) owns the camera and the
+    // offscreen target; starting a capture would tear both down under it
+    const busy = () => new EditorError('busy', 'The editor is already rendering. Wait for it to finish.');
+
     events.function('render.image', async (imageSettings: ImageSettings, fileStream?: FileSystemWritableFileStream) => {
+        if (scene.lockedRenderMode) throw busy();
         events.fire('startSpinner');
 
         let equirect: EquirectRenderer | null = null;
@@ -335,6 +341,7 @@ const registerRenderEvents = (scene: Scene, events: Events) => {
     });
 
     events.function('render.video', (videoSettings: VideoSettings, fileStream: FileSystemWritableFileStream) => {
+        if (scene.lockedRenderMode) return Promise.reject(busy());
         const renderImpl = async () => {
             events.fire('progressStart', i18n.t('panel.render.render-video'), true);
 

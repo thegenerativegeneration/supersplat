@@ -9,6 +9,8 @@ import { buildOccupancy } from './.build/src/candidates/occupancy.js';
 import { sampleCandidates } from './.build/src/candidates/sample.js';
 import { readOpaquePoints } from './.build/src/candidates/read-points.js';
 import { diversify, imageMetrics, rejectBeforeRender } from './.build/src/candidates/score.js';
+import { Events } from './.build/src/events.js';
+import { registerRenderEvents } from './.build/src/render.js';
 
 const VOXEL = 0.8;
 
@@ -314,6 +316,20 @@ const candidatesChecks = {
         const out = await readOpaquePoints([fakeSplat(rows)], 10);
         assert.equal(out.length, 30);
         assert.ok(out[3 * 9] > 30, `${out}`);
+    },
+
+    'candidates: image and video renders refuse while a locked render runs': async () => {
+        const events = new Events();
+        // any camera or target access would throw a TypeError instead of busy
+        const scene = { lockedRenderMode: true, events };
+        registerRenderEvents(scene, events);
+        const started = [];
+        events.on('startSpinner', () => started.push('spinner'));
+        events.on('progressStart', () => started.push('progress'));
+        await assert.rejects(events.invoke('render.image', { width: 8, height: 8 }), { code: 'busy' });
+        await assert.rejects(events.invoke('render.video', {}, null), { code: 'busy' });
+        assert.deepEqual(started, []);
+        assert.equal(scene.lockedRenderMode, true);
     }
 };
 

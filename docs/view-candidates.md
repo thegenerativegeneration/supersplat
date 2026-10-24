@@ -51,6 +51,6 @@ Suggest Views looks at your scene and proposes camera views. No photos needed. Y
 
 ## Limits
 
-- The camera path between keys is not checked for walls or floors. Play the shot. If it passes through geometry, add or move keys.
+- Suggest Views does not check the camera path between keys for walls or floors. Use [Fix Path](fix-path.md) to route the camera around geometry, then play the shot to check.
 - Small or cramped areas can give few or no suggestions ("No usable views found in the area." or "No floor found in the area. Check the area box and the eye height.").
 - Suggestions are not saved in the project. They stay only in this browser session, until you generate again or reload. A changed scene needs a new setup.

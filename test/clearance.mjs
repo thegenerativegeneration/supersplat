@@ -101,6 +101,13 @@ const clearanceChecks = {
         assert.deepEqual(checkCurve(curve, [0, 30], grid, [0, 30], 0.25 * V), []);
     },
 
+    'path: a key 0.1 m before a wall does not hide the curve crossing it'() {
+        const keys = [curvePose(9.9, 5, [9, 5]), curvePose(11.5, 5, [12, 5])];
+        const curve = buildCameraCurve(keys, [0, 30], CURVE_OPTS);
+        assert.deepEqual(checkCurve(curve, [0, 30], wallGrid(0), [0, 30], 0.25 * V), [0], 'radius off');
+        assert.deepEqual(checkCurve(curve, [0, 30], wallGrid(CAMERA_RADIUS_VOXELS), [0, 30], 0.25 * V), [0], 'radius on');
+    },
+
     'path: the Balance result belongs to the returned poses after a rejected prune trial'() {
         // the last prune trial of this plan is rejected
         const plan = planFixPath({

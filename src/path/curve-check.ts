@@ -6,7 +6,8 @@ type CameraCurve = (frame: number, out: CurvePose) => CurvePose;
 
 type Collision = { segment: number, point: Vec3Like };
 
-// samples this close to a user key inside geometry (in voxels) are not checked
+// samples this close to a user key in or against geometry (in voxels) skip the
+// tests that key fails
 const KEY_SKIP_VOXELS = 2;
 // subdivision depth per frame interval: 2^-16 frame
 const MAX_DEPTH = 16;
@@ -20,15 +21,19 @@ const dist2 = (a: Vec3Like, b: Vec3Like) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2 
 // Segment i runs from frames[i] to frames[i + 1] (for a looping curve pass
 // frames[0] + duration as the last entry to check the closing segment).
 // Each frame interval is bisected until consecutive samples are at most step
-// apart; samples within KEY_SKIP_VOXELS of a user key in or against
-// geometry (the ball at a user frame touches an occupied voxel) are skipped.
+// apart. Within KEY_SKIP_VOXELS of a user key inside geometry samples are
+// not checked; within it of a user key whose ball touches geometry they
+// are checked as points only.
 const curveCollisions = (curve: CameraCurve, frames: number[], grid: NavGrid, userFrames: number[], step: number): Collision[] => {
     const skip2 = (KEY_SKIP_VOXELS * grid.voxel) ** 2;
     const step2 = step * step;
-    const keys = userFrames.map(f => ({ ...curve(f, newPose()).position })).filter(k => !grid.sphereFree(k));
+    const keys = userFrames.map(f => ({ ...curve(f, newPose()).position }));
+    const inside = keys.filter(k => !grid.pointFree(k));
+    const touching = keys.filter(k => !grid.sphereFree(k));
+    const far = (ks: Vec3Like[], p: Vec3Like) => ks.every(k => dist2(k, p) > skip2);
     const pose = newPose();
     const at = (frame: number): Vec3Like => ({ ...curve(frame, pose).position });
-    const bad = (p: Vec3Like) => !grid.sphereFree(p) && keys.every(k => dist2(k, p) > skip2);
+    const bad = (p: Vec3Like) => (grid.pointFree(p) ? !grid.sphereFree(p) && far(touching, p) : far(inside, p));
 
     // first bad sample in (t0, t1], or null; p0 = position at t0
     const scan = (t0: number, p0: Vec3Like, t1: number, p1: Vec3Like, depth: number): Vec3Like | null => {

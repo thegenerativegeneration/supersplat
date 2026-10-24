@@ -53,6 +53,26 @@ const densityChecks = {
         assert.equal(occ.occupied(4, 0, 0), false);
     },
 
+    'density: the extent box is the box of the rotated 3 sigma box'() {
+        // 45 degrees about y, sx = sz = 0.3: the box half extent along x is 3 * 0.3 * 2 * cos45 = 1.27,
+        // the ellipsoid would give 0.9. A voxel 1.1 m out in x and z is reached only by the box.
+        const s = Math.sin(Math.PI / 8), c = Math.cos(Math.PI / 8);
+        const data = new Float32Array([0.2, 0.2, 0.2, 0.3, 0.3, 0.3, 0, s, 0, c, 1]);
+        const occ = buildDensityOccupancy(data, V, { minCluster: 1, cutoff: 1e-9 });
+        assert.equal(occ.occupied(Math.floor(1.2 / V), 0, Math.floor(1.2 / V)), true);
+    },
+
+    'density: non-finite splats are skipped and bounds clip huge ones'() {
+        const inf = buildDensityOccupancy(pack([[0, 0, 0, Infinity, 1, 1, 1], [0, 0, 0, 0.1, 0.1, 0.1, 1]]), V, solo);
+        assert.equal(count(inf), 8);
+        const t0 = Date.now();
+        const occ = buildDensityOccupancy(pack([[0, 0, 0, 1e6, 1e6, 1e6, 1]]), V, {
+            minCluster: 1, bounds: { min: [-2, -2, -2], max: [2, 2, 2] }
+        });
+        assert.ok(Date.now() - t0 < 500);
+        assert.equal(count(occ), 125);
+    },
+
     'density: small isolated clusters are dropped, large ones kept'() {
         const tiny = (ix, iy, iz) => [centre(ix), centre(iy), centre(iz), 0.01, 0.01, 0.01, 1];
         const list = [tiny(50, 0, 0), tiny(51, 0, 0)];

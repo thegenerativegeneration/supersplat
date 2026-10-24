@@ -1,5 +1,5 @@
-import { DENSITY_STRIDE, type DensitySplats } from './read-density';
 import { packKey, unpackKey, type Occupancy, type Vec3Like } from './occupancy';
+import { DENSITY_STRIDE, type DensitySplats } from './read-density';
 
 type DensityOptions = {
     // a voxel is solid when 1 - exp(-density) reaches this
@@ -7,14 +7,16 @@ type DensityOptions = {
     // extent of a splat in σ
     sigmaCutoff?: number,
     // solid 26-connected components smaller than this (in voxels) are dropped
-    minCluster?: number
+    minCluster?: number,
+    // inclusive voxel index range; splats only fill voxels inside it
+    bounds?: { min: [number, number, number], max: [number, number, number] }
 };
 
 // per-voxel density at which further splats cannot change the outcome
 const SATURATION = 7;
 
-// Half extents of the axis-aligned box around the ellipsoid (σ·reach along the
-// splat axes) rotated by the unit quaternion q.
+// Half extents of the axis-aligned box around the box of half sizes r·σ along
+// the splat axes, rotated by the unit quaternion q (as splat-transform does).
 const aabbHalfExtents = (
     r: number, sx: number, sy: number, sz: number, qx: number, qy: number, qz: number, qw: number,
     out: number[]
@@ -25,9 +27,9 @@ const aabbHalfExtents = (
     const r00 = 1 - 2 * (yy + zz), r01 = 2 * (xy - wz), r02 = 2 * (xz + wy);
     const r10 = 2 * (xy + wz), r11 = 1 - 2 * (xx + zz), r12 = 2 * (yz - wx);
     const r20 = 2 * (xz - wy), r21 = 2 * (yz + wx), r22 = 1 - 2 * (xx + yy);
-    out[0] = r * Math.sqrt((r00 * sx) ** 2 + (r01 * sy) ** 2 + (r02 * sz) ** 2);
-    out[1] = r * Math.sqrt((r10 * sx) ** 2 + (r11 * sy) ** 2 + (r12 * sz) ** 2);
-    out[2] = r * Math.sqrt((r20 * sx) ** 2 + (r21 * sy) ** 2 + (r22 * sz) ** 2);
+    out[0] = r * (Math.abs(r00) * sx + Math.abs(r01) * sy + Math.abs(r02) * sz);
+    out[1] = r * (Math.abs(r10) * sx + Math.abs(r11) * sy + Math.abs(r12) * sz);
+    out[2] = r * (Math.abs(r20) * sx + Math.abs(r21) * sy + Math.abs(r22) * sz);
     return [r00, r01, r02, r10, r11, r12, r20, r21, r22];
 };
 
@@ -68,7 +70,9 @@ const dropSmallClusters = (solid: Set<number>, minCluster: number) => {
 // the Mahalanobis distance from the centre to the voxel's nearest point. A voxel
 // is solid at 1 - exp(-sum) >= cutoff; small solid clusters (floaters) are dropped.
 const buildDensityOccupancy = (splats: DensitySplats, voxel: number, opts: DensityOptions = {}): Occupancy => {
-    const { cutoff = 0.1, sigmaCutoff = 3, minCluster = 8 } = opts;
+    const { cutoff = 0.1, sigmaCutoff = 3, minCluster = 8, bounds } = opts;
+    const lo = bounds?.min ?? [-Infinity, -Infinity, -Infinity];
+    const hi = bounds?.max ?? [Infinity, Infinity, Infinity];
     const density = new Map<number, number>();
     const half = [0, 0, 0];
 
@@ -80,10 +84,12 @@ const buildDensityOccupancy = (splats: DensitySplats, voxel: number, opts: Densi
             sigmaCutoff, sx, sy, sz, splats[i + 6], splats[i + 7], splats[i + 8], splats[i + 9], half
         );
         if (!(sx > 0 && sy > 0 && sz > 0 && opacity > 0)) continue;
+        if (!(Number.isFinite(half[0]) && Number.isFinite(half[1]) && Number.isFinite(half[2]) &&
+            Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(cz))) continue;
 
-        const x0 = Math.floor((cx - half[0]) / voxel), x1 = Math.floor((cx + half[0]) / voxel);
-        const y0 = Math.floor((cy - half[1]) / voxel), y1 = Math.floor((cy + half[1]) / voxel);
-        const z0 = Math.floor((cz - half[2]) / voxel), z1 = Math.floor((cz + half[2]) / voxel);
+        const x0 = Math.max(lo[0], Math.floor((cx - half[0]) / voxel)), x1 = Math.min(hi[0], Math.floor((cx + half[0]) / voxel));
+        const y0 = Math.max(lo[1], Math.floor((cy - half[1]) / voxel)), y1 = Math.min(hi[1], Math.floor((cy + half[1]) / voxel));
+        const z0 = Math.max(lo[2], Math.floor((cz - half[2]) / voxel)), z1 = Math.min(hi[2], Math.floor((cz + half[2]) / voxel));
 
         for (let ix = x0; ix <= x1; ix++) {
             const dx = Math.min(Math.max(cx, ix * voxel), (ix + 1) * voxel) - cx;

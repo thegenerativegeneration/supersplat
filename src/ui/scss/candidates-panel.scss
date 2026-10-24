@@ -70,6 +70,16 @@ body.candidates-busy #canvas-container {
         }
     }
 
+    .candidates-solid-input {
+        margin: 0;
+        flex-shrink: 0;
+    }
+
+    .candidates-solid-label {
+        width: auto;
+        cursor: pointer;
+    }
+
     .candidates-eye-input {
         width: 70px;
         margin: 0;

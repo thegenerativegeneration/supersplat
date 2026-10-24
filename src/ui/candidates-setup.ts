@@ -1,4 +1,4 @@
-import { Button, Container, Label, NumericInput } from '@playcanvas/pcui';
+import { BooleanInput, Button, Container, Label, NumericInput } from '@playcanvas/pcui';
 import { Vec3 } from 'playcanvas';
 
 import { BoxShape } from '../box-shape';
@@ -59,6 +59,18 @@ class CandidatesSetup extends Container {
         eyeRow.append(eyeInput);
         eyeRow.append(previewButton);
 
+        // solid space rule, shared with Fix Path
+        const solidRow = row();
+        const solidInput = new BooleanInput({ class: 'candidates-solid-input' });
+        const solidLabel = new Label({ class: ['candidates-row-label', 'candidates-solid-label'] });
+        i18n.bindText(solidLabel, 'candidates.solid-density');
+        solidRow.append(solidInput);
+        solidRow.append(solidLabel);
+        solidInput.on('change', (value: boolean) => events.fire('candidates.setSolidRule', value ? 'density' : 'bodies'));
+        solidLabel.dom.addEventListener('click', () => {
+            solidInput.value = !solidInput.value;
+        });
+
         // tilt
         const tiltRow = row('candidates-warning');
         const tiltLabel = new Label({ class: 'candidates-warning-text' });
@@ -70,6 +82,7 @@ class CandidatesSetup extends Container {
 
         this.append(areaRow);
         this.append(eyeRow);
+        this.append(solidRow);
         this.append(tiltRow);
         this.append(generateButton);
 
@@ -186,6 +199,7 @@ class CandidatesSetup extends Container {
         this.activate = () => {
             active = true;
             this.hidden = false;
+            solidInput.value = events.invoke('candidates.solidRule') === 'density';
             if (gizmo.mode === 'none') gizmo.setMode('translate');
             showBox(true);
         };
@@ -215,6 +229,7 @@ class CandidatesSetup extends Container {
         tooltips.register(moveButton, () => i18n.t('tooltip.candidates.move-area'), 'top');
         tooltips.register(scaleButton, () => i18n.t('tooltip.candidates.resize-area'), 'top');
         tooltips.register(eyeInput, () => i18n.t('tooltip.candidates.eye-height'), 'top');
+        tooltips.register(solidRow, () => i18n.t('tooltip.candidates.solid-density'), 'top');
         tooltips.register(previewButton, () => i18n.t('tooltip.candidates.preview'), 'top');
 
         this.hidden = true;

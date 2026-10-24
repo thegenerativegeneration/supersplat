@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { Mat4 } from 'playcanvas';
 
 import { estimateEyeHeight, estimateTiltDeg, proposeBox } from './.build/src/candidates/estimate.js';
-import { runGeneration } from './.build/src/candidates/generate.js';
+import { buildSceneGrid, runGeneration } from './.build/src/candidates/generate.js';
 import { findLevels } from './.build/src/candidates/levels.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
 import { sampleCandidates } from './.build/src/candidates/sample.js';
 import { readOpaquePoints } from './.build/src/candidates/read-points.js';
 import { diversify, imageMetrics, rejectBeforeRender } from './.build/src/candidates/score.js';
+import { registerCandidateEvents } from './.build/src/candidate-events.js';
 import { Events } from './.build/src/events.js';
 import { registerRenderEvents } from './.build/src/render.js';
 
@@ -362,6 +363,32 @@ const candidatesChecks = {
         const { points: out } = await readOpaquePoints([fakeSplat(rows)], 10);
         assert.equal(out.length, 30);
         assert.ok(out[3 * 9] > 30, `${out}`);
+    },
+
+    'candidates: a slab of faint splats is a level under the density rule only': async () => {
+        // 6 x 6 m slab at eye 1.6 (voxel 0.4): four splats of opacity 0.05 per voxel
+        const list = [];
+        for (let ix = 0; ix < 15; ix++) {
+            for (let iz = 0; iz < 15; iz++) {
+                for (let k = 0; k < 4; k++) list.push([(ix + 0.5) * 0.4, 0.2, (iz + 0.5) * 0.4, 0.05, 0.05, 0.05, 0, 0, 0, 1, 0.05]);
+            }
+        }
+        const density = new Float32Array(list.flat());
+        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 7, y: 4, z: 7 } };
+        const none = new Float32Array(0);
+        assert.equal(buildSceneGrid(none, box, 1.6).levels.length, 0);
+        assert.equal(buildSceneGrid(none, box, 1.6, undefined, undefined, density).levels.length, 1);
+    },
+
+    'candidates: the solid rule is shared, defaults to bodies and resets on scene.clear': async () => {
+        const events = new Events();
+        registerCandidateEvents(events, { getElementsByType: () => [] });
+        assert.equal(events.invoke('candidates.solidRule'), 'bodies');
+        events.fire('candidates.setSolidRule', 'density');
+        assert.equal(events.invoke('candidates.solidRule'), 'density');
+        assert.equal((await events.invoke('candidates.density')).length, 0);
+        events.fire('scene.clear');
+        assert.equal(events.invoke('candidates.solidRule'), 'bodies');
     },
 
     'candidates: image and video renders refuse while a locked render runs': async () => {

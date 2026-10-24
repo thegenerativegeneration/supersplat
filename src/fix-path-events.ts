@@ -4,6 +4,7 @@ import type { BalanceResult } from './anim/balance-timing';
 import { Pose } from './camera-poses';
 import { insideBox, looksMetric, type Box } from './candidates/estimate';
 import { buildSceneGrid } from './candidates/generate';
+import type { DensitySplats } from './candidates/read-density';
 import type { OpaquePoints } from './candidates/read-points';
 import { Events } from './events';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
@@ -57,7 +58,9 @@ const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openin
     const settings: { box: Box, eyeHeight: number } = events.invoke('candidates.lastSettings') ?? await events.invoke('candidates.prepare');
     const { box, eyeHeight } = settings;
     const opening = openingAt(eyeHeight);
-    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, navHeadVoxels(eyeHeight, opening), extents);
+    const rule = events.functions.has('candidates.solidRule') ? events.invoke('candidates.solidRule') : 'bodies';
+    const density = rule === 'density' ? await events.invoke('candidates.density') as DensitySplats : undefined;
+    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, navHeadVoxels(eyeHeight, opening), extents, density);
     return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying, opening), eyeHeight, box };
 };
 

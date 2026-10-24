@@ -1,7 +1,8 @@
 import { Vec3 } from 'playcanvas';
 
 import { estimateEyeHeight, estimateTiltDeg, proposeBox, type Box } from './candidates/estimate';
-import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH, type GenerateOptions } from './candidates/generate';
+import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH, type GenerateOptions, type SolidRule } from './candidates/generate';
+import { readDensitySplats, type DensitySplats } from './candidates/read-density';
 import { readOpaquePoints, type OpaquePoints } from './candidates/read-points';
 import type { Candidate } from './candidates/sample';
 import type { Scored } from './candidates/score';
@@ -31,16 +32,20 @@ const thumbnailOf = (rgba: Uint8Array) => {
 
 const registerCandidateEvents = (events: Events, scene: Scene) => {
     let points: Promise<OpaquePoints> | null = null;
+    let density: Promise<DensitySplats> | null = null;
+    let solidRule: SolidRule = 'bodies';
     let running = false;
     // box and eye height of the last Suggest Views run in this session
     let lastSettings: { box: Box, eyeHeight: number } | null = null;
 
     const invalidate = () => {
         points = null;
+        density = null;
     };
     // a new or loaded project starts without the last run's settings
     events.on('scene.clear', () => {
         lastSettings = null;
+        solidRule = 'bodies';
     });
     // only splats matter: the area box joins and leaves the scene as well
     for (const name of ['scene.elementAdded', 'scene.elementRemoved']) {
@@ -60,6 +65,25 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         }
         return points;
     };
+
+    const sceneDensity = () => {
+        if (!density) {
+            const pending = readDensitySplats(scene.getElementsByType(ElementType.splat) as Splat[]);
+            pending.catch(() => {
+                if (density === pending) density = null;
+            });
+            density = pending;
+        }
+        return density;
+    };
+
+    // every visible splat with its covariance and opacity, for the density rule
+    events.function('candidates.density', () => sceneDensity());
+
+    events.function('candidates.solidRule', () => solidRule);
+    events.on('candidates.setSolidRule', (rule: SolidRule) => {
+        solidRule = rule === 'density' ? 'density' : 'bodies';
+    });
 
     // the cached opaque splat centres (x, y, z triples) and extents of the visible layers
     events.function('candidates.cloud', () => scenePoints());
@@ -86,6 +110,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         };
         try {
             const { points: pts, extents } = await scenePoints();
+            const splats = solidRule === 'density' ? await sceneDensity() : undefined;
             const { camera } = scene;
             const fov = opts.fov ?? camera.fov;
             const saved = events.invoke('camera.getPose');
@@ -129,7 +154,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
                 onProgress: (done, total) => events.fire('candidates.progress', done, total),
                 onAdded: (scored, thumbnail) => events.fire('candidates.added', scored, thumbnail),
                 onLevels: levels => events.fire('candidates.levels', levels)
-            }, pts, { ...opts, fov }, signal, extents);
+            }, pts, { ...opts, fov }, signal, extents, splats);
 
             console.debug(`candidates.generate: ${rendered} rendered in ${(performance.now() - start).toFixed(0)} ms`);
             events.fire('candidates.done', result.scored.length, result.reason);

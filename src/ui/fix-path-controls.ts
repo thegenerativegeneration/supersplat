@@ -32,7 +32,7 @@ class FixPathOptions extends Container {
     constructor(events: Events, tooltips: Tooltips) {
         super({ class: 'fix-path-options', hidden: true });
 
-        const toggle = (key: keyof Options, text: string, tooltip: string) => {
+        const toggle = (text: string, tooltip: string, onChange: (value: boolean) => void) => {
             const row = new Container({ class: 'fix-path-option' });
             const input = new BooleanInput({ class: 'fix-path-option-input' });
             const label = new Label({ class: 'fix-path-option-label' });
@@ -40,7 +40,7 @@ class FixPathOptions extends Container {
             row.append(input);
             row.append(label);
             this.append(row);
-            input.on('change', (value: boolean) => events.fire('path.setSettings', { [key]: value }));
+            input.on('change', onChange);
             label.dom.addEventListener('click', () => {
                 input.value = !input.value;
             });
@@ -48,8 +48,13 @@ class FixPathOptions extends Container {
             return input;
         };
 
-        const keepOrder = toggle('keepOrder', 'fix-path.keep-order', 'tooltip.fix-path.keep-order');
-        const allowFlying = toggle('allowFlying', 'fix-path.allow-flying', 'tooltip.fix-path.allow-flying');
+        const setting = (key: keyof Options) => (value: boolean) => events.fire('path.setSettings', { [key]: value });
+        const keepOrder = toggle('fix-path.keep-order', 'tooltip.fix-path.keep-order', setting('keepOrder'));
+        const allowFlying = toggle('fix-path.allow-flying', 'tooltip.fix-path.allow-flying', setting('allowFlying'));
+        // the rule is shared with Suggest Views
+        const solidDensity = toggle('candidates.solid-density', 'tooltip.candidates.solid-density', (value: boolean) => {
+            events.fire('candidates.setSolidRule', value ? 'density' : 'bodies');
+        });
 
         const openingRow = new Container({ class: 'fix-path-opening' });
         const openingLabel = new Label({ class: 'fix-path-opening-label' });
@@ -117,6 +122,7 @@ class FixPathOptions extends Container {
             const settings = events.invoke('path.settings') as Options;
             keepOrder.value = settings.keepOrder;
             allowFlying.value = settings.allowFlying;
+            solidDensity.value = events.invoke('candidates.solidRule') === 'density';
             syncing = true;
             openingInput.value = Number(settings.smallestOpening.toFixed(2));
             syncing = false;

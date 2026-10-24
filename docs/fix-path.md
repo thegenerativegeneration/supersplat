@@ -41,10 +41,11 @@ Click outside the box or press Escape to close it.
 - **Problems left**: a box titled **Path Needs Attention** lists them.
   - "No route found to these keys: ... They were moved to the end of the shot; move or delete them."
   - "The path is blocked after the keys at frames ... (marked red on the timeline)."
-  - "These keys are inside geometry or outside the area: ... Their routes start from the nearest free space."
+  - "These keys are inside geometry or outside the area: ... Their routes start from the nearest free space." Outside the area means outside the **Area** box.
 - **Errors**: a box titled **Couldn't Fix Path**.
   - "Add at least two camera keys to fix the path."
   - "There are no visible splats to route the camera through."
+  - "There are too few frames for your keys and the detour keys. Increase Total Frames and try again."
   - "The camera keys couldn't be updated. Try again."
   - If you move or edit keys while it works, it stops and nothing changes.
 - If the timing can't fit, the order and detours are still applied and a **Couldn't Balance Timing** box explains why. See [Errors](balance-timing.md#errors).
@@ -52,24 +53,27 @@ Click outside the box or press Escape to close it.
 ## Timeline
 
 - Detour keys have a light blue colour. Your keys keep theirs.
-- A red band marks a blocked segment, from the key to the next key.
+- A red band marks a blocked segment, from the key through its detour keys to your next key.
 - A red ring marks a key that could not be reached.
-- The marks vanish after the next edit of keys, **Smoothness** or loop, and are replaced by the next run.
+- The marks vanish after the next edit of keys, **Smoothness**, loop or **Total Frames**, and are replaced by the next run.
 
 ## 3D view
 
 With camera poses shown, the camera path is drawn as a line.
 
-- Red: blocked segment.
-- Light blue: segment next to a detour key.
+- Red line: blocked segment, through its detour keys up to your next key.
+- Light blue line: segment next to a detour key.
 - Otherwise: the normal pose colour.
 - The line follows keys, smoothness, loop and length.
+- Red camera: a key that could not be reached.
+- Light blue camera: a detour key.
 
 ## Run again
 
 - A new run removes all old detour keys and plans fresh. Detour keys do not pile up.
 - Move a detour key in time, or update its pose, and it becomes a normal key. It is then kept.
-- Run again after you change smoothness or loop. They can bring back collisions, and Fix Path does not rerun by itself.
+- Run Fix Path again after changing Balance settings, lingers, timeline length, smoothness or loop. They can bring back collisions, and Fix Path does not rerun by itself.
+- **Balance** on a fixed path keeps the timing Fix Path gave it.
 - With loop on, the order is a closed tour and the way from the last key back to the first is routed too.
 
 ## Limits

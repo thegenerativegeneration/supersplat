@@ -9,7 +9,11 @@ import {
     Vec3
 } from 'playcanvas';
 
+import { buildCameraCurve } from './anim/camera-curve';
+import { Pose } from './camera-poses';
 import { Element, ElementType } from './element';
+import type { PathMarkers } from './fix-path-events';
+import { samplePathLine } from './path-line';
 import { vertexShader, fragmentShader } from './shaders/debug-shader';
 
 // temp vectors for frustum geometry calculation (module-scope to avoid allocations)
@@ -27,11 +31,17 @@ const tmpUpTip = new Vec3();
 const LINES_PER_CAMERA = 10;
 const VERTS_PER_CAMERA = LINES_PER_CAMERA * 2;
 
+// line segments per span between two keys
+const PATH_SAMPLES = 24;
+
 class CameraPoseGizmos extends Element {
     entity: Entity;
     mesh: Mesh;
     material: ShaderMaterial;
     meshInstance: MeshInstance;
+    pathEntity: Entity;
+    pathMesh: Mesh;
+    blocked: number[] = [];
     dirty = true;
 
     constructor() {
@@ -74,6 +84,14 @@ class CameraPoseGizmos extends Element {
 
         scene.app.root.addChild(this.entity);
 
+        this.pathMesh = new Mesh(device);
+        this.pathMesh.primitive[0] = { baseVertex: 0, type: PRIMITIVE_LINES, base: 0, count: 0 };
+        const pathInstance = new MeshInstance(this.pathMesh, this.material, null);
+        pathInstance.cull = false;
+        this.pathEntity = new Entity('cameraPath');
+        this.pathEntity.addComponent('render', { meshInstances: [pathInstance], layers: [scene.worldLayer.id] });
+        scene.app.root.addChild(this.pathEntity);
+
         // mark dirty when poses or scene bound change
         const markDirty = () => {
             this.dirty = true;
@@ -89,10 +107,18 @@ class CameraPoseGizmos extends Element {
         events.on('track.keysCleared', markDirty);
         events.on('track.keysLoaded', markDirty);
         events.on('scene.boundChanged', markDirty);
+        events.on('timeline.smoothness', markDirty);
+        events.on('timeline.loop', markDirty);
+        events.on('timeline.frames', markDirty);
+        events.on('path.markers', (markers: PathMarkers) => {
+            this.blocked = markers.blocked;
+            markDirty();
+        });
     }
 
     destroy() {
         this.entity?.destroy();
+        this.pathEntity?.destroy();
     }
 
     onPreRender() {
@@ -102,12 +128,46 @@ class CameraPoseGizmos extends Element {
         if (visible && this.dirty) {
             this.dirty = false;
             this.rebuildMesh();
+            this.rebuildPath();
         }
 
         // with no poses the mesh has never been given a vertex buffer, and a
         // count-0 non-instanced draw is still submitted and still validates its
         // attributes - so stay disabled until there is geometry
         this.entity.enabled = visible && this.mesh.primitive[0].count > 0;
+        this.pathEntity.enabled = visible && this.pathMesh.primitive[0].count > 0;
+    }
+
+    // the camera curve as lines, coloured per segment
+    private rebuildPath() {
+        const { events } = this.scene;
+        const poses = events.invoke('camera.poses') as Pose[];
+        const duration = events.invoke('timeline.frames') as number;
+        const loop = events.invoke('timeline.loop') as boolean;
+        const frames = poses.map(p => p.frame);
+        const curve = buildCameraCurve(poses.map(p => ({ ...p, fov: p.fov ?? 60 })), frames, {
+            duration, smoothness: events.invoke('timeline.smoothness'), loop
+        });
+        if (!curve) {
+            this.pathMesh.primitive[0].count = 0;
+            return;
+        }
+
+        const { positions, colors } = samplePathLine(curve, frames, {
+            samplesPerSegment: PATH_SAMPLES,
+            blocked: this.blocked,
+            auto: poses.map(p => !!p.auto),
+            loop,
+            duration
+        });
+        const rgba = new Uint8Array(positions.length / 3 * 4);
+        for (let i = 0; i < positions.length / 3; i++) {
+            for (let c = 0; c < 3; c++) rgba[i * 4 + c] = Math.round(colors[i * 3 + c] * 255);
+            rgba[i * 4 + 3] = 255;
+        }
+        this.pathMesh.setPositions(positions);
+        this.pathMesh.setColors32(rgba);
+        this.pathMesh.update(PRIMITIVE_LINES);
     }
 
     private rebuildMesh() {

@@ -20,6 +20,7 @@ import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
 import { fixPathEventsChecks } from './fix-path-events.mjs';
 import { navDoorsChecks } from './nav-doors.mjs';
+import { pathLineChecks } from './path-line.mjs';
 import { pathMarkersChecks } from './path-markers.mjs';
 import { timingEventsChecks } from './timing-events.mjs';
 import { webmcpChecks } from './webmcp.mjs';
@@ -80,6 +81,7 @@ const checks = {
     ...fixPathChecks,
     ...fixPathEventsChecks,
     ...navDoorsChecks,
+    ...pathLineChecks,
     ...pathMarkersChecks,
     ...timingEventsChecks,
     ...webmcpChecks,

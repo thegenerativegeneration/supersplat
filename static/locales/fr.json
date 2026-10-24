@@ -477,6 +477,7 @@
     "fix-path.tooFewKeys": "Ajoutez au moins deux clés de caméra pour corriger le trajet.",
     "fix-path.noSplats": "Aucun splat visible à travers lequel guider la caméra.",
     "fix-path.rejected": "Les clés de caméra n’ont pas pu être mises à jour. Réessayez.",
+    "fix-path.tooFewFrames": "Il y a trop peu de frames pour vos clés et les clés de détour. Augmentez le nombre total de frames et réessayez.",
     "fix-path.unreachable": "Aucun chemin trouvé vers ces clés : {{names}}. Elles ont été placées à la fin du plan ; déplacez-les ou supprimez-les.",
     "fix-path.blocked": "Le trajet est bloqué après les clés aux images {{frames}} (en rouge sur la timeline).",
     "fix-path.inside-geometry": "Ces clés sont dans la géométrie ou hors de la zone : {{names}}. Leurs chemins partent de l’espace libre le plus proche.",

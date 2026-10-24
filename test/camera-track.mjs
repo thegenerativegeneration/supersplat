@@ -119,6 +119,22 @@ const cameraTrackChecks = {
         events.fire('track.appendPoses', added, [0, 30]);
         assert.equal(ops.length, 0);
         assert.deepEqual(sortedKeys(events), [0, 30]);
+    },
+
+    'track: a copied or replaced auto key is a normal key'() {
+        const { events } = setup([[0], [60]]);
+        events.function('camera.getPose', () => ({ position: new Vec3(1, 0, 0), target: new Vec3(1, 0, -1), fov: 60 }));
+        const autoPose = { name: 'detour', frame: 30, position: new Vec3(5, 0, 0), target: new Vec3(5, 0, -1), fov: 60, auto: true };
+        const autoAt = frame => !!events.invoke('camera.poses').find(p => p.frame === frame).auto;
+        events.fire('track.replacePath', [...events.invoke('camera.poses'), autoPose]);
+        assert.equal(autoAt(30), true);
+
+        events.fire('track.copyKey', 30, 45);
+        assert.equal(autoAt(45), false);
+        assert.equal(autoAt(30), true);
+
+        events.fire('track.addKey', 30);
+        assert.equal(autoAt(30), false);
     }
 };
 

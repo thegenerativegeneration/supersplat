@@ -477,6 +477,7 @@
     "fix-path.tooFewKeys": "Fügen Sie mindestens zwei Kamera-Keyframes hinzu, um den Pfad zu korrigieren.",
     "fix-path.noSplats": "Es gibt keine sichtbaren Splats, durch die die Kamera geführt werden kann.",
     "fix-path.rejected": "Die Kamera-Keyframes konnten nicht aktualisiert werden. Bitte erneut versuchen.",
+    "fix-path.tooFewFrames": "Für Ihre Keyframes und die Umweg-Keyframes gibt es zu wenige Frames. Erhöhen Sie die Gesamtanzahl der Frames und versuchen Sie es erneut.",
     "fix-path.unreachable": "Kein Weg zu diesen Keyframes gefunden: {{names}}. Sie wurden ans Ende der Einstellung verschoben; verschieben oder löschen Sie sie.",
     "fix-path.blocked": "Der Pfad ist nach den Keyframes bei den Frames {{frames}} blockiert (rot auf der Zeitleiste markiert).",
     "fix-path.inside-geometry": "Diese Keyframes liegen in Geometrie oder außerhalb des Bereichs: {{names}}. Ihre Wege beginnen am nächsten freien Platz.",

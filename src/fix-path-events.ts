@@ -2,7 +2,7 @@ import { Vec3 } from 'playcanvas';
 
 import type { BalanceResult } from './anim/balance-timing';
 import { Pose } from './camera-poses';
-import type { Box } from './candidates/estimate';
+import { insideBox, type Box } from './candidates/estimate';
 import { buildSceneGrid } from './candidates/generate';
 import { Events } from './events';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
@@ -13,8 +13,9 @@ type FixPathOptions = { keepOrder: boolean, allowFlying: boolean };
 
 type FixPathResult = {
     ok: boolean,
-    // rejected: the track refused the new path
-    reason?: 'tooFewKeys' | 'noSplats' | 'keysChanged' | 'rejected',
+    // rejected: the track refused the new path; tooFewFrames: more keys
+    // than timeline frames
+    reason?: 'tooFewKeys' | 'noSplats' | 'keysChanged' | 'tooFewFrames' | 'rejected',
     detours: number,
     // key names
     unreachable: string[],
@@ -26,7 +27,8 @@ type FixPathResult = {
 
 type PathMarkers = { blocked: number[], unreachable: string[], insideGeometry: string[] };
 
-type SceneGrid = { grid: NavGrid, eyeHeight: number };
+// box: the area the grid covers; keys outside it are reported
+type SceneGrid = { grid: NavGrid, eyeHeight: number, box?: Box };
 
 type FixPathDeps = {
     // the navigation grid of the scene, null without visible splats
@@ -39,7 +41,7 @@ const NO_MARKERS: PathMarkers = { blocked: [], unreachable: [], insideGeometry: 
 // changes after which the markers no longer describe the path
 const STALE_EVENTS = [
     'track.keyAdded', 'track.keyRemoved', 'track.keyMoved', 'track.keyUpdated', 'track.keysLoaded', 'track.keysCleared',
-    'timeline.smoothness', 'timeline.loop'
+    'timeline.smoothness', 'timeline.loop', 'timeline.frames'
 ];
 
 // Grid from the cached scene points, with the box and eye height of the last
@@ -50,7 +52,7 @@ const defaultSceneGrid = (events: Events) => async (allowFlying: boolean): Promi
     const settings: { box: Box, eyeHeight: number } = events.invoke('candidates.lastSettings') ?? await events.invoke('candidates.prepare');
     const { box, eyeHeight } = settings;
     const { occ, levels } = buildSceneGrid(points, box, eyeHeight, NAV_HEAD_VOXELS);
-    return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying), eyeHeight };
+    return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying), eyeHeight, box };
 };
 
 // the next free camera_N name
@@ -110,14 +112,17 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             linger: Math.max(0, finiteOr(p.linger, 0)),
             distance: distances[i] ?? NaN
         }));
+        const timeline = timelineSettings(events);
         const plan = planFixPath({
             keys,
             grid: scene.grid,
             eyeHeight: scene.eyeHeight,
             keepOrder: opts.keepOrder,
-            timeline: timelineSettings(events),
+            timeline,
             route: deps.route
         });
+        // every key needs a frame of its own
+        if (plan.poses.length > timeline.frames) return { ok: false, reason: 'tooFewFrames', ...empty };
 
         const byKey = new Map(keys.map((k, i) => [k, userPoses[i]]));
         const nextName = namer(userPoses);
@@ -139,7 +144,10 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             return { ok: false, reason: 'rejected', ...empty };
         }
 
-        const { blocked, unreachable, insideGeometry, detours, balance, times, graph } = plan;
+        const { blocked, unreachable, detours, balance, times, graph } = plan;
+        const { box } = scene;
+        const outside = new Set(box ? keys.filter(k => !insideBox(k.position.x, k.position.y, k.position.z, box)).map(k => k.name) : []);
+        const insideGeometry = keys.map(k => k.name).filter(n => outside.has(n) || plan.insideGeometry.includes(n));
         setMarkers({ blocked, unreachable, insideGeometry });
         const ms = (t: number) => t.toFixed(0);
         console.debug(`path.fix: ${keys.length} keys, ${detours} detours in ${ms(performance.now() - start)} ms ` +

@@ -140,8 +140,7 @@ class CameraAnimTrack implements AnimTrack {
             position: source.position.clone(),
             target: source.target.clone(),
             fov: source.fov,
-            linger: source.linger,
-            auto: source.auto
+            linger: source.linger
         });
 
         this.rebuildSpline();

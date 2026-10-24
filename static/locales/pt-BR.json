@@ -477,6 +477,7 @@
     "fix-path.tooFewKeys": "Adicione pelo menos dois quadros-chave de câmera para corrigir o trajeto.",
     "fix-path.noSplats": "Não há splats visíveis por onde conduzir a câmera.",
     "fix-path.rejected": "Não foi possível atualizar os quadros-chave da câmera. Tente novamente.",
+    "fix-path.tooFewFrames": "Há poucos quadros para seus quadros-chave e os quadros-chave de desvio. Aumente o Total de Quadros e tente novamente.",
     "fix-path.unreachable": "Nenhum caminho encontrado até estes quadros-chave: {{names}}. Eles foram movidos para o fim da cena; mova-os ou exclua-os.",
     "fix-path.blocked": "O trajeto está bloqueado após os quadros-chave nos quadros {{frames}} (marcado em vermelho na linha do tempo).",
     "fix-path.inside-geometry": "Estes quadros-chave estão dentro da geometria ou fora da área: {{names}}. Seus caminhos começam no espaço livre mais próximo.",

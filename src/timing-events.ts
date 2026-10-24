@@ -3,7 +3,8 @@ import { Pose } from './camera-poses';
 import { Events } from './events';
 import { i18n } from './ui/localization';
 
-type BalanceSource = { position: Pose['position'], target: Pose['target'], fov: number, linger: number };
+// auto: a detour key from Fix path, timed by its target distance as when planned
+type BalanceSource = { position: Pose['position'], target: Pose['target'], fov: number, linger: number, auto?: boolean };
 
 const finiteOr = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback);
 
@@ -22,16 +23,18 @@ const timelineSettings = (events: Events): Omit<BalanceInput, 'keys'> => ({
     rotationWeight: Math.min(4, Math.max(0, finiteOr(events.invoke('timeline.rotationWeight'), 1)))
 });
 
-// samples scene distances for the given poses (in playback order) and balances
+// samples scene distances for the given non-auto poses (in playback order) and balances
 // their timing. changed is true when the track keys moved while sampling, in
 // which case the result is a keysChanged failure.
 const computeBalance = async (events: Events, poses: BalanceSource[]): Promise<{ result: BalanceResult, changed: boolean }> => {
     const snapshot = snapshotOf(events);
     const sampleStart = performance.now();
     // too few keys fails below without needing the scene
-    const distances = (poses.length >= 2 ?
-        await events.invoke('camera.sampleDistances', poses.map(p => ({ position: p.position, target: p.target, fov: p.fov }))) :
+    const sampled = poses.filter(p => !p.auto);
+    const sampledDistances = (poses.length >= 2 && sampled.length > 0 ?
+        await events.invoke('camera.sampleDistances', sampled.map(p => ({ position: p.position, target: p.target, fov: p.fov }))) :
         []) as (number | null)[];
+    const distanceOf = new Map(sampled.map((p, i) => [p, sampledDistances[i] ?? NaN]));
     const sampleMs = performance.now() - sampleStart;
 
     // the keys moved while sampling; the computed frames would not match them
@@ -39,18 +42,18 @@ const computeBalance = async (events: Events, poses: BalanceSource[]): Promise<{
         return { result: { ok: false, reason: 'keysChanged' }, changed: true };
     }
 
-    const keys: BalanceKey[] = poses.map((p, i) => ({
+    const keys: BalanceKey[] = poses.map(p => ({
         position: p.position,
         target: p.target,
         fov: p.fov,
         linger: Math.max(0, finiteOr(p.linger, 0)),
-        distance: distances[i] ?? NaN
+        distance: distanceOf.get(p) ?? NaN
     }));
 
     const result = balanceTiming({ keys, ...timelineSettings(events) });
 
     const outcome = 'reason' in result ? `failed (${result.reason})` : `${result.iterations} iterations`;
-    console.debug(`timing.balance: sampled ${poses.length} keys in ${sampleMs.toFixed(1)} ms, ${outcome}`);
+    console.debug(`timing.balance: sampled ${sampled.length} keys in ${sampleMs.toFixed(1)} ms, ${outcome}`);
 
     return { result, changed: false };
 };
@@ -71,7 +74,8 @@ const registerTimingEvents = (events: Events) => {
             position: p.position,
             target: p.target,
             fov: p.fov ?? fallbackFov,
-            linger: p.linger ?? 0
+            linger: p.linger ?? 0,
+            auto: p.auto
         }));
 
         const { result } = await computeBalance(events, sources);

@@ -55,7 +55,8 @@ const registerViewKeyEvents = (events: Events) => {
                 position: p.position,
                 target: p.target,
                 fov: p.fov ?? fallbackFov,
-                linger: p.linger ?? 0
+                linger: p.linger ?? 0,
+                auto: p.auto
             })),
             ...added.map(a => ({ ...a, linger: 0 }))
         ];

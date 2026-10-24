@@ -5,6 +5,7 @@ import { Vec3 } from 'playcanvas';
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
 import { Events } from './.build/src/events.js';
 import { registerFixPathEvents } from './.build/src/fix-path-events.js';
+import { registerTimingEvents } from './.build/src/timing-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 
 const V = 0.4;
@@ -166,10 +167,12 @@ const fixPathEventsChecks = {
         events.fire('track.addKey', 100);
         assert.deepEqual(markers[markers.length - 1], { blocked: [], unreachable: [], insideGeometry: [] });
 
-        await events.invoke('path.fix', FIX);
-        assert.ok(markers[markers.length - 1].blocked.length > 0);
-        events.fire('timeline.loop', false);
-        assert.deepEqual(markers[markers.length - 1], { blocked: [], unreachable: [], insideGeometry: [] });
+        for (const [name, value] of [['timeline.loop', false], ['timeline.frames', 240]]) {
+            await events.invoke('path.fix', FIX);
+            assert.ok(markers[markers.length - 1].blocked.length > 0);
+            events.fire(name, value);
+            assert.deepEqual(markers[markers.length - 1], { blocked: [], unreachable: [], insideGeometry: [] }, name);
+        }
     },
 
     async 'path: unreachable key ends up last and is reported'() {
@@ -201,14 +204,35 @@ const fixPathEventsChecks = {
         assert.equal(events.invoke('camera.poses').find(p => p.name === 'camera_1').linger, 10);
     },
 
-    async 'path: a path the track refuses is reported, not marked'() {
-        // 3 frames cannot hold 3 keys and a detour; the even fallback repeats a frame
+    async 'path: more keys than frames is reported, not applied'() {
+        // 3 frames cannot hold 3 keys and a detour
         const { events, ops, markers } = setup([pose('camera_0', 0, 0), pose('camera_1', 1, 4), pose('camera_2', 2, 8)], { frames: 3 });
         const result = await events.invoke('path.fix', FIX);
         assert.equal(result.ok, false);
-        assert.equal(result.reason, 'rejected');
+        assert.equal(result.reason, 'tooFewFrames');
         assert.equal(ops.length, 0);
         assert.deepEqual(markers, []);
+    },
+
+    async 'path: Balance after Fix path keeps the frames'() {
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('camera_2', 60, 8)]);
+        registerTimingEvents(events);
+        const fixed = await events.invoke('path.fix', FIX);
+        assert.ok(fixed.detours > 0);
+        const before = summary(events);
+        const balanced = await events.invoke('timing.balance');
+        assert.ok('frames' in balanced);
+        assert.deepEqual(summary(events), before);
+    },
+
+    async 'path: keys outside the area are listed'() {
+        const box = { min: { x: -1, y: 0, z: -1 }, max: { x: 9, y: 3, z: 5 } };
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), { ...pose('camera_2', 60, 8), position: new Vec3(8, 5, 0) }], {
+            deps: { sceneGrid: async () => ({ grid: fakeGrid, eyeHeight: 1.6, box }), route: fakeRoute }
+        });
+        const result = await events.invoke('path.fix', FIX);
+        assert.equal(result.ok, true);
+        assert.deepEqual(result.insideGeometry, ['camera_2']);
     },
 
     async 'path: settings default to reorder and flying'() {

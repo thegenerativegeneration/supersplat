@@ -99,5 +99,6 @@ With camera poses shown, the camera path is drawn as a line.
 - Low doors and gaps at floor level (below about 2 m at eye height 1.6 m) don't pass at any **Smallest opening**: the camera can't drop that far in one step.
 - Rooms reachable only through bands lower than **Smallest opening**, or through stairs the scan missed, stay unreachable. Lower **Smallest opening** to reach them, then play the shot: the scan may show a gap where there is glass or a lost ceiling.
 - The path check uses the scan's splats, including the size of large ones. Sparse walls with gaps may still leak, so the camera can pass through them. Play the shot to check.
+- Very large scans (over 500,000 solid splats) are thinned to 500,000 for the check. Thin roofs and walls can then leak again.
 - The route stays inside the **Area** box.
 - Fix Path does not check while you drag keys by hand.

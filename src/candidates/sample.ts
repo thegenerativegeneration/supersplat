@@ -121,5 +121,5 @@ const sampleCandidates = (levels: Level[], occ: Occupancy, opts: SampleOptions):
     return out;
 };
 
-export { sampleCandidates };
+export { mulberry32, sampleCandidates, shuffle };
 export type { Candidate, SampleOptions };

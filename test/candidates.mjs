@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 
+import { Mat4 } from 'playcanvas';
+
 import { estimateEyeHeight, estimateTiltDeg, proposeBox } from './.build/src/candidates/estimate.js';
+import { runGeneration } from './.build/src/candidates/generate.js';
 import { findLevels } from './.build/src/candidates/levels.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
 import { sampleCandidates } from './.build/src/candidates/sample.js';
+import { readOpaquePoints } from './.build/src/candidates/read-points.js';
 import { diversify, imageMetrics, rejectBeforeRender } from './.build/src/candidates/score.js';
 
 const VOXEL = 0.8;
@@ -53,6 +57,65 @@ const image = (grey, w = 320, h = 200) => {
         }
     }
     return px;
+};
+
+const GREY = image((x, y) => ((x >> 2) + (y >> 2)) % 2 ? 200 : 60);
+
+// generation deps that record calls; distanceOf(i) gives the i-th candidate's depth
+const fakeDeps = ({ distanceOf = () => 5, onRender = () => {} } = {}) => {
+    const log = { rendered: [], added: [], restores: 0, levels: null, distances: [] };
+    const deps = {
+        sampleDistances: async (cands) => {
+            log.distances = cands.map((c, i) => distanceOf(i));
+            return log.distances;
+        },
+        renderAt: async (cand) => {
+            log.rendered.push(cand);
+            onRender(log.rendered.length);
+            return { rgba: GREY, thumbnail: cand.id };
+        },
+        restore: () => log.restores++,
+        onProgress: () => {},
+        onAdded: (scored, thumbnail) => log.added.push({ scored, thumbnail }),
+        onLevels: (levels) => {
+            log.levels = levels;
+        }
+    };
+    return { deps, log };
+};
+
+const FLOOR_POINTS = new Float32Array(floor(0, 0, 10, 0, 10));
+const GEN_OPTS = { box: BIG_BOX, eyeHeight: 1.6, budget: 12, seed: 1, fov: 60 };
+
+// a splat-shaped object over one source chunk; rows are [x, y, z, opacityLogit]
+const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true } = {}) => {
+    const n = rows.length;
+    const layouts = { position: { stride: 12, fields: {} }, geometric: { stride: 32, fields: {} } };
+    return {
+        visible,
+        worldTransform: world,
+        transformPalette: { getTransform: (i, m) => m.setIdentity() },
+        instances: {
+            count: n,
+            numLocked: flags.filter(f => f & 2).length,
+            sourceRow: Uint32Array.from(rows.map((r, i) => i)),
+            flags: Uint8Array.from(rows.map((r, i) => flags[i] ?? 0)),
+            transformIndex: () => 0
+        },
+        resource: {
+            source: {
+                meta: { chunkSize: 64, numChunks: [1], numGaussians: n, layouts },
+                read: async ({ position, geometric }) => {
+                    const pos = new Float32Array(position.data);
+                    const geo = new Float32Array(geometric.data);
+                    rows.forEach(([x, y, z, o], i) => {
+                        pos.set([x, y, z], i * 3);
+                        geo[i * 8 + 7] = o;
+                    });
+                }
+            }
+        }
+    };
 };
 
 const candidatesChecks = {
@@ -186,6 +249,71 @@ const candidatesChecks = {
         assert.equal(diversify([at('a', 0, 0, 1), at('b', 0.1, 0, 0.5)], 0.45).length, 1);
         assert.equal(diversify([at('a', 0, 0, 1), at('b', 0, 180, 0.5)], 0.45).length, 2);
         assert.equal(diversify([at('a', 0, 350, 1), at('b', 0, 10, 0.5)], 0.45).length, 1);
+    },
+
+    'candidates: generation reports noLevels on an empty scene': async () => {
+        const noise = new Float32Array(600).map((v, i) => ((i * 7919) % 1000) / 10);
+        const { deps, log } = fakeDeps();
+        const result = await runGeneration(deps, noise, GEN_OPTS, new AbortController().signal);
+        assert.equal(result.reason, 'noLevels');
+        assert.equal(result.scored.length, 0);
+        assert.equal(log.rendered.length, 0);
+        assert.equal(log.restores, 0);
+    },
+
+    'candidates: rejected candidates are never rendered': async () => {
+        const { deps, log } = fakeDeps({ distanceOf: i => (i % 2 ? null : 5) });
+        const result = await runGeneration(deps, FLOOR_POINTS, GEN_OPTS, new AbortController().signal);
+        const kept = log.distances.filter(d => d !== null).length;
+        assert.ok(kept > 0 && kept < log.distances.length);
+        assert.equal(log.rendered.length, kept);
+        assert.equal(result.reason, undefined);
+        assert.equal(log.restores, 1);
+        assert.deepEqual(log.levels.map(l => l.index), [0]);
+        assert.ok(result.scored.every((s, i) => i === 0 || result.scored[i - 1].score >= s.score));
+    },
+
+    'candidates: cancel stops rendering and keeps results': async () => {
+        const controller = new AbortController();
+        const { deps, log } = fakeDeps({ onRender: n => n === 3 && controller.abort() });
+        const result = await runGeneration(deps, FLOOR_POINTS, GEN_OPTS, controller.signal);
+        assert.equal(result.reason, 'cancelled');
+        assert.equal(log.added.length, 3);
+        assert.ok(result.scored.length >= 1 && result.scored.length <= 3);
+        assert.equal(log.restores, 1);
+    },
+
+    'candidates: camera restored after render error': async () => {
+        const { deps, log } = fakeDeps({
+            onRender: (n) => {
+                if (n === 2) throw new Error('render failed');
+            }
+        });
+        await assert.rejects(runGeneration(deps, FLOOR_POINTS, GEN_OPTS, new AbortController().signal), /render failed/);
+        assert.equal(log.restores, 1);
+    },
+
+    'candidates: render order mixes levels': async () => {
+        const points = new Float32Array([...floor(0, 0, 10, 0, 10), ...floor(4, 0, 10, 0, 10)]);
+        const { deps, log } = fakeDeps();
+        await runGeneration(deps, points, { ...GEN_OPTS, budget: 40 }, new AbortController().signal);
+        const order = log.rendered.map(c => c.level);
+        const switches = order.filter((l, i) => i > 0 && l !== order[i - 1]).length;
+        assert.ok(switches > 2, `${order}`);
+    },
+
+    'candidates: point readback skips hidden, transparent and invalid splats': async () => {
+        const world = new Mat4().setTranslate(10, 0, 0);
+        const shown = fakeSplat([[1, 2, 3, 5], [4, 5, 6, -5], [7, 8, 9, 5], [NaN, 0, 0, 5]], { flags: [0, 0, 2, 0], world });
+        const hiddenLayer = fakeSplat([[0, 0, 0, 5]], { visible: false });
+        assert.deepEqual([...await readOpaquePoints([shown, hiddenLayer])], [11, 2, 3]);
+    },
+
+    'candidates: point readback subsamples to maxPoints': async () => {
+        const rows = Array.from({ length: 40 }, (v, i) => [i, 0, 0, 5]);
+        const out = await readOpaquePoints([fakeSplat(rows)], 10);
+        assert.equal(out.length, 30);
+        assert.ok(out[3 * 9] > 30, `${out}`);
     }
 };
 

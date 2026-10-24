@@ -310,6 +310,15 @@ const candidatesChecks = {
         assert.ok(result.scored.every((s, i) => i === 0 || result.scored[i - 1].score >= s.score));
     },
 
+    'candidates: generation finds a low room at a noisy eye height': async () => {
+        const points = new Float32Array([...floor(0, 0, 10, 0, 10), ...floor(2.6, 0, 10, 0, 10)]);
+        for (const eyeHeight of [1.6, 1.62]) {
+            const { deps, log } = fakeDeps();
+            await runGeneration(deps, points, { ...GEN_OPTS, eyeHeight }, new AbortController().signal);
+            assert.ok(log.levels.some(l => Math.abs(l.height) <= 0.5), `${eyeHeight}: ${log.levels.map(l => l.height)}`);
+        }
+    },
+
     'candidates: cancel stops rendering and keeps results': async () => {
         const controller = new AbortController();
         const { deps, log } = fakeDeps({ onRender: n => n === 3 && controller.abort() });

@@ -22,6 +22,9 @@ type GenerateResult = { scored: Scored[], reason?: 'noLevels' | 'cancelled' };
 const THUMB_WIDTH = 320;
 const THUMB_HEIGHT = 200;
 const DEFAULT_FOV = 60;
+const VOXELS_PER_EYE = 4;
+// a level needs 1.25 eye heights of free space above it, in whole voxels
+const HEAD_VOXELS = Math.ceil(1.25 * VOXELS_PER_EYE);
 
 const insideBox = (points: Float32Array, box: Box) => {
     const out = new Float32Array(points.length);
@@ -49,11 +52,9 @@ const runGeneration = async <T>(
     signal: AbortSignal
 ): Promise<GenerateResult> => {
     const { box, eyeHeight, budget, seed } = opts;
-    const voxel = eyeHeight / 4;
-    const occ = buildOccupancy(insideBox(points, box), voxel);
-    const headVoxels = Math.ceil(1.25 * eyeHeight / voxel);
+    const occ = buildOccupancy(insideBox(points, box), eyeHeight / VOXELS_PER_EYE);
     const minArea = 8 * (eyeHeight / 1.6) ** 2;
-    const levels = findLevels(occ, headVoxels, minArea);
+    const levels = findLevels(occ, HEAD_VOXELS, minArea);
     deps.onLevels(levels.map((l, index) => ({ index, height: l.height, area: l.area })));
     if (levels.length === 0) return { scored: [], reason: 'noLevels' };
 

@@ -35,6 +35,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     let density: Promise<DensitySplats> | null = null;
     let solidRule: SolidRule = 'bodies';
     let alignToWalls = false;
+    let preferOpen = false;
     let running = false;
     // box and eye height of the last Suggest Views run in this session
     let lastSettings: { box: Box, eyeHeight: number } | null = null;
@@ -48,6 +49,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         lastSettings = null;
         solidRule = 'bodies';
         alignToWalls = false;
+        preferOpen = false;
     });
     // only splats matter: the area box joins and leaves the scene as well
     for (const name of ['scene.elementAdded', 'scene.elementRemoved']) {
@@ -91,6 +93,12 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     events.function('candidates.alignToWalls', () => alignToWalls);
     events.on('candidates.setAlignToWalls', (value: boolean) => {
         alignToWalls = value === true;
+    });
+
+    // whether Suggest Views ranks open views higher; each run gets it in its options
+    events.function('candidates.preferOpen', () => preferOpen);
+    events.on('candidates.setPreferOpen', (value: boolean) => {
+        preferOpen = value === true;
     });
 
     // the cached opaque splat centres (x, y, z triples) and extents of the visible layers

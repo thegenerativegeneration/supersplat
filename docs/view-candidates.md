@@ -16,7 +16,8 @@ Suggest Views looks at your scene and proposes camera views. No photos needed. Y
 3. Check **Eye height**. It is estimated from the scene (camera height above the floor, in scene units). Type a new value if it looks wrong.
    - **Preview** shows the view from eye height at the centre of the area. Click it again to go back to your view.
 4. Optional: tick **Align views to walls (new)** to point views along and across the walls instead of fixed compass directions. Rooms without clear walls keep the fixed directions.
-5. Click **Generate**.
+5. Optional: tick **Prefer open views (new)** to rank views that see more of the space higher.
+6. Click **Generate**.
 
 ## While it generates
 

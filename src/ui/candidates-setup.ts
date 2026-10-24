@@ -21,7 +21,7 @@ class CandidatesSetup extends Container {
     setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => boolean;
     getFocus: () => { position: Vec3, radius: number } | null;
     load: (prepared: Prepared) => void;
-    values: () => { box: Box, eyeHeight: number, alignToWalls: boolean };
+    values: () => { box: Box, eyeHeight: number, alignToWalls: boolean, preferOpen: boolean };
     stopPreview: () => void;
     onGenerate: () => void = null;
 
@@ -82,6 +82,9 @@ class CandidatesSetup extends Container {
         const { toggle: alignRow, input: alignInput } = toggleRow('candidates.align-walls', 'tooltip.candidates.align-walls', (value) => {
             events.fire('candidates.setAlignToWalls', value);
         });
+        const { toggle: openRow, input: openInput } = toggleRow('candidates.prefer-open', 'tooltip.candidates.prefer-open', (value) => {
+            events.fire('candidates.setPreferOpen', value);
+        });
 
         // tilt
         const tiltRow = row('candidates-warning');
@@ -96,6 +99,7 @@ class CandidatesSetup extends Container {
         this.append(eyeRow);
         this.append(solidRow);
         this.append(alignRow);
+        this.append(openRow);
         this.append(tiltRow);
         this.append(generateButton);
 
@@ -207,13 +211,14 @@ class CandidatesSetup extends Container {
             tiltLabel.text = i18n.t('candidates.tilt-warning', { degrees: Math.round(p.tiltDeg) });
         };
 
-        this.values = () => ({ box: getBox(), eyeHeight: eyeInput.value, alignToWalls: alignInput.value });
+        this.values = () => ({ box: getBox(), eyeHeight: eyeInput.value, alignToWalls: alignInput.value, preferOpen: openInput.value });
 
         this.activate = () => {
             active = true;
             this.hidden = false;
             solidInput.value = events.invoke('candidates.solidRule') === 'density';
             alignInput.value = events.invoke('candidates.alignToWalls');
+            openInput.value = events.invoke('candidates.preferOpen');
             if (gizmo.mode === 'none') gizmo.setMode('translate');
             showBox(true);
         };

@@ -50,9 +50,13 @@ const rejectBeforeRender = (depth: number | null, eyeHeight: number) => {
     return depth === null || depth < 0.75 * eyeHeight;
 };
 
-const candidateScore = (m: Metrics, pitch: number) => {
+// how much a fully open view (openness 1) adds to the score
+const PREFER_OPEN_WEIGHT = 0.3;
+
+const candidateScore = (m: Metrics, pitch: number, openness?: number) => {
     const tilted = Math.abs(pitch) > 0 && Math.abs(pitch) < 30;
-    return (1 - m.blur) - 2 * m.dark - (tilted ? 0.15 : 0);
+    const base = (1 - m.blur) - 2 * m.dark - (tilted ? 0.15 : 0);
+    return openness === undefined ? base : base + PREFER_OPEN_WEIGHT * openness;
 };
 
 // Keeps the best-scored views, dropping one that is both within minDistance
@@ -74,5 +78,5 @@ const diversify = (scored: Scored[], minDistance: number, minAngleDeg = 90): Sco
     return kept;
 };
 
-export { imageMetrics, rejectBeforeRender, candidateScore, diversify };
+export { imageMetrics, rejectBeforeRender, candidateScore, diversify, PREFER_OPEN_WEIGHT };
 export type { Metrics, Scored };

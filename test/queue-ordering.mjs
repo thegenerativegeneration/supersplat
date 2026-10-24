@@ -15,6 +15,7 @@ import { runSelectionGesture } from './.build/src/selection-gesture.js';
 import { balanceTimingChecks } from './balance-timing.mjs';
 import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
+import { isovistChecks } from './isovist.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
 import { clearanceChecks } from './clearance.mjs';
 import { densityChecks } from './density.mjs';
@@ -82,6 +83,7 @@ const checks = {
     ...balanceTimingChecks,
     ...candidatesChecks,
     ...candidatesPanelChecks,
+    ...isovistChecks,
     ...cameraTrackChecks,
     ...clearanceChecks,
     ...densityChecks,

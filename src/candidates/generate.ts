@@ -1,6 +1,7 @@
 import { buildDensityOccupancy } from './density';
 import { insideBox, type Box } from './estimate';
 import { EXTENT_STRIDE, maxRadiusAt, type SplatExtents } from './extent';
+import { isovist, opennessOf } from './isovist';
 import { findLevels, type Level } from './levels';
 import { buildOccupancy, type Occupancy } from './occupancy';
 import type { DensitySplats } from './read-density';
@@ -8,7 +9,7 @@ import { AZIMUTHS, mulberry32, sampleCandidates, shuffle, type Candidate } from 
 import { candidateScore, diversify, imageMetrics, rejectBeforeRender, type Scored } from './score';
 import { wallAngle } from './walls';
 
-type GenerateOptions = { box: Box, eyeHeight: number, budget: number, seed: number, fov?: number, alignToWalls?: boolean };
+type GenerateOptions = { box: Box, eyeHeight: number, budget: number, seed: number, fov?: number, alignToWalls?: boolean, preferOpen?: boolean };
 
 // what counts as solid: opaque splat centres and extents, or summed splat density
 type SolidRule = 'bodies' | 'density';
@@ -158,12 +159,28 @@ const runGeneration = async <T>(
     .map((cand, i) => ({ cand, depth: distances[i] }))
     .filter(k => !rejectBeforeRender(k.depth, eyeHeight));
 
+    // the camera fov is horizontal for the landscape thumbnails, and one isovist
+    // serves every view from a position
+    const maxDist = 10 * eyeHeight;
+    const isovists = new Map<string, Float32Array>();
+    const opennessAt = (cand: Candidate) => {
+        const { x, y, z } = cand.position;
+        const key = `${x},${y},${z}`;
+        let rays = isovists.get(key);
+        if (!rays) {
+            rays = isovist(occ, cand.position, maxDist);
+            isovists.set(key, rays);
+        }
+        return opennessOf(rays, maxDist, cand.azimuth, cand.fov);
+    };
+    const openness = opts.preferOpen ? kept.map(k => opennessAt(k.cand)) : null;
+
     const scored: Scored[] = [];
     let rendered = false;
     let reason: GenerateResult['reason'];
     deps.onProgress(0, kept.length);
     try {
-        for (const { cand, depth } of kept) {
+        for (const [i, { cand, depth }] of kept.entries()) {
             if (signal.aborted) {
                 reason = 'cancelled';
                 break;
@@ -171,7 +188,7 @@ const runGeneration = async <T>(
             rendered = true;
             const { rgba, thumbnail } = await deps.renderAt(cand);
             const metrics = imageMetrics(rgba, THUMB_WIDTH, THUMB_HEIGHT);
-            const s: Scored = { ...cand, score: candidateScore(metrics, cand.pitch), depth };
+            const s: Scored = { ...cand, score: candidateScore(metrics, cand.pitch, openness?.[i]), depth };
             scored.push(s);
             deps.onAdded(s, thumbnail);
             deps.onProgress(scored.length, kept.length);

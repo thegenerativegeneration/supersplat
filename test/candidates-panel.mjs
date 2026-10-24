@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import {
-    PAGE_SIZE, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems
+    PAGE_SIZE, busyInputAction, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems
 } from './.build/src/candidates/panel-model.js';
 
 const candidatesPanelChecks = {
@@ -38,6 +38,20 @@ const candidatesPanelChecks = {
         assert.deepEqual(pose.position, { x: 1, y: 2.6, z: 5 });
         assert.equal(pose.target.y, 2.6);
         assert.ok(pose.target.z < 5);
+    },
+
+    'candidates panel: while generating only panel pointers and Enter/Space on Cancel get through': async () => {
+        const act = (type, inPanel, extra = {}) => busyInputAction({ type, inPanel, onCancel: false, ...extra });
+        assert.equal(act('pointerdown', true), 'pass');
+        assert.equal(act('wheel', false), 'block');
+        assert.equal(act('keydown', false, { key: 'Escape' }), 'cancel');
+        assert.equal(act('keydown', true, { key: 'Escape' }), 'cancel');
+        for (const key of ['f', 'w', 'z', 'Delete', ' ', 'Enter']) {
+            assert.equal(act('keydown', true, { key }), 'block', key);
+        }
+        assert.equal(act('keydown', true, { key: 'Enter', onCancel: true }), 'pass');
+        assert.equal(act('keydown', true, { key: ' ', onCancel: true }), 'pass');
+        assert.equal(act('keydown', true, { key: 'f', onCancel: true }), 'block');
     },
 
     'candidates panel: tilt warning above 10 degrees only': async () => {

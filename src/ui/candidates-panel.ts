@@ -1,7 +1,7 @@
 import { Button, Container, Label, SelectInput } from '@playcanvas/pcui';
 
 import type { LevelInfo } from '../candidates/generate';
-import { PAGE_SIZE, candidatePose, levelOptions, togglePick, visibleItems, type ViewPose } from '../candidates/panel-model';
+import { PAGE_SIZE, busyInputAction, candidatePose, levelOptions, togglePick, visibleItems, type ViewPose } from '../candidates/panel-model';
 import type { Scored } from '../candidates/score';
 import { Events } from '../events';
 import { Scene } from '../scene';
@@ -12,8 +12,8 @@ import { Tooltips } from './tooltips';
 const BUDGET = 240;
 const TOOL = 'candidatesSetup';
 
-// pointer, wheel and key input outside the panel is swallowed while
-// generating, so nothing moves the camera between candidate renders
+// input swallowed while generating (see busyInputAction), so nothing moves
+// the camera or edits the scene between candidate renders
 const BLOCKED_INPUT = ['pointerdown', 'pointerup', 'pointermove', 'wheel', 'dblclick', 'contextmenu', 'keydown'];
 
 type Cell = { item: Scored, dom: HTMLDivElement, badge: HTMLSpanElement };
@@ -198,14 +198,22 @@ class CandidatesPanel extends Container {
             levelSelect.value = level === null ? 'all' : String(level);
         };
 
-        // swallow input outside the panel while generating; Escape cancels
         const block = (event: Event) => {
-            if (this.dom.contains(event.target as Node)) return;
-            if (event instanceof KeyboardEvent && event.key === 'Escape') abort?.abort();
+            const target = event.target as Node;
+            const action = busyInputAction({
+                type: event.type,
+                key: (event as KeyboardEvent).key,
+                inPanel: this.dom.contains(target),
+                onCancel: cancelButton.dom.contains(target)
+            });
+            if (action === 'pass') return;
+            if (action === 'cancel') abort?.abort();
             event.stopPropagation();
             event.preventDefault();
         };
         const setInputBlocked = (blocked: boolean) => {
+            // a focused control would otherwise be the target of key presses
+            if (blocked) (document.activeElement as HTMLElement)?.blur?.();
             BLOCKED_INPUT.forEach((name) => {
                 if (blocked) {
                     window.addEventListener(name, block, { capture: true, passive: false });

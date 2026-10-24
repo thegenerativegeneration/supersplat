@@ -48,7 +48,21 @@ const eyePreviewPose = (box: Box, eyeHeight: number, fov: number): ViewPose => {
     return { position: { x, y, z }, target: { x, y, z: z - Math.max(eyeHeight, 1e-3) }, fov };
 };
 
+type BusyInput = { type: string, key?: string, inPanel: boolean, onCancel: boolean };
+
+// What to do with an input event while generating: Escape cancels from
+// anywhere, keys are blocked even inside the panel (a focused panel button
+// would let them reach the global shortcuts) except Enter/Space on the
+// focused Cancel button, and pointers only work inside the panel.
+const busyInputAction = (e: BusyInput): 'pass' | 'block' | 'cancel' => {
+    if (e.type === 'keydown') {
+        if (e.key === 'Escape') return 'cancel';
+        return e.onCancel && (e.key === 'Enter' || e.key === ' ') ? 'pass' : 'block';
+    }
+    return e.inPanel ? 'pass' : 'block';
+};
+
 const showTiltWarning = (tiltDeg: number) => tiltDeg > TILT_WARN_DEG;
 
-export { PAGE_SIZE, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems };
+export { PAGE_SIZE, busyInputAction, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems };
 export type { ViewPose };

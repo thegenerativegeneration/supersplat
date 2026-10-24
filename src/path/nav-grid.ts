@@ -26,6 +26,9 @@ type Bounds = { x0: number, y0: number, z0: number, nx: number, ny: number, nz: 
 const NEAR_VOXELS = 8;
 const FLY_PENALTY = 0.5;
 const MAX_PENALTY_VOXELS = 10;
+// extra cost of entering a cell next to an occupied voxel, so routes keep to
+// the middle of doors and corridors
+const PROXIMITY_COST = 2;
 // lifts points on a voxel boundary into the row above, as a fraction of a voxel
 const LIFT = 1e-4;
 // lineFree sampling step, as a fraction of a voxel
@@ -33,10 +36,10 @@ const LINE_STEP = 0.25;
 // store margin so occupancy lookups one voxel outside the box stay in range
 const MARGIN = 2;
 
-// per-cell store layout: occupancy (2 bits), free (2 bits), fly factor code
+// per-cell store layout: occupancy (2 bits), clear (2 bits), fly factor code
 // (4 bits: 1 = not a graph cell, 2 + k = k voxels above walking), walk flag
 const OCC_EMPTY = 1, OCC_FULL = 2;
-const FREE_YES = 1 << 2, FREE_NO = 2 << 2, FREE_MASK = 3 << 2;
+const CLEAR_YES = 1 << 2, CLEAR_NO = 2 << 2, CLEAR_MASK = 3 << 2;
 const FACTOR_SHIFT = 4, FACTOR_MASK = 15 << FACTOR_SHIFT;
 const WALK = 1 << 8;
 
@@ -47,8 +50,8 @@ type Step = { dx: number, dy: number, dz: number, length: number, block: number 
 const stepIndex = (dx: number, dy: number, dz: number) => (dx + 1) + 3 * (dy + 1) + 9 * (dz + 1);
 
 // The 26 unit steps by stepIndex (the centre is empty). block has the
-// freeMask bits of every node of the step's 2x2x2 block except the start:
-// all must be free so the straight segment stays clear of occupied voxels.
+// passMask bits of every node of the step's 2x2x2 block except the start:
+// all must be unoccupied so the straight segment stays out of occupied voxels.
 const STEPS: Step[] = [];
 for (let dz = -1; dz <= 1; dz++) {
     for (let dy = -1; dy <= 1; dy++) {
@@ -160,11 +163,14 @@ const nearColumns = (occ: Occupancy, b: Bounds) => {
     return { near, ground };
 };
 
-// Walk cells: free nodes eye height above level surface voxels, connected
+// A node is passable when its own voxel is unoccupied. Walk cells: nodes eye
+// height above level surface voxels whose voxels one below and one above
+// are unoccupied too (vertical headroom), connected
 // horizontally (8 neighbours, |dy| <= 1, diagonals only between walk
-// orthogonals). Fly cells (allowFlying): free nodes in the box within
+// orthogonals). Fly cells (allowFlying): passable nodes in the box within
 // NEAR_VOXELS of an occupied voxel, 26 neighbours, cost per step scaled by
-// height above walking. Every step also needs its 2x2x2 block free (see
+// height above walking. Entering a node next to an occupied voxel costs
+// PROXIMITY_COST more. Every step also needs its 2x2x2 block passable (see
 // STEPS). Cells are classified lazily, so memory grows with the cells a
 // search touches.
 const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: number, allowFlying: boolean): NavGrid => {
@@ -203,25 +209,31 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         return full;
     };
 
-    // same as occ.isFree(centre) for the voxel row the node owns; callers check inBox
-    const free = (ix: number, iy: number, iz: number) => {
+    const passable = (ix: number, iy: number, iz: number) => !occupied(ix, iy, iz);
+
+    // same as occ.isFree(centre): no occupied voxel in the 3x3x3 around the node
+    const clear = (ix: number, iy: number, iz: number) => {
         const s = get(ix, iy, iz);
-        if (s & FREE_MASK) return (s & FREE_MASK) === FREE_YES;
+        if (s & CLEAR_MASK) return (s & CLEAR_MASK) === CLEAR_YES;
         let ok = true;
         for (let x = ix - 1; ok && x <= ix + 1; x++) {
             for (let y = iy - 1; ok && y <= iy + 1; y++) {
                 for (let z = iz - 1; ok && z <= iz + 1; z++) ok = !occupied(x, y, z);
             }
         }
-        set(ix, iy, iz, get(ix, iy, iz) | (ok ? FREE_YES : FREE_NO));
+        set(ix, iy, iz, get(ix, iy, iz) | (ok ? CLEAR_YES : CLEAR_NO));
         return ok;
+    };
+
+    const stepCost = (step: Step, factor: number, ix: number, iy: number, iz: number) => {
+        return factor * step.length + (clear(ix, iy, iz) ? 0 : PROXIMITY_COST);
     };
 
     const walkSets = new Map<number, Set<number>>();
     for (const level of levels) {
         for (const [ix, iy, iz] of level.cells) {
             const cy = iy + 1 + eyeVoxels;
-            if (inBox(ix, cy, iz) && free(ix, cy, iz)) {
+            if (inBox(ix, cy, iz) && passable(ix, cy - 1, iz) && passable(ix, cy, iz) && passable(ix, cy + 1, iz)) {
                 set(ix, cy, iz, get(ix, cy, iz) | WALK | (2 << FACTOR_SHIFT));
                 addTo(walkSets, column(ix, iz), [cy]);
             }
@@ -255,7 +267,7 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         if (!inBox(ix, iy, iz)) return BLOCKED;
         let code = (get(ix, iy, iz) & FACTOR_MASK) >> FACTOR_SHIFT;
         if (code === 0) {
-            const ok = allowFlying && nearGeometry(ix, iy, iz) && free(ix, iy, iz);
+            const ok = allowFlying && nearGeometry(ix, iy, iz) && passable(ix, iy, iz);
             code = ok ? 2 + aboveWalk(ix, iy, iz) : 1;
             set(ix, iy, iz, get(ix, iy, iz) | (code << FACTOR_SHIFT));
         }
@@ -264,14 +276,14 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
 
     const isWalk = (ix: number, iy: number, iz: number) => inBox(ix, iy, iz) && (get(ix, iy, iz) & WALK) !== 0;
 
-    // bit (dx + 1) + 3 (dy + 1) + 9 (dz + 1) set for each free node in the
+    // bit (dx + 1) + 3 (dy + 1) + 9 (dz + 1) set for each passable node in the
     // 3x3x3 neighbourhood of (ix, iy, iz) inside the box
-    const freeMask = (ix: number, iy: number, iz: number) => {
+    const passMask = (ix: number, iy: number, iz: number) => {
         let mask = 0, bit = 1;
         for (let z = iz - 1; z <= iz + 1; z++) {
             for (let y = iy - 1; y <= iy + 1; y++) {
                 for (let x = ix - 1; x <= ix + 1; x++, bit <<= 1) {
-                    if (inBox(x, y, z) && free(x, y, z)) mask |= bit;
+                    if (inBox(x, y, z) && passable(x, y, z)) mask |= bit;
                 }
             }
         }
@@ -316,7 +328,7 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
 
     const walkNeighbours = (ix: number, iy: number, iz: number) => {
         const out: Neighbour[] = [];
-        const mask = freeMask(ix, iy, iz);
+        const mask = passMask(ix, iy, iz);
         for (let dx = -1; dx <= 1; dx++) {
             for (let dz = -1; dz <= 1; dz++) {
                 if (dx === 0 && dz === 0) continue;
@@ -324,20 +336,23 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
                 const ny = walkNear(ix + dx, iy, iz + dz);
                 if (ny === null) continue;
                 const step = STEPS[stepIndex(dx, ny - iy, dz)];
-                if ((mask & step.block) === step.block) out.push({ cell: pack(ix + dx, ny, iz + dz), cost: step.length });
+                if ((mask & step.block) === step.block) {
+                    out.push({ cell: pack(ix + dx, ny, iz + dz), cost: stepCost(step, 1, ix + dx, ny, iz + dz) });
+                }
             }
         }
         return out;
     };
 
-    // step length times the target cell's factor
+    // step length times the target cell's factor, plus proximity
     const flyNeighbours = (ix: number, iy: number, iz: number) => {
         const out: Neighbour[] = [];
-        const mask = freeMask(ix, iy, iz);
+        const mask = passMask(ix, iy, iz);
         for (const step of STEPS) {
             if (!step || (mask & step.block) !== step.block) continue;
-            const f = factorOf(ix + step.dx, iy + step.dy, iz + step.dz);
-            if (f !== BLOCKED) out.push({ cell: pack(ix + step.dx, iy + step.dy, iz + step.dz), cost: f * step.length });
+            const x = ix + step.dx, y = iy + step.dy, z = iz + step.dz;
+            const f = factorOf(x, y, z);
+            if (f !== BLOCKED) out.push({ cell: pack(x, y, z), cost: stepCost(step, f, x, y, z) });
         }
         return out;
     };
@@ -347,12 +362,16 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         return allowFlying ? flyNeighbours(ix, iy, iz) : walkNeighbours(ix, iy, iz);
     };
 
+    // every voxel sampled along the segment is unoccupied
     const lineFree = (a: Vec3Like, b: Vec3Like) => {
         const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
         const n = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy + dz * dz) / (LINE_STEP * v)));
         for (let i = 0; i <= n; i++) {
             const t = i / n;
-            if (!occ.isFree({ x: a.x + dx * t, y: a.y + dy * t + LIFT * v, z: a.z + dz * t })) return false;
+            const x = Math.floor((a.x + dx * t) / v);
+            const y = Math.floor((a.y + dy * t) / v + LIFT);
+            const z = Math.floor((a.z + dz * t) / v);
+            if (occ.occupied(x, y, z)) return false;
         }
         return true;
     };

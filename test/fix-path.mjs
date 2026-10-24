@@ -26,19 +26,29 @@ const V = EYE / 4;
 const BIG_BOX = { min: { x: -100, y: -100, z: -100 }, max: { x: 100, y: 100, z: 100 } };
 
 // points on a grid spanning two axes, two per grid point; f maps (u, w) to [x, y, z]
-const sheet = (u0, u1, w0, w1, f, skip = () => false) => {
+const sheet = (u0, u1, w0, w1, f, skip = () => false, step = 0.2) => {
     const out = [];
-    for (let u = u0; u < u1 - 1e-9; u += 0.2) {
-        for (let w = w0; w < w1 - 1e-9; w += 0.2) {
+    for (let i = 0; u0 + i * step < u1 - 1e-9; i++) {
+        const u = u0 + i * step;
+        for (let j = 0; w0 + j * step < w1 - 1e-9; j++) {
+            const w = w0 + j * step;
             if (!skip(u, w)) out.push(...f(u, w), ...f(u, w));
         }
     }
     return out;
 };
 const floorAt = (y, x0, x1, z0, z1) => sheet(x0, x1, z0, z1, (x, z) => [x, y, z]);
-// wall in the plane x = wx, optional gap over z in [g0, g1); with 1-voxel
-// clearance a gap needs 3 empty voxel columns, so 1.6 m at eye height 1.6
-const wallX = (wx, z0, z1, h, gap) => sheet(0, h, z0, z1, (y, z) => [wx, y, z], (y, z) => gap && z >= gap[0] && z < gap[1]);
+// wall in the plane x = wx, optional gap over z in [g0, g1)
+const wallX = (wx, z0, z1, h, gap, step = 0.2) => {
+    return sheet(0, h, z0, z1, (y, z) => [wx, y, z], (y, z) => gap && z >= gap[0] - 1e-9 && z < gap[1] - 1e-9, step);
+};
+
+// z where the route crosses the plane x = wx
+const crossingZ = (route, wx) => {
+    const i = route.points.findIndex(p => p.x > wx);
+    const a = route.points[i - 1], b = route.points[i];
+    return a.z + (b.z - a.z) * (wx - a.x) / (b.x - a.x);
+};
 
 // occ + levels built the way Suggest Views builds them
 const navOf = (parts, { box = BIG_BOX, allowFlying = true } = {}) => {
@@ -60,17 +70,35 @@ const assertRouteFree = (grid, route) => {
 
 const fixPathChecks = {
     async 'path: route goes through the door gap'() {
-        const { grid } = navOf([floorAt(0, 0, 20, 0, 10), wallX(10, 0, 10, 4, [4.8, 6.4])], { allowFlying: false });
+        const { grid } = navOf([floorAt(0, 0, 20, 0, 10), wallX(10, 0, 10, 4, [5, 6.2])], { allowFlying: false });
         const route = findRoute(grid, { x: 2, y: 2, z: 2 }, { x: 18, y: 2, z: 2 });
         assert.ok(route);
         assert.equal(route.fromSnapped, false);
         assert.equal(route.toSnapped, false);
         assertRouteFree(grid, route);
-        const i = route.points.findIndex(p => p.x > 10);
-        const a = route.points[i - 1], b = route.points[i];
-        const z = a.z + (b.z - a.z) * (10 - a.x) / (b.x - a.x);
-        assert.ok(z >= 4.8 && z <= 6.4, `crosses at z ${z}`);
+        const z = crossingZ(route, 10);
+        assert.ok(z >= 5 && z <= 6.2, `crosses at z ${z}`);
         assert.ok(route.length > 16);
+    },
+
+    async 'path: route passes a 0.9 m door'() {
+        const wall = wallX(10, 0, 10, 4, [5, 5.9], 0.1);
+        const { grid } = navOf([floorAt(0, 0, 20, 0, 10), wall], { allowFlying: false });
+        const route = findRoute(grid, { x: 2, y: 2, z: 2 }, { x: 18, y: 2, z: 2 });
+        assert.ok(route);
+        assertRouteFree(grid, route);
+        const z = crossingZ(route, 10);
+        assert.ok(z >= 5 && z <= 5.9, `crosses at z ${z}`);
+    },
+
+    async 'path: route keeps to the middle of a wide opening'() {
+        // 3 m opening at z 3.6..6.6, middle third 4.6..5.6
+        const { grid } = navOf([floorAt(0, 0, 20, 0, 10), wallX(10, 0, 10, 4, [3.6, 6.6])], { allowFlying: false });
+        const route = findRoute(grid, { x: 2, y: 2, z: 5.1 }, { x: 18, y: 2, z: 5.1 });
+        assert.ok(route);
+        for (const p of route.points.filter(q => Math.abs(q.x - 10) < 1)) {
+            assert.ok(p.z >= 4.6 && p.z <= 5.6, `z ${p.z} near the opening`);
+        }
     },
 
     async 'path: closed wall is unreachable'() {
@@ -108,14 +136,14 @@ const fixPathChecks = {
     },
 
     async 'path: route stays inside the box'() {
-        // walking round the wall end (z > 10) is shorter than the gap, but outside the box
-        const parts = [floorAt(0, 0, 20, 0, 14), wallX(10, 0, 10, 4, [4.8, 6.4])];
+        // walking round the wall end (z > 9.9) is shorter than the gap, but outside the box
+        const parts = [floorAt(0, 0, 20, 0, 14), wallX(10, 0, 10, 4, [5, 6.2])];
         const from = { x: 2, y: 2, z: 9 }, to = { x: 18, y: 2, z: 9 };
         const open = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 3.5, z: 15 } };
         const outside = findRoute(navOf(parts, { box: open }).grid, from, to);
-        assert.ok(outside.points.some(p => p.z > 10.4));
+        assert.ok(outside.points.some(p => p.z > 9.9));
 
-        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 3.5, z: 10.4 } };
+        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 3.5, z: 9.9 } };
         const { grid } = navOf(parts, { box });
         const route = findRoute(grid, from, to);
         assert.ok(route);

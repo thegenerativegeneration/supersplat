@@ -473,7 +473,7 @@
     "fix-path.eye-height-estimated": "Altura dos olhos: {{height}} (estimada)",
     "fix-path.eye-height-hint": "Altere em Sugerir vistas",
     "fix-path.smallest-opening": "Menor abertura",
-    "tooltip.fix-path.smallest-opening": "Menor vão pelo qual a câmera passa, medido acima do piso ou do parapeito. Menor = a câmera se espreme por vãos mais baixos, como escadas sob um teto baixo ou uma faixa acima de um guarda-corpo",
+    "tooltip.fix-path.smallest-opening": "Menor faixa livre pela qual a câmera pode passar, acima de um parapeito, guarda-corpo ou degrau. Menor = a câmera se espreme por faixas mais baixas, por exemplo acima do guarda-corpo de uma galeria ou em escadas sob um teto baixo e inclinado. Portas baixas no nível do piso continuam fechadas. Arredonda para um quarto da altura dos olhos",
     "fix-path.unit-metres": "m",
     "fix-path.unit-scene": "unidades",
     "fix-path.failed": "Não foi possível corrigir o trajeto",

@@ -473,7 +473,7 @@
     "fix-path.eye-height-estimated": "Altura de los ojos: {{height}} (estimada)",
     "fix-path.eye-height-hint": "Se cambia en Sugerir vistas",
     "fix-path.smallest-opening": "Abertura mínima",
-    "tooltip.fix-path.smallest-opening": "Hueco más pequeño por el que pasa la cámara, medido sobre el suelo o el antepecho. Menor = la cámara se cuela por huecos más bajos, como escaleras bajo un techo bajo o una franja sobre una barandilla",
+    "tooltip.fix-path.smallest-opening": "Franja libre más baja por la que puede pasar la cámara, sobre un antepecho, barandilla o peldaño. Menor = la cámara se cuela por franjas más bajas, p. ej. sobre la barandilla de una galería o en escaleras bajo un techo bajo e inclinado. Las puertas bajas a ras de suelo siguen sin pasar. Se redondea a un cuarto de la altura de los ojos",
     "fix-path.unit-metres": "m",
     "fix-path.unit-scene": "unidades",
     "fix-path.failed": "No se pudo corregir la ruta",

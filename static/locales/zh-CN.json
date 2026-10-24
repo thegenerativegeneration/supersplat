@@ -473,7 +473,7 @@
     "fix-path.eye-height-estimated": "视线高度：{{height}}（估算）",
     "fix-path.eye-height-hint": "可在“推荐视角”中修改",
     "fix-path.smallest-opening": "最小开口",
-    "tooltip.fix-path.smallest-opening": "相机能穿过的最小空隙，从地面或窗台/栏杆顶部向上量。越小 = 相机能钻过更低的空隙，例如低矮天花板下的楼梯或栏杆上方的缝隙",
+    "tooltip.fix-path.smallest-opening": "相机可穿过的最低空隙，从窗台、栏杆或楼梯踏面向上量。越小 = 相机能钻过更低的空隙，例如回廊栏杆上方或低矮倾斜天花板下的楼梯。地面高度的低矮门洞仍无法通过。按眼高的四分之一取整",
     "fix-path.unit-metres": "米",
     "fix-path.unit-scene": "单位",
     "fix-path.failed": "无法修正路径",

@@ -32,9 +32,9 @@ Click the gear next to **Fix Path**.
 
 - **Keep my order**: keeps your key order and only adds detour keys. Default off.
 - **Allow flying**: lets the camera fly where walking can't reach, for example up to a gallery. Default on. The camera still prefers walking at eye height. Off means walking only (stairs work if the scan has them).
-- **Smallest opening**: the lowest gap the camera may pass, measured from the floor (or a sill, railing or stair tread) up. Default 0.8 m, range 0.4–2.0 m, for an eye height of 1.6 m; default and range scale with the eye height. In metres when the scene looks metric, else in scene units.
-  - Lower: the camera squeezes through lower gaps, e.g. a staircase under a low ceiling or a band over a gallery railing. It dips down there; at the default as low as 0.4 m above the sill.
-  - Higher: low gaps stay closed; rooms behind them are parked.
+- **Smallest opening**: the lowest free band the camera may pass, measured above a sill, railing or stair tread. Default 0.8 m, range 0.4–2.0 m, for an eye height of 1.6 m; default and range scale with the eye height. In metres when the scene looks metric, else in scene units. Rounds to steps of a quarter of the eye height (0.4 m).
+  - Lower: the camera squeezes through lower bands, e.g. over a gallery railing, through a window over a desk, or on stairs under a low, sloping ceiling. It dips down there; at the default as low as 0.4 m above the sill.
+  - Higher: low bands stay closed; rooms behind them are parked. Above the eye height it acts like the eye height, so normal doors (2 m) always pass.
   - Low passages cost extra, so normal routes keep to eye height.
 - **Eye height**: shown for information. "(estimated)" means Suggest Views was not used. To change it, use Suggest Views.
 
@@ -96,7 +96,8 @@ With camera poses shown, the camera path is drawn as a line.
 
 ## Limits
 
-- Rooms reachable only through gaps lower than **Smallest opening**, or through stairs the scan missed, stay unreachable. Lower **Smallest opening** to reach them, then play the shot: the scan may show a gap where there is glass or a lost ceiling.
+- Low doors and gaps at floor level (below about 2 m at eye height 1.6 m) don't pass at any **Smallest opening**: the camera can't drop that far in one step.
+- Rooms reachable only through bands lower than **Smallest opening**, or through stairs the scan missed, stay unreachable. Lower **Smallest opening** to reach them, then play the shot: the scan may show a gap where there is glass or a lost ceiling.
 - The path check uses the scan's splats, including the size of large ones. Sparse walls with gaps may still leak, so the camera can pass through them. Play the shot to check.
 - The route stays inside the **Area** box.
 - Fix Path does not check while you drag keys by hand.

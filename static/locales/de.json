@@ -473,7 +473,7 @@
     "fix-path.eye-height-estimated": "Augenhöhe: {{height}} (geschätzt)",
     "fix-path.eye-height-hint": "Änderbar unter „Ansichten vorschlagen“",
     "fix-path.smallest-opening": "Kleinste Öffnung",
-    "tooltip.fix-path.smallest-opening": "Kleinste Lücke, durch die die Kamera passt, gemessen über Boden oder Brüstung. Kleiner = die Kamera zwängt sich durch niedrigere Lücken, z. B. Treppen unter niedriger Decke oder einen Spalt über einem Geländer",
+    "tooltip.fix-path.smallest-opening": "Niedrigster freier Spalt, durch den die Kamera darf, über Brüstung, Geländer oder Treppenstufe. Kleiner = die Kamera zwängt sich durch niedrigere Spalte, z. B. über einem Galeriegeländer oder auf Treppen unter niedriger, schräger Decke. Niedrige Türen auf Bodenhöhe bleiben zu. Wird auf ein Viertel der Augenhöhe gerundet",
     "fix-path.unit-metres": "m",
     "fix-path.unit-scene": "Einheiten",
     "fix-path.failed": "Pfad konnte nicht korrigiert werden",

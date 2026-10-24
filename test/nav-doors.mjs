@@ -36,6 +36,16 @@ const bandRoom = (y0, y1) => new Float32Array([
     ...[10, 10.4, 10.8].flatMap(x => sheet(0, 2.8, 0, 10, (y, z) => [x + 0.2, y, z], y => y >= y0 && y < y1))
 ]);
 
+// thin wall at x = 10 with a window from 0.9 to 2.1 m (z 2 .. 8) and desks
+// with tops at 0.85 m along both sides
+const deskRoom = () => new Float32Array([
+    ...sheet(0, 20, 0, 10, (x, z) => [x, 0, z]),
+    ...sheet(0, 20, 0, 10, (x, z) => [x, 2.8, z]),
+    ...sheet(0, 2.8, 0, 10, (y, z) => [10.2, y, z], (y, z) => z >= 2 && z < 8 && y >= 0.9 && y < 2.1),
+    ...sheet(8.8, 10, 0, 10, (x, z) => [x, 0.85, z]),
+    ...sheet(10.4, 11.6, 0, 10, (x, z) => [x, 0.85, z])
+]);
+
 // walking route across the band room with the given smallest opening
 const bandRoute = (points, opening, allowFlying = false) => {
     const { occ, levels } = buildSceneGrid(points, BOX, EYE, navHeadVoxels(EYE, opening));
@@ -153,8 +163,24 @@ const navDoorsChecks = {
         }
     },
 
+    'path: doors stay open at every opening setting'() {
+        for (const height of [2.0, 2.1]) {
+            for (const opening of [0.4, 0.8, 1.2, 1.6, 1.8, 2.0]) {
+                assert.ok(bandRoute(room(0, height), opening), `${height} m door at ${opening}`);
+            }
+        }
+    },
+
+    // trade-off of low openings: a window over desks becomes a way through
+    'path: a window over desks routes at the default, not at 1.2 m'() {
+        const points = deskRoom();
+        assert.ok(bandRoute(points, 0.8));
+        assert.equal(bandRoute(points, 1.2), null);
+    },
+
     'path: the smallest opening defaults to half the eye height and clamps'() {
         assert.equal(navHeadVoxels(EYE, 0.8), NAV_HEAD_VOXELS);
+        assert.equal(navHeadVoxels(EYE, 2.0), 4);
         assert.equal(clampOpening(undefined, 1.6), 0.8);
         assert.equal(clampOpening(undefined, 3.2), 1.6);
         assert.equal(clampOpening(0.1, 1.6), 0.4);

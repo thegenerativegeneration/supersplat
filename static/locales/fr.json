@@ -473,7 +473,7 @@
     "fix-path.eye-height-estimated": "Hauteur des yeux : {{height}} (estimée)",
     "fix-path.eye-height-hint": "Modifiable dans Suggérer des vues",
     "fix-path.smallest-opening": "Plus petite ouverture",
-    "tooltip.fix-path.smallest-opening": "Plus petit passage que la caméra franchit, mesuré au-dessus du sol ou de l’appui. Plus bas = la caméra se faufile par des passages plus bas, comme un escalier sous un plafond bas ou une bande au-dessus d’un garde-corps",
+    "tooltip.fix-path.smallest-opening": "Plus basse bande libre que la caméra peut franchir, au-dessus d’un appui, d’un garde-corps ou d’une marche. Plus bas = la caméra se faufile par des bandes plus basses, par ex. au-dessus du garde-corps d’une galerie ou dans un escalier sous un plafond bas et incliné. Les portes basses au niveau du sol restent fermées. Arrondi au quart de la hauteur des yeux",
     "fix-path.unit-metres": "m",
     "fix-path.unit-scene": "unités",
     "fix-path.failed": "Impossible de corriger le trajet",

@@ -73,8 +73,9 @@ const clampOpening = (opening: number | undefined, eyeHeight: number) => {
 const openingVoxels = (opening: number, voxel: number) => Math.max(1, Math.round(opening / voxel + 1e-6));
 
 // head clearance in voxels of the surfaces walk cells stand on, for the
-// grid of Suggest Views (voxel = eyeHeight / VOXELS_PER_EYE)
-const navHeadVoxels = (eyeHeight: number, opening: number) => openingVoxels(opening, eyeHeight / VOXELS_PER_EYE);
+// grid of Suggest Views (voxel = eyeHeight / VOXELS_PER_EYE); at most eye
+// height, so floors under door lintels stay surfaces
+const navHeadVoxels = (eyeHeight: number, opening: number) => Math.min(VOXELS_PER_EYE, openingVoxels(opening, eyeHeight / VOXELS_PER_EYE));
 
 // head clearance for the default opening
 const NAV_HEAD_VOXELS = navHeadVoxels(1.6, OPENING_DEFAULT * 1.6);
@@ -129,7 +130,7 @@ const latticeBounds = (box: Box, v: number): Bounds => {
 // A node is passable when its own voxel is unoccupied. Walk cells stand on
 // level surface voxels (levels found with navHeadVoxels of the opening): in
 // the highest of the free rows right above the surface, up to eye height,
-// when at least openingVoxels rows are free. Below eye height the cell is a
+// when at least openingVoxels rows (at most eyeVoxels) are free. Below eye height the cell is a
 // dip (under a lintel, a low slab or in a band over a parapet) and each step
 // into it costs DIP_COST per row of dip. Walk cells are connected horizontally (8
 // neighbours, |dy| <= 1, diagonals only between walk orthogonals, walkBlock),
@@ -149,9 +150,11 @@ const buildNavGrid = (
 ): NavGrid => {
     const v = occ.voxel;
     const eyeVoxels = Math.round(eyeHeight / v);
-    // rows above a surface up to the walk cell at eye height
+    // rows above a surface up to the walk cell at eye height; an opening
+    // needs at most eyeVoxels of them, so the one-row dip under a door
+    // lintel survives every setting
     const fullRows = eyeVoxels + 1;
-    const minRows = Math.min(fullRows, openingVoxels(opening, v));
+    const minRows = Math.min(eyeVoxels, openingVoxels(opening, v));
     const bounds = latticeBounds(box, v);
     const { x0, y0, z0, nx, ny, nz } = bounds;
     const plane = nx * nz;

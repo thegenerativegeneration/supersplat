@@ -20,6 +20,8 @@ type EyeHeightInfo = { eyeHeight: number, estimated: boolean, metric: boolean };
 // range of the smallest opening, as a fraction of eye height (see clampOpening)
 const OPENING_MIN = 0.25;
 const OPENING_MAX = 1.25;
+// the grid voxel, as a fraction of eye height: the opening rounds to it
+const OPENING_STEP = 0.25;
 
 // options for Fix path, opened from the gear next to the button
 class FixPathOptions extends Container {
@@ -50,7 +52,7 @@ class FixPathOptions extends Container {
         const openingRow = new Container({ class: 'fix-path-opening' });
         const openingLabel = new Label({ class: 'fix-path-opening-label' });
         i18n.bindText(openingLabel, 'fix-path.smallest-opening');
-        const openingInput = new NumericInput({ class: 'fix-path-opening-input', step: 0.05, precision: 2 });
+        const openingInput = new NumericInput({ class: 'fix-path-opening-input', step: 0.4, precision: 2 });
         const openingUnit = new Label({ class: 'fix-path-opening-unit' });
         openingRow.append(openingLabel);
         openingRow.append(openingInput);
@@ -68,6 +70,7 @@ class FixPathOptions extends Container {
             syncing = true;
             openingInput.min = Number((OPENING_MIN * eye).toFixed(2));
             openingInput.max = Number((OPENING_MAX * eye).toFixed(2));
+            openingInput.step = Number((OPENING_STEP * eye).toFixed(2));
             openingInput.value = Number((events.invoke('path.settings') as Options).smallestOpening.toFixed(2));
             syncing = false;
             openingUnit.text = i18n.t(metric ? 'fix-path.unit-metres' : 'fix-path.unit-scene');

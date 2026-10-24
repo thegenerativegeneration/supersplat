@@ -473,7 +473,7 @@
     "fix-path.eye-height-estimated": "Eye height: {{height}} (estimated)",
     "fix-path.eye-height-hint": "Change it in Suggest Views",
     "fix-path.smallest-opening": "Smallest opening",
-    "tooltip.fix-path.smallest-opening": "Smallest gap the camera passes through, measured above the floor or sill. Lower = the camera squeezes through lower gaps, such as stairs under a low ceiling or a band over a railing",
+    "tooltip.fix-path.smallest-opening": "Lowest free band the camera may pass, above a sill, railing or stair tread. Lower = the camera squeezes through lower bands, e.g. over a gallery railing or on stairs under a low, sloping ceiling. Low doors at floor level still don't pass. Rounds to a quarter of the eye height",
     "fix-path.unit-metres": "m",
     "fix-path.unit-scene": "units",
     "fix-path.failed": "Couldn't Fix Path",

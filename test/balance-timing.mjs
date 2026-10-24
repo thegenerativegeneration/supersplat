@@ -240,6 +240,34 @@ const balanceTimingChecks = {
         assert.ok(peaks[3] <= 21, `closing peak ${peaks[3]}: ${peaks}`);
     },
 
+    async 'balance: a short turn-capped shot keeps half the uncapped time on straight legs'() {
+        // three 3-unit legs joined by two 90 degree turns on the spot
+        const keys = [
+            yawKey(0, 0, 0), yawKey(0, -3, 0), yawKey(0, -3, 90),
+            yawKey(3, -3, 90), yawKey(3, -3, 180), yawKey(3, 0, 180)
+        ];
+        const uncapped = run(keys, { frames: 300 });
+        const result = run(keys, { frames: 300, maxTurnDegPerSec: 20 });
+        assert.equal(result.ok, true);
+        assert.ok(result.turnLimited > 20, `turnLimited ${result.turnLimited}`);
+        const spans = (f) => f.slice(1).map((v, i) => v - f[i]);
+        const capped = spans(result.frames);
+        spans(uncapped.frames).forEach((u, i) => {
+            assert.ok(capped[i] >= 0.5 * u - 1, `segment ${i}: ${capped[i]} vs uncapped ${u}: ${result.frames}`);
+        });
+        const { peakSpeed, avgSpeed } = result.stats;
+        assert.ok(peakSpeed / avgSpeed < 3, `peak ${peakSpeed} avg ${avgSpeed}`);
+    },
+
+    async 'balance: opposite key views do not count as a turn spike'() {
+        const keys = [at(0), key(1, 0, 0, 1, 0, 1), key(2, 0, 0, 2, 0, 1)];
+        const uncapped = run(keys);
+        const result = run(keys, { maxTurnDegPerSec: 20 });
+        assert.equal(result.ok, true);
+        assert.ok(Number.isFinite(result.stats.peakTurnDegPerSec), `${result.stats.peakTurnDegPerSec}`);
+        near(result.frames, uncapped.frames, 3);
+    },
+
     async 'balance: no turn cap leaves turnLimited unset'() {
         const result = run(turnKeys(), { frames: 30 });
         assert.equal(result.ok, true);

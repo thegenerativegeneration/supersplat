@@ -75,6 +75,8 @@ const sceneDistance = (key: BalanceKey) => {
 // poses as sampled from the spline: [px, py, pz, tx, ty, tz, fov]
 const moveLength = (a: number[], b: number[]) => length(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
 
+const viewLength = (p: number[]) => length(p[3] - p[0], p[4] - p[1], p[5] - p[2]);
+
 // angle in radians between the view directions (target - position) of two poses
 const viewAngle = (a: number[], b: number[]) => {
     const ax = a[3] - a[0], ay = a[4] - a[1], az = a[5] - a[2];
@@ -97,13 +99,21 @@ const stepCost = (a: number[], b: number[], da: number, db: number, weight: numb
     return Math.sqrt(tr * tr + rot * rot + zoom * zoom);
 };
 
-// splits the moving frames over the segments by cost, giving each segment at least its minimum;
-// segments pinned to their minimum leave the rest to the others until no new segment drops below its own
-const allocate = (available: number, costs: number[], minimums: number[]) => {
+// splits the moving frames by cost over the segments, giving each segment at least its minimum.
+// Segments that would fall below their minimum are pinned to it and the others share the rest; this
+// repeats until no new segment is pinned
+const allocate = (available: number, costs: number[], minimums: number[], floorCosts: number[]) => {
     const segs = costs.length;
     const needed = minimums.reduce((a, b) => a + b, 0);
     if (needed >= available && needed > 0) {
-        return minimums.map(m => m * available / needed);
+        // too few frames for every minimum: each segment keeps half its share by floorCosts, and the other
+        // half goes to the segments short of their minimum, in proportion to the shortfall
+        const floorTotal = floorCosts.reduce((a, b) => a + b, 0);
+        const floors = floorCosts.map(c => (floorTotal > 0 ? available * c / floorTotal : available / segs) / 2);
+        const shortfall = minimums.map((m, s) => Math.max(0, m - floors[s]));
+        const short = shortfall.reduce((a, b) => a + b, 0);
+        const rest = available - floors.reduce((a, b) => a + b, 0);
+        return floors.map((f, s) => f + rest * shortfall[s] / short);
     }
 
     const pinned = new Array<boolean>(segs).fill(false);
@@ -190,6 +200,9 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
 
     const capMissed = () => cap !== undefined && Math.max(...peakTurn) > cap * (1 + TURN_TOLERANCE);
 
+    // costs measured on the first spline, timed before any minimum applied
+    let uncappedCosts: number[] | undefined;
+
     let boundaries: number[] = [];
     let iterations = 0;
     // past MAX_ITERATIONS the loop goes on only while the cap is missed, up to twice as many passes
@@ -199,7 +212,7 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
             const total = costs.reduce((a, b) => a + b, 0);
             durations = costs.map((c, s) => (total > 0 ? available * c / total : available / segs) + share[s]);
         } else {
-            durations = allocate(available, costs, minimums).map((d, s) => d + share[s]);
+            durations = allocate(available, costs, minimums, uncappedCosts ?? costs).map((d, s) => d + share[s]);
         }
         const next = roundBoundaries(start, durations, end);
         if (next.join() === boundaries.join()) {
@@ -227,6 +240,8 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
             const sampleTime = (t1 - t0) / SAMPLES_PER_SEGMENT / frameRate;
             let cost = 0;
             let maxAngle = 0;
+            // a view vector this short flips direction within one sample, so its turn is left out of the peak
+            const shortView = 0.1 * Math.min(d0, d1);
             let prevD = d0;
             spline.evaluate(t0, prev);
             for (let i = 1; i <= SAMPLES_PER_SEGMENT; i++) {
@@ -237,7 +252,9 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
                 const step = moveLength(prev, cur);
                 pathLength += step;
                 peakStep = Math.max(peakStep, step / sampleTime);
-                maxAngle = Math.max(maxAngle, viewAngle(prev, cur));
+                if (viewLength(prev) >= shortView && viewLength(cur) >= shortView) {
+                    maxAngle = Math.max(maxAngle, viewAngle(prev, cur));
+                }
                 prev.length = 0;
                 prev.push(...cur);
                 prevD = d;
@@ -249,6 +266,7 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
                 minimums[s] = Math.max(minimums[s], (t1 - t0) * peakTurn[s] / cap - share[s]);
             }
         }
+        uncappedCosts ??= costs;
     }
 
     const peakTurnDegPerSec = Math.max(...peakTurn);

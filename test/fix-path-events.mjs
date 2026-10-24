@@ -6,6 +6,7 @@ import { registerCandidateEvents } from './.build/src/candidate-events.js';
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
 import { Events } from './.build/src/events.js';
 import { registerFixPathEvents } from './.build/src/fix-path-events.js';
+import { CAMERA_RADIUS_VOXELS } from './.build/src/path/clearance.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 import { fakeSlab } from './candidates.mjs';
@@ -18,6 +19,7 @@ const occupied = p => Math.abs(p.x - 6) < 0.2 && p.z < 2;
 const fakeGrid = {
     voxel: V,
     pointFree: p => !occupied(p),
+    sphereFree: p => !occupied(p),
     lineFree: (a, b) => {
         const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / (0.25 * V)));
         for (let i = 0; i <= n; i++) {
@@ -332,9 +334,9 @@ const fixPathEventsChecks = {
 
     async 'path: settings default to reorder and flying'() {
         const { events } = setup([]);
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, smallestOpening: 0.8 });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, keepClear: false, smallestOpening: 0.8 });
         events.fire('path.setSettings', { keepOrder: true });
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, smallestOpening: 0.8 });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, keepClear: false, smallestOpening: 0.8 });
         // missing options come from the settings
         const fixed = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 8), pose('camera_2', 60, 4)]);
         fixed.events.fire('path.setSettings', { keepOrder: true });
@@ -403,6 +405,27 @@ const fixPathEventsChecks = {
         events.fire('scene.clear');
         // the default at eye height 1.6
         assert.equal(events.invoke('path.settings').smallestOpening, 0.8);
+    },
+
+    async 'path: keep clear of walls reaches the grid and resets with the scene'() {
+        const radii = [];
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], {
+            deps: {
+                sceneGrid: async (allowFlying, openingAt, cameraRadius) => {
+                    radii.push(cameraRadius);
+                    return { grid: fakeGrid, eyeHeight: 1.6 };
+                },
+                route: fakeRoute
+            }
+        });
+        assert.equal(events.invoke('path.settings').keepClear, false);
+        await events.invoke('path.fix', FIX);
+        events.fire('path.setSettings', { keepClear: true });
+        assert.equal(events.invoke('path.settings').keepClear, true);
+        await events.invoke('path.fix', FIX);
+        assert.deepEqual(radii, [0, CAMERA_RADIUS_VOXELS]);
+        events.fire('scene.clear');
+        assert.equal(events.invoke('path.settings').keepClear, false);
     },
 
     async 'path: the density rule finds a floor of faint splats that the bodies rule misses'() {

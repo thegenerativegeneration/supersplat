@@ -1,4 +1,5 @@
 import { CellStore } from './cell-store';
+import { pointClearance } from './clearance';
 import { addTo, inIntervals, lowerBound, nearIntervals, occupiedRows, sorted, type Bounds } from './columns';
 import type { Box } from '../candidates/estimate';
 import { VOXELS_PER_EYE } from '../candidates/generate';
@@ -20,7 +21,11 @@ type NavGrid = {
     centre(c: Cell): Vec3Like,
     neighbours(c: Cell): Neighbour[],
     lineFree(a: Vec3Like, b: Vec3Like): boolean,
-    pointFree(p: Vec3Like): boolean
+    pointFree(p: Vec3Like): boolean,
+    // distance to the nearest occupied voxel, Infinity beyond one voxel
+    clearance(p: Vec3Like): number,
+    // the camera ball (cameraRadius voxels) around p touches no occupied voxel
+    sphereFree(p: Vec3Like): boolean
 };
 
 // fly cells must lie within this many voxels (per axis) of an occupied voxel
@@ -146,7 +151,8 @@ const buildNavGrid = (
     box: Box,
     eyeHeight: number,
     allowFlying: boolean,
-    opening = OPENING_DEFAULT * eyeHeight
+    opening = OPENING_DEFAULT * eyeHeight,
+    cameraRadius = 0
 ): NavGrid => {
     const v = occ.voxel;
     const eyeVoxels = Math.round(eyeHeight / v);
@@ -389,7 +395,12 @@ const buildNavGrid = (
         return !occ.occupied(Math.floor(p.x / v), Math.floor(p.y / v + LIFT), Math.floor(p.z / v));
     };
 
-    // every voxel sampled along the segment is unoccupied
+    const clearance = (p: Vec3Like) => pointClearance((x, y, z) => occ.occupied(x, y, z), v, p);
+
+    const radius = cameraRadius * v;
+    const sphereFree = (p: Vec3Like) => (radius > 0 ? clearance(p) >= radius : pointFree(p));
+
+    // every point sampled along the segment is sphereFree
     const lineFree = (a: Vec3Like, b: Vec3Like) => {
         const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
         const n = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy + dz * dz) / (LINE_STEP * v)));
@@ -399,12 +410,12 @@ const buildNavGrid = (
             p.x = a.x + dx * t;
             p.y = a.y + dy * t;
             p.z = a.z + dz * t;
-            if (!pointFree(p)) return false;
+            if (!sphereFree(p)) return false;
         }
         return true;
     };
 
-    return { voxel: v, cellOf, nearestFree, centre, neighbours, lineFree, pointFree };
+    return { voxel: v, cellOf, nearestFree, centre, neighbours, lineFree, pointFree, clearance, sphereFree };
 };
 
 export { buildNavGrid, clampOpening, NAV_HEAD_VOXELS, navHeadVoxels };

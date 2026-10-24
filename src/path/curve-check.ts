@@ -15,19 +15,20 @@ const newPose = (): CurvePose => ({ position: { x: 0, y: 0, z: 0 }, target: { x:
 
 const dist2 = (a: Vec3Like, b: Vec3Like) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2;
 
-// First sample of each segment whose position lies in an occupied voxel.
+// First sample of each segment whose camera ball (grid.sphereFree) touches an
+// occupied voxel.
 // Segment i runs from frames[i] to frames[i + 1] (for a looping curve pass
 // frames[0] + duration as the last entry to check the closing segment).
 // Each frame interval is bisected until consecutive samples are at most step
-// apart; samples within KEY_SKIP_VOXELS of a user key inside geometry (the
-// curve at a user frame lies in an occupied voxel) are skipped.
+// apart; samples within KEY_SKIP_VOXELS of a user key in or against
+// geometry (the ball at a user frame touches an occupied voxel) are skipped.
 const curveCollisions = (curve: CameraCurve, frames: number[], grid: NavGrid, userFrames: number[], step: number): Collision[] => {
     const skip2 = (KEY_SKIP_VOXELS * grid.voxel) ** 2;
     const step2 = step * step;
-    const keys = userFrames.map(f => ({ ...curve(f, newPose()).position })).filter(k => !grid.pointFree(k));
+    const keys = userFrames.map(f => ({ ...curve(f, newPose()).position })).filter(k => !grid.sphereFree(k));
     const pose = newPose();
     const at = (frame: number): Vec3Like => ({ ...curve(frame, pose).position });
-    const bad = (p: Vec3Like) => !grid.pointFree(p) && keys.every(k => dist2(k, p) > skip2);
+    const bad = (p: Vec3Like) => !grid.sphereFree(p) && keys.every(k => dist2(k, p) > skip2);
 
     // first bad sample in (t0, t1], or null; p0 = position at t0
     const scan = (t0: number, p0: Vec3Like, t1: number, p1: Vec3Like, depth: number): Vec3Like | null => {
@@ -55,7 +56,7 @@ const curveCollisions = (curve: CameraCurve, frames: number[], grid: NavGrid, us
     return out;
 };
 
-// indices of the segments whose sampled curve enters an occupied voxel
+// indices of the segments whose sampled camera ball touches an occupied voxel
 const checkCurve = (curve: CameraCurve, frames: number[], grid: NavGrid, userFrames: number[], step: number): number[] => {
     return curveCollisions(curve, frames, grid, userFrames, step).map(c => c.segment);
 };

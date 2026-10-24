@@ -4,6 +4,7 @@ import type { BalanceResult } from './anim/balance-timing';
 import { Pose } from './camera-poses';
 import { insideBox, type Box } from './candidates/estimate';
 import { buildSceneGrid } from './candidates/generate';
+import type { OpaquePoints } from './candidates/read-points';
 import { Events } from './events';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
 import { buildNavGrid, NAV_HEAD_VOXELS, type NavGrid } from './path/nav-grid';
@@ -44,14 +45,14 @@ const STALE_EVENTS = [
     'timeline.smoothness', 'timeline.loop', 'timeline.frames'
 ];
 
-// Grid from the cached scene points, with the box and eye height of the last
-// Suggest Views run, else fresh estimates.
+// Grid from the cached scene points and splat extents, with the box and eye
+// height of the last Suggest Views run, else fresh estimates.
 const defaultSceneGrid = (events: Events) => async (allowFlying: boolean): Promise<SceneGrid | null> => {
-    const points = await events.invoke('candidates.points') as Float32Array;
+    const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
     if (!points || points.length === 0) return null;
     const settings: { box: Box, eyeHeight: number } = events.invoke('candidates.lastSettings') ?? await events.invoke('candidates.prepare');
     const { box, eyeHeight } = settings;
-    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, NAV_HEAD_VOXELS);
+    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, NAV_HEAD_VOXELS, extents);
     return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying), eyeHeight, box };
 };
 

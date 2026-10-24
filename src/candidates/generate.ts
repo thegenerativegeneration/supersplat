@@ -1,4 +1,5 @@
 import { insideBox, type Box } from './estimate';
+import { EXTENT_STRIDE, type SplatExtents } from './extent';
 import { findLevels, type Level } from './levels';
 import { buildOccupancy, type Occupancy } from './occupancy';
 import { mulberry32, sampleCandidates, shuffle, type Candidate } from './sample';
@@ -26,25 +27,41 @@ const VOXELS_PER_EYE = 4;
 // a level needs 1.25 eye heights of free space above it, in whole voxels
 const HEAD_VOXELS = Math.ceil(1.25 * VOXELS_PER_EYE);
 
-const pointsInBox = (points: Float32Array, box: Box) => {
+// the points with centres inside the box, and their extents if given
+const pointsInBox = (points: Float32Array, box: Box, extents?: SplatExtents) => {
     const out = new Float32Array(points.length);
+    const outExtents = extents && new Float32Array(extents.length);
     let n = 0;
     for (let i = 0; i + 2 < points.length; i += 3) {
         const x = points[i], y = points[i + 1], z = points[i + 2];
         if (insideBox(x, y, z, box)) {
+            if (outExtents) {
+                const from = (i / 3) * EXTENT_STRIDE;
+                outExtents.set(extents.subarray(from, from + EXTENT_STRIDE), (n / 3) * EXTENT_STRIDE);
+            }
             out[n++] = x;
             out[n++] = y;
             out[n++] = z;
         }
     }
-    return out.subarray(0, n);
+    return {
+        points: out.subarray(0, n),
+        extents: outExtents?.subarray(0, (n / 3) * EXTENT_STRIDE)
+    };
 };
 
-// Occupancy of the points inside the box at eyeHeight / VOXELS_PER_EYE and
-// the levels in it whose surfaces have headVoxels free voxels above, shared
-// by Suggest Views and Fix path.
-const buildSceneGrid = (points: Float32Array, box: Box, eyeHeight: number, headVoxels = HEAD_VOXELS): { occ: Occupancy, levels: Level[] } => {
-    const occ = buildOccupancy(pointsInBox(points, box), eyeHeight / VOXELS_PER_EYE);
+// Occupancy of the points (and splat extents, if given) inside the box at
+// eyeHeight / VOXELS_PER_EYE and the levels in it whose surfaces have
+// headVoxels free voxels above, shared by Suggest Views and Fix path.
+const buildSceneGrid = (
+    points: Float32Array,
+    box: Box,
+    eyeHeight: number,
+    headVoxels = HEAD_VOXELS,
+    extents?: SplatExtents
+): { occ: Occupancy, levels: Level[] } => {
+    const inBox = pointsInBox(points, box, extents);
+    const occ = buildOccupancy(inBox.points, eyeHeight / VOXELS_PER_EYE, 2, inBox.extents);
     const minArea = 8 * (eyeHeight / 1.6) ** 2;
     return { occ, levels: findLevels(occ, headVoxels, minArea) };
 };
@@ -58,10 +75,11 @@ const runGeneration = async <T>(
     deps: GenerateDeps<T>,
     points: Float32Array,
     opts: GenerateOptions,
-    signal: AbortSignal
+    signal: AbortSignal,
+    extents?: SplatExtents
 ): Promise<GenerateResult> => {
     const { box, eyeHeight, budget, seed } = opts;
-    const { occ, levels } = buildSceneGrid(points, box, eyeHeight);
+    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, HEAD_VOXELS, extents);
     deps.onLevels(levels.map((l, index) => ({ index, height: l.height, area: l.area })));
     if (levels.length === 0) return { scored: [], reason: 'noLevels' };
 

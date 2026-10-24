@@ -150,7 +150,7 @@ const fixPathEventsChecks = {
 
         // the default grid layer reads the scene points; none means no splats
         const empty = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], { deps: {} });
-        empty.events.function('candidates.points', async () => new Float32Array(0));
+        empty.events.function('candidates.cloud', async () => ({ points: new Float32Array(0), extents: new Float32Array(0) }));
         const none = await empty.events.invoke('path.fix', FIX);
         assert.equal(none.ok, false);
         assert.equal(none.reason, 'noSplats');

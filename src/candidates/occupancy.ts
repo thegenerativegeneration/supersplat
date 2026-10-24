@@ -1,3 +1,5 @@
+import { rasterizeExtents, type SplatExtents } from './extent';
+
 type Vec3Like = { x: number, y: number, z: number };
 
 type Occupancy = {
@@ -25,8 +27,9 @@ const unpackKey = (key: number): [number, number, number] => {
 };
 
 // Voxels holding at least minCount points count as occupied, so isolated
-// floaters do not block free space.
-const buildOccupancy = (points: Float32Array, voxel: number, minCount = 2): Occupancy => {
+// floaters do not block free space. With extents, voxels inside a large
+// splat's body are occupied too (see rasterizeExtents).
+const buildOccupancy = (points: Float32Array, voxel: number, minCount = 2, extents?: SplatExtents): Occupancy => {
     const counts = new Map<number, number>();
     for (let i = 0; i + 2 < points.length; i += 3) {
         const key = packKey(
@@ -41,6 +44,9 @@ const buildOccupancy = (points: Float32Array, voxel: number, minCount = 2): Occu
     counts.forEach((count, key) => {
         if (count >= minCount) keys.add(key);
     });
+    if (extents) {
+        rasterizeExtents(points, extents, voxel, (ix, iy, iz) => keys.add(packKey(ix, iy, iz)));
+    }
 
     const occupied = (ix: number, iy: number, iz: number) => keys.has(packKey(ix, iy, iz));
 

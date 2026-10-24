@@ -79,6 +79,6 @@ With camera poses shown, the camera path is drawn as a line.
 ## Limits
 
 - Rooms reachable only through very narrow openings, or through stairs the scan missed, stay unreachable.
-- The path check uses the scan's splats. Thin or sparse walls may leak, so the camera can still pass through them. Play the shot to check.
+- The path check uses the scan's splats, including the size of large ones. Sparse walls with gaps may still leak, so the camera can pass through them. Play the shot to check.
 - The route stays inside the **Area** box.
 - Fix Path does not check while you drag keys by hand.

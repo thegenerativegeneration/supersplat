@@ -2,7 +2,7 @@ import { Vec3 } from 'playcanvas';
 
 import { estimateEyeHeight, estimateTiltDeg, proposeBox, type Box } from './candidates/estimate';
 import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH, type GenerateOptions } from './candidates/generate';
-import { readOpaquePoints } from './candidates/read-points';
+import { readOpaquePoints, type OpaquePoints } from './candidates/read-points';
 import type { Candidate } from './candidates/sample';
 import type { Scored } from './candidates/score';
 import { ElementType } from './element';
@@ -30,7 +30,7 @@ const thumbnailOf = (rgba: Uint8Array) => {
 };
 
 const registerCandidateEvents = (events: Events, scene: Scene) => {
-    let points: Promise<Float32Array> | null = null;
+    let points: Promise<OpaquePoints> | null = null;
     let running = false;
     // box and eye height of the last Suggest Views run in this session
     let lastSettings: { box: Box, eyeHeight: number } | null = null;
@@ -57,13 +57,13 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         return points;
     };
 
-    // the cached opaque splat centres (x, y, z triples) of the visible layers
-    events.function('candidates.points', () => scenePoints());
+    // the cached opaque splat centres (x, y, z triples) and extents of the visible layers
+    events.function('candidates.cloud', () => scenePoints());
 
     events.function('candidates.lastSettings', () => lastSettings);
 
     events.function('candidates.prepare', async () => {
-        const pts = await scenePoints();
+        const { points: pts } = await scenePoints();
         const box = proposeBox(pts);
         return {
             box,
@@ -81,7 +81,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
             eyeHeight: opts.eyeHeight
         };
         try {
-            const pts = await scenePoints();
+            const { points: pts, extents } = await scenePoints();
             const { camera } = scene;
             const fov = opts.fov ?? camera.fov;
             const saved = events.invoke('camera.getPose');
@@ -125,7 +125,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
                 onProgress: (done, total) => events.fire('candidates.progress', done, total),
                 onAdded: (scored, thumbnail) => events.fire('candidates.added', scored, thumbnail),
                 onLevels: levels => events.fire('candidates.levels', levels)
-            }, pts, { ...opts, fov }, signal);
+            }, pts, { ...opts, fov }, signal, extents);
 
             console.debug(`candidates.generate: ${rendered} rendered in ${(performance.now() - start).toFixed(0)} ms`);
             events.fire('candidates.done', result.scored.length, result.reason);

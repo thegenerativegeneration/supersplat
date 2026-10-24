@@ -89,8 +89,9 @@ const fakeDeps = ({ distanceOf = () => 5, onRender = () => {} } = {}) => {
 const FLOOR_POINTS = new Float32Array(floor(0, 0, 10, 0, 10));
 const GEN_OPTS = { box: BIG_BOX, eyeHeight: 1.6, budget: 12, seed: 1, fov: 60 };
 
-// a splat-shaped object over one source chunk; rows are [x, y, z, opacityLogit]
-const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true } = {}) => {
+// a splat-shaped object over one source chunk; rows are [x, y, z, opacityLogit],
+// geometricRows optionally gives whole 8-float geometric rows
+const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true, geometricRows = [] } = {}) => {
     const n = rows.length;
     const layouts = { position: { stride: 12, fields: {} }, geometric: { stride: 32, fields: {} } };
     return {
@@ -112,6 +113,7 @@ const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true } = {}
                     const geo = new Float32Array(geometric.data);
                     rows.forEach(([x, y, z, o], i) => {
                         pos.set([x, y, z], i * 3);
+                        if (geometricRows[i]) geo.set(geometricRows[i], i * 8);
                         geo[i * 8 + 7] = o;
                     });
                 }
@@ -352,12 +354,12 @@ const candidatesChecks = {
         const world = new Mat4().setTranslate(10, 0, 0);
         const shown = fakeSplat([[1, 2, 3, 5], [4, 5, 6, -5], [7, 8, 9, 5], [NaN, 0, 0, 5]], { flags: [0, 0, 2, 0], world });
         const hiddenLayer = fakeSplat([[0, 0, 0, 5]], { visible: false });
-        assert.deepEqual([...await readOpaquePoints([shown, hiddenLayer])], [11, 2, 3]);
+        assert.deepEqual([...(await readOpaquePoints([shown, hiddenLayer])).points], [11, 2, 3]);
     },
 
     'candidates: point readback subsamples to maxPoints': async () => {
         const rows = Array.from({ length: 40 }, (v, i) => [i, 0, 0, 5]);
-        const out = await readOpaquePoints([fakeSplat(rows)], 10);
+        const { points: out } = await readOpaquePoints([fakeSplat(rows)], 10);
         assert.equal(out.length, 30);
         assert.ok(out[3 * 9] > 30, `${out}`);
     },
@@ -377,4 +379,4 @@ const candidatesChecks = {
     }
 };
 
-export { candidatesChecks };
+export { candidatesChecks, fakeSplat };

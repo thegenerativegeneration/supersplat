@@ -18,7 +18,8 @@ type NavGrid = {
     nearestFree(p: Vec3Like, maxVoxels: number): Cell | null,
     centre(c: Cell): Vec3Like,
     neighbours(c: Cell): Neighbour[],
-    lineFree(a: Vec3Like, b: Vec3Like): boolean
+    lineFree(a: Vec3Like, b: Vec3Like): boolean,
+    pointFree(p: Vec3Like): boolean
 };
 
 // fly cells must lie within this many voxels (per axis) of an occupied voxel
@@ -316,21 +317,27 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         return allowFlying ? flyNeighbours(ix, iy, iz) : walkNeighbours(ix, iy, iz);
     };
 
+    // the voxel containing the point (lifted like indexOf) is unoccupied
+    const pointFree = (p: Vec3Like) => {
+        return !occ.occupied(Math.floor(p.x / v), Math.floor(p.y / v + LIFT), Math.floor(p.z / v));
+    };
+
     // every voxel sampled along the segment is unoccupied
     const lineFree = (a: Vec3Like, b: Vec3Like) => {
         const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
         const n = Math.max(1, Math.ceil(Math.sqrt(dx * dx + dy * dy + dz * dz) / (LINE_STEP * v)));
+        const p = { x: 0, y: 0, z: 0 };
         for (let i = 0; i <= n; i++) {
             const t = i / n;
-            const x = Math.floor((a.x + dx * t) / v);
-            const y = Math.floor((a.y + dy * t) / v + LIFT);
-            const z = Math.floor((a.z + dz * t) / v);
-            if (occ.occupied(x, y, z)) return false;
+            p.x = a.x + dx * t;
+            p.y = a.y + dy * t;
+            p.z = a.z + dz * t;
+            if (!pointFree(p)) return false;
         }
         return true;
     };
 
-    return { voxel: v, cellOf, nearestFree, centre, neighbours, lineFree };
+    return { voxel: v, cellOf, nearestFree, centre, neighbours, lineFree, pointFree };
 };
 
 export { buildNavGrid };

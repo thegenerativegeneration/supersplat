@@ -318,13 +318,17 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         return out;
     };
 
-    // step length times the target cell's factor, plus proximity
+    // step length times the target cell's factor, plus proximity; steps
+    // between walk cells need only walkBlock, as when walking
     const flyNeighbours = (ix: number, iy: number, iz: number) => {
         const out: Neighbour[] = [];
         const mask = passMask(ix, iy, iz);
+        const fromWalk = isWalk(ix, iy, iz);
         for (const step of STEPS) {
-            if (!step || (mask & step.block) !== step.block) continue;
+            if (!step) continue;
             const x = ix + step.dx, y = iy + step.dy, z = iz + step.dz;
+            const block = fromWalk && isWalk(x, y, z) ? step.walkBlock : step.block;
+            if ((mask & block) !== block) continue;
             const f = factorOf(x, y, z);
             if (f !== BLOCKED) out.push({ cell: pack(x, y, z), cost: stepCost(step, f, x, y, z) });
         }

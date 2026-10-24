@@ -9,7 +9,7 @@ import type { Vec3Like } from '../candidates/occupancy';
 // a user key; distance is the sampled scene distance (non-finite: unknown)
 type FixKey = CurvePose & { name: string, linger: number, distance: number };
 
-type RouteFn = (grid: NavGrid, from: Vec3Like, to: Vec3Like) => Route | null;
+type RouteFn = (grid: NavGrid, from: Vec3Like, to: Vec3Like, weight?: number) => Route | null;
 
 type FixPlanInput = {
     // user keys by frame; the first stays first
@@ -44,33 +44,42 @@ const evenFrames = (n: number, frames: number, loop: boolean) => {
     return Array.from({ length: n }, (_, i) => Math.round(i * span));
 };
 
-// symmetric route lookup between keys i and j, routed once per pair
+// weight of the A* heuristic for the ordering distances; routes taken by
+// the camera use plain A*
+const ORDER_WEIGHT = 2;
+
+// Symmetric route lookup between keys i and j, routed once per pair and
+// weight: length() estimates with weighted A* for ordering, points() is the
+// plain A* route.
 const routeCache = (keys: FixKey[], grid: NavGrid, route: RouteFn | undefined) => {
     const connected = route ? null : components(grid);
     const find = route ?? findRoute;
-    const cache = new Map<number, Route | null>();
+    const caches = new Map<number, Map<number, Route | null>>();
     const n = keys.length;
-    const get = (i: number, j: number) => {
+    const get = (i: number, j: number, weight: number) => {
         const a = Math.min(i, j), b = Math.max(i, j);
         const k = a * n + b;
+        if (!caches.has(weight)) caches.set(weight, new Map());
+        const cache = caches.get(weight);
         if (!cache.has(k)) {
             const pa = keys[a].position, pb = keys[b].position;
-            cache.set(k, !connected || connected.same(pa, pb) ? find(grid, pa, pb) : null);
+            cache.set(k, !connected || connected.same(pa, pb) ? find(grid, pa, pb, weight) : null);
         }
         return cache.get(k);
     };
     return {
-        length: (i: number, j: number) => get(i, j)?.length ?? Infinity,
+        length: (i: number, j: number) => get(i, j, ORDER_WEIGHT)?.length ?? Infinity,
         points: (i: number, j: number) => {
-            const r = get(i, j);
+            // the estimate's route when plain A* hits its expansion cap
+            const r = get(i, j, 1) ?? get(i, j, ORDER_WEIGHT);
             if (!r) return null;
             return i < j ? r.points : r.points.slice().reverse();
         }
     };
 };
 
-// Route distances between keys. With keepOrder only the distances from the
-// first key are needed (they decide reachability); pairs with an
+// Route distance estimates between keys. With keepOrder only the distances
+// from the first key are needed (they decide reachability); pairs with an
 // unreachable key are not routed.
 const distanceMatrix = (n: number, length: (i: number, j: number) => number, keepOrder: boolean) => {
     const dist = Array.from({ length: n }, () => new Array<number>(n).fill(0));

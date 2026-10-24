@@ -27,17 +27,17 @@ const room = (fy, height, width = 0.9) => new Float32Array([
     ...sheet(fy, fy + 2.8, 0, 10, (y, z) => [10, y, z], (y, z) => z >= 5 && z < 5 + width && y < fy + height)
 ]);
 
-const walkRoute = (points, fy) => {
+const walkRoute = (points, fy, allowFlying = false) => {
     const { occ, levels } = buildSceneGrid(points, BOX, EYE, NAV_HEAD_VOXELS);
-    const grid = buildNavGrid(occ, levels, BOX, EYE, false);
+    const grid = buildNavGrid(occ, levels, BOX, EYE, allowFlying);
     return findRoute(grid, { x: 3, y: fy + 2, z: 5.4 }, { x: 17, y: fy + 2, z: 5.4 });
 };
 
 const navDoorsChecks = {
-    'path: walking passes a 2 m high door under a ceiling'() {
-        for (const fy of [0, 0.15, 0.3]) {
-            const route = walkRoute(room(fy, 2.0), fy);
-            assert.ok(route, `floor at ${fy}`);
+    'path: walking and flying pass a 2 m high door under a ceiling'() {
+        for (const [fy, allowFlying] of [[0, false], [0.15, false], [0.3, false], [0, true]]) {
+            const route = walkRoute(room(fy, 2.0), fy, allowFlying);
+            assert.ok(route, `floor at ${fy}, flying ${allowFlying}`);
             // the wall voxel column is x 10 .. 10.4
             const at = route.points.find(p => p.x > 10 && p.x < 10.4);
             assert.ok(at.z >= 5 && at.z <= 5.9, `crosses at z ${at.z}`);
@@ -45,8 +45,23 @@ const navDoorsChecks = {
         }
     },
 
-    'path: walking does not pass a 1 m high opening'() {
+    'path: a 1 m high opening does not route'() {
         assert.equal(walkRoute(room(0, 1.0), 0), null);
+        assert.equal(walkRoute(room(0, 1.0), 0, true), null);
+    },
+
+    'path: weighted routes estimate within twice the plain length'() {
+        const { occ, levels } = buildSceneGrid(room(0, 2.0), BOX, EYE, NAV_HEAD_VOXELS);
+        const pairs = [[[3, 5.4], [17, 5.4]], [[1, 1], [19, 9]], [[2, 9], [18, 1]], [[4, 3], [8, 8]]];
+        for (const allowFlying of [false, true]) {
+            const grid = buildNavGrid(occ, levels, BOX, EYE, allowFlying);
+            for (const [[ax, az], [bx, bz]] of pairs) {
+                const a = { x: ax, y: 2, z: az }, b = { x: bx, y: 2, z: bz };
+                const plain = findRoute(grid, a, b).length;
+                const weighted = findRoute(grid, a, b, 2).length;
+                assert.ok(weighted >= plain - 1e-9 && weighted <= 2 * plain, `${allowFlying} ${ax},${az}: ${weighted} vs ${plain}`);
+            }
+        }
     },
 
     'path: components separate rooms behind a closed wall'() {

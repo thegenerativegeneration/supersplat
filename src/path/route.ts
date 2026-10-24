@@ -79,11 +79,13 @@ class SearchState {
     }
 }
 
-// A* from start to goal with a Euclidean heuristic in voxels; the cells from
-// start to goal, or null when unreachable or the expansion cap is hit.
-const search = (grid: NavGrid, start: Cell, goal: Cell): Cell[] | null => {
+// A* from start to goal with a Euclidean heuristic in voxels, scaled by
+// weight (above 1: weighted A*, fewer expansions, path cost at most weight
+// times the optimum); the cells from start to goal, or null when
+// unreachable or the expansion cap is hit.
+const search = (grid: NavGrid, start: Cell, goal: Cell, weight: number): Cell[] | null => {
     const goalPos = grid.centre(goal);
-    const h = (c: Cell) => distance(grid.centre(c), goalPos) / grid.voxel;
+    const h = (c: Cell) => weight * distance(grid.centre(c), goalPos) / grid.voxel;
     const state = new SearchState();
     const at = (c: Cell) => c % CHUNK;
     state.chunk(start).g[at(start)] = 0;
@@ -154,15 +156,16 @@ const components = (grid: NavGrid) => {
 
 // Route between the grid cells of from and to (snapped to the nearest graph
 // cell within SNAP_VOXELS when outside the graph). Points are cell centres
-// from the start cell to the goal cell; length is in world units.
-const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like): Route | null => {
+// from the start cell to the goal cell; length is in world units. weight
+// scales the A* heuristic (see search).
+const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like, weight = 1): Route | null => {
     const fromCell = grid.cellOf(from);
     const toCell = grid.cellOf(to);
     const start = fromCell ?? grid.nearestFree(from, SNAP_VOXELS);
     const goal = toCell ?? grid.nearestFree(to, SNAP_VOXELS);
     if (start === null || goal === null) return null;
 
-    const cells = search(grid, start, goal);
+    const cells = search(grid, start, goal, weight);
     if (!cells) return null;
 
     const points = cells.map(c => grid.centre(c));

@@ -1,10 +1,10 @@
 import { Vec3 } from 'playcanvas';
 
 import { BalanceResult } from './anim/balance-timing';
-import { Pose } from './camera-poses';
+import { isParked, Pose } from './camera-poses';
 import { Vec3Like } from './candidates/occupancy';
 import { Events } from './events';
-import { BalanceSource, computeBalance, showBalanceFailure } from './timing-events';
+import { BalanceSource, computeBalance, showBalanceFailure, withParkedFrames } from './timing-events';
 
 type ViewPick = { position: Vec3Like, direction: Vec3Like, fov: number, depth: number };
 
@@ -34,10 +34,14 @@ const fallbackAppendFrames = (existing: number[], added: number, frames: number)
 };
 
 const registerViewKeyEvents = (events: Events) => {
-    // append picked views as camera keys and balance the timing of all keys,
-    // as one undo step. Falls back to simple spacing when balancing refuses.
+    // append picked views as camera keys and balance the timing of all keys
+    // except those parked after the shot, as one undo step. Falls back to
+    // simple spacing when balancing refuses.
     events.function('views.addKeys', async (views: ViewPick[]): Promise<BalanceResult> => {
-        const existing = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
+        const all = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
+        const duration = events.invoke('timeline.frames') as number;
+        const parked = (p: Pose) => isParked(p, duration);
+        const existing = all.filter(p => !parked(p));
         const fallbackFov = events.invoke('camera.fov') as number;
 
         const added = views.map(v => ({
@@ -69,8 +73,8 @@ const registerViewKeyEvents = (events: Events) => {
 
         const frames = 'frames' in result ?
             result.frames :
-            fallbackAppendFrames(existing.map(p => p.frame), added.length, events.invoke('timeline.frames'));
-        events.fire('track.appendPoses', added, frames);
+            fallbackAppendFrames(existing.map(p => p.frame), added.length, duration);
+        events.fire('track.appendPoses', added, withParkedFrames(all, parked, frames));
 
         // a lone key needs no balancing, so tooFewKeys is not worth a popup
         if ('reason' in result && result.reason !== 'tooFewKeys') {

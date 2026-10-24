@@ -112,13 +112,33 @@ const cameraTrackChecks = {
         assert.equal(events.invoke('camera.poses').length, 2);
     },
 
-    'track: appendPoses rejects non-increasing frames'() {
+    'track: appendPoses rejects repeated frames'() {
         const { events, ops } = setup([[0], [30]]);
         const added = [{ position: new Vec3(), target: new Vec3(0, 0, -1), fov: 50 }];
         events.fire('track.appendPoses', added, [0, 30, 30]);
         events.fire('track.appendPoses', added, [0, 30]);
         assert.equal(ops.length, 0);
         assert.deepEqual(sortedKeys(events), [0, 30]);
+    },
+
+    'track: parked survives snapshot and poseSets, retime into the shot clears it'() {
+        const { events, ops } = setup([[0], [60]]);
+        const parked = { name: 'away', frame: 181, position: new Vec3(5, 0, 0), target: new Vec3(5, 0, -1), fov: 60, parked: true };
+        events.fire('track.replacePath', [...events.invoke('camera.poses'), parked]);
+        const isParked = () => !!events.invoke('camera.poses').find(p => p.name === 'away').parked;
+        assert.equal(isParked(), true);
+        events.fire('track.setLinger', 0, 1);
+        ops[1].undo();
+        assert.equal(isParked(), true);
+
+        const sets = events.invoke('docSerialize.poseSets');
+        assert.deepEqual(sets[0].poses.map(p => !!p.parked), [false, false, true]);
+        const other = setup([]);
+        other.events.invoke('docDeserialize.poseSets', sets);
+        assert.equal(other.events.invoke('camera.poses').find(p => p.name === 'away').parked, true);
+
+        events.fire('track.retime', [0, 60, 120]);
+        assert.equal(isParked(), false);
     },
 
     'track: a copied or replaced auto key is a normal key'() {

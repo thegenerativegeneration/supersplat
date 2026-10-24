@@ -55,6 +55,11 @@ const pathLineChecks = {
         assert.deepEqual(colors, [[0, 1, 1], AUTO_KEY_COLOR, BLOCKED_COLOR]);
     },
 
+    'path: frustums show parked keys after the shot red': async () => {
+        const colors = poseColors([{ name: 'a', frame: 0 }, { name: 'b', frame: 200, parked: true }, { name: 'c', frame: 50, parked: true }], [], 181);
+        assert.deepEqual(colors, [[0, 1, 1], BLOCKED_COLOR, [0, 1, 1]]);
+    },
+
     'path: loop adds the closing segment': async () => {
         const looped = buildCameraCurve(keys, frames, { duration: 120, smoothness: 1, loop: true });
         const { positions } = samplePathLine(looped, frames, { ...base, loop: true, duration: 120 });

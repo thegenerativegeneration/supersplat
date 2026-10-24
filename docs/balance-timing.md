@@ -10,7 +10,7 @@ Balance spreads your camera keys in time so the camera moves at an even speed th
 
 - Total length stays the **Total Frames** value.
 - With loop off, Balance always puts the first key at frame 0 and the last key at the final frame. A pre-roll or post-roll you set by hand is replaced; use linger on the end keys instead.
-- Keys beyond **Total Frames** are pulled back into range.
+- Keys beyond **Total Frames** are pulled back into range. Keys parked by [Fix Path](fix-path.md#parked-keys) stay where they are.
 - One Ctrl+Z undoes the whole Balance.
 - Balance counts moving, turning, zoom and closeness to the scene. Close passes get more time.
 

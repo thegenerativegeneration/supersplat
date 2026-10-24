@@ -5,6 +5,7 @@ Fix Path repairs a camera shot in one click. It puts the keys in a good order, r
 ## What it does
 
 - Orders the keys. The first key stays first. The tool picks the rest for the shortest way through the scene.
+- Keys that can't be reached are **parked**: moved after the end of the shot, so they don't play. See [Parked keys](#parked-keys).
 - Routes the camera between keys through free space, like a person walking.
 - Adds **detour keys** where the camera would hit walls, floors or objects. They get their own colour.
 - Balances the timing, like [Balance](balance-timing.md).
@@ -39,7 +40,7 @@ Click outside the box or press Escape to close it.
 
 - **Clean run**: a short line above the button, "Path fixed. Detour keys added: N". It goes away after a few seconds.
 - **Problems left**: a box titled **Path Needs Attention** lists them.
-  - "No route found to these keys: ... They were moved to the end of the shot; move or delete them."
+  - "No route found to these keys: ... They were moved after the end of the shot (not played) and marked red; move or delete them."
   - "The path is blocked after the keys at frames ... (marked red on the timeline)."
   - "These keys are inside geometry or outside the area: ... Their routes start from the nearest free space." Outside the area means outside the **Area** box.
 - **Errors**: a box titled **Couldn't Fix Path**.
@@ -54,7 +55,7 @@ Click outside the box or press Escape to close it.
 
 - Detour keys have a light blue colour. Your keys keep theirs.
 - A red band marks a blocked segment, from the key through its detour keys to your next key.
-- A red ring marks a key that could not be reached.
+- A red ring marks a key that could not be reached. Parked keys sit at the right edge of the timeline.
 - The marks vanish after the next edit of keys, **Smoothness**, loop or **Total Frames**, and are replaced by the next run.
 
 ## 3D view
@@ -65,8 +66,21 @@ With camera poses shown, the camera path is drawn as a line.
 - Light blue line: segment next to a detour key.
 - Otherwise: the normal pose colour.
 - The line follows keys, smoothness, loop and length.
-- Red camera: a key that could not be reached.
+- Red camera: a key that could not be reached (parked).
 - Light blue camera: a detour key.
+
+## Parked keys
+
+- Fix Path keeps the biggest group of keys that the camera can travel between. Keys outside it are parked.
+- If the first key is parked, the shot starts at the earliest key of the group.
+- Parked keys stay in the project with their position, view and linger. They get frames after **Total Frames**, in their old order, and don't play.
+- They keep the red ring and red camera, also after edits and reloading the project.
+- Next steps, your choice:
+  - Delete them.
+  - Drag one onto the timeline. It becomes a normal key.
+  - Move it in 3D and run Fix Path again. Every run tries parked keys again.
+- **Balance** and **Suggest Views** leave parked keys where they are.
+- If you raise **Total Frames** past a parked key, it plays again like a normal key.
 
 ## Run again
 

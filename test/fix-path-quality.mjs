@@ -40,6 +40,14 @@ const plan = (grid, x, frames) => planFixPath({
     timeline: { frames, frameRate: 30, smoothness: 1, loop: false, rotationWeight: 1 }
 });
 
+// floor split by a closed wall at x = 10
+const closedGrid = () => {
+    const floor = sheet(0, 20, 0, 10, (x, z) => [x, 0, z]);
+    const wall = sheet(0, 4, 0, 10, (y, z) => [10, y, z], () => false, 0.1);
+    const occ = buildOccupancy(new Float32Array([...floor, ...wall]), V);
+    return buildNavGrid(occ, findLevels(occ, NAV_HEAD_VOXELS, 8), BOX, EYE, false);
+};
+
 // keys sit at 1.6 m, route cells at 2 m: compare over the floor
 const flatDistance = (a, b) => Math.hypot(b.x - a.x, b.z - a.z);
 
@@ -61,6 +69,24 @@ const fixPathQualityChecks = {
         const { detours, blocked } = plan(doorGrid(), 10.05, 300);
         assert.deepEqual(blocked, []);
         assert.ok(detours <= 2, `${detours} detours`);
+    },
+
+    'path: the group with most keys is planned, the rest is left out'() {
+        for (const keepOrder of [false, true]) {
+            const result = planFixPath({
+                keys: [key('a', 17, 5, [19, 5]), key('b', 3, 2, [3, 0]), key('c', 6, 8, [6, 9]), key('d', 4, 5, [4, 7])],
+                grid: closedGrid(),
+                eyeHeight: EYE,
+                keepOrder,
+                timeline: { frames: 300, frameRate: 30, smoothness: 1, loop: false, rotationWeight: 1 }
+            });
+            assert.deepEqual(result.unreachable, ['a'], `keepOrder ${keepOrder}`);
+            const names = result.poses.filter(p => p.key).map(p => p.key.name);
+            assert.equal(names[0], 'b');
+            assert.deepEqual(names.slice().sort(), ['b', 'c', 'd']);
+            assert.deepEqual(result.blocked, []);
+            assert.equal(result.poses[0].frame, 0);
+        }
     },
 
     'path: no two keys of a fixed path are one frame apart'() {

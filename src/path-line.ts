@@ -17,10 +17,14 @@ type PathLineOptions = {
 
 const POSE_COLOR: Rgb = [0, 1, 1];
 
-// frustum colour per pose: unreachable keys red, detour keys in the auto colour
-const poseColors = (poses: readonly { name: string, auto?: boolean }[], unreachable: readonly string[]): Rgb[] => {
+type PoseInfo = { name: string, frame?: number, auto?: boolean, parked?: boolean };
+
+// frustum colour per pose: unreachable keys and keys parked after the end of
+// the shot (at or past duration) red, detour keys in the auto colour
+const poseColors = (poses: readonly PoseInfo[], unreachable: readonly string[], duration = Infinity): Rgb[] => {
     const cut = new Set(unreachable);
-    return poses.map(p => (cut.has(p.name) ? BLOCKED_COLOR : p.auto ? AUTO_KEY_COLOR : POSE_COLOR));
+    const red = (p: PoseInfo) => cut.has(p.name) || (!!p.parked && p.frame >= duration);
+    return poses.map(p => (red(p) ? BLOCKED_COLOR : p.auto ? AUTO_KEY_COLOR : POSE_COLOR));
 };
 
 /**

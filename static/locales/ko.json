@@ -478,7 +478,7 @@
     "fix-path.noSplats": "카메라가 지나갈 보이는 스플랫이 없습니다.",
     "fix-path.rejected": "카메라 키를 업데이트할 수 없습니다. 다시 시도하세요.",
     "fix-path.tooFewFrames": "키와 우회 키에 비해 프레임이 너무 적습니다. 총 프레임 수를 늘린 뒤 다시 시도하세요.",
-    "fix-path.unreachable": "다음 키로 가는 경로를 찾지 못했습니다: {{names}}. 샷의 끝으로 옮겼으니 이동하거나 삭제하세요.",
+    "fix-path.unreachable": "다음 키로 가는 경로를 찾지 못했습니다: {{names}}. 샷이 끝난 뒤로 옮기고(재생되지 않음) 빨간색으로 표시했으니 이동하거나 삭제하세요.",
     "fix-path.blocked": "프레임 {{frames}}의 키 다음 경로가 막혀 있습니다(타임라인에 빨간색으로 표시).",
     "fix-path.inside-geometry": "다음 키는 지오메트리 안이나 영역 밖에 있습니다: {{names}}. 경로는 가장 가까운 빈 공간에서 시작합니다.",
     "fix-path.status": "경로를 수정했습니다. 추가된 우회 키: {{count}}"

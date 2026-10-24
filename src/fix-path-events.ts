@@ -18,7 +18,7 @@ type FixPathResult = {
     // than timeline frames
     reason?: 'tooFewKeys' | 'noSplats' | 'keysChanged' | 'tooFewFrames' | 'rejected',
     detours: number,
-    // key names
+    // names of the keys parked after the shot
     unreachable: string[],
     // frames of the keys that start a blocked segment
     blocked: number[],
@@ -81,7 +81,9 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     });
 
     // Order the user keys, add detour keys around geometry and balance the
-    // timing, as one undo step. Old detour keys are replaced.
+    // timing, as one undo step. Old detour keys are replaced. Keys outside the
+    // main group are parked after the end of the shot, in frame order; parked
+    // keys of an earlier run are tried again.
     events.function('path.fix', async (options?: Partial<FixPathOptions>): Promise<FixPathResult> => {
         const opts = { ...settings, ...options };
         const start = performance.now();
@@ -127,9 +129,11 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
 
         const byKey = new Map(keys.map((k, i) => [k, userPoses[i]]));
         const nextName = namer(userPoses);
-        const poses: Pose[] = plan.poses.map(({ pose, frame, key }) => {
+        const inShot = new Set(plan.poses.map(p => p.key));
+        const parked: Pose[] = userPoses.filter((_, i) => !inShot.has(keys[i])).map((p, i) => ({ ...p, frame: timeline.frames + i, parked: true }));
+        const planned = plan.poses.map(({ pose, frame, key }): Pose => {
             const p = key && byKey.get(key);
-            return p ? { ...p, frame } : {
+            return p ? { ...p, frame, parked: undefined } : {
                 name: nextName(),
                 frame,
                 position: new Vec3(pose.position.x, pose.position.y, pose.position.z),
@@ -138,6 +142,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
                 auto: true
             };
         });
+        const poses = planned.concat(parked);
         const applyStart = performance.now();
         events.fire('track.replacePath', poses);
         const applied = (events.invoke('camera.poses') as Pose[]).map(p => `${p.name}@${p.frame}`).sort().join('|');
@@ -155,7 +160,8 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             `(grid ${ms(gridMs)}, distances ${ms(sampleMs)}, routes ${ms(times.routes)}, detours ${ms(times.detours)}, ` +
             `apply ${ms(performance.now() - applyStart)})${graph ? `, graph ${graph.nodes} nodes, ${graph.edges} edges` : ''}`);
 
-        if ('reason' in balance) await showBalanceFailure(events, balance.reason);
+        // a lone key left in the shot needs no balancing
+        if ('reason' in balance && balance.reason !== 'tooFewKeys') await showBalanceFailure(events, balance.reason);
         return { ok: true, detours, unreachable, blocked, insideGeometry, balance };
     });
 };

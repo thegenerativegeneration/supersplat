@@ -2,7 +2,7 @@
 
 type MarkerSet = { blocked: readonly number[], unreachable: readonly string[], insideGeometry: readonly string[] };
 
-type KeyInfo = { name: string, frame: number, auto?: boolean };
+type KeyInfo = { name: string, frame: number, auto?: boolean, parked?: boolean };
 
 type KeyStyle = { auto: boolean, unreachable: boolean };
 
@@ -40,12 +40,14 @@ const blockedBands = (keys: readonly { frame: number, auto?: boolean }[], blocke
     return bands;
 };
 
-// styles of the keys that differ from a plain user key, by frame
-const keyStyles = (keys: readonly KeyInfo[], markers: MarkerSet) => {
+// styles of the keys that differ from a plain user key, by frame; keys
+// parked after the end of the shot (at or past duration) count as unreachable
+const keyStyles = (keys: readonly KeyInfo[], markers: MarkerSet, duration = Infinity) => {
     const unreachable = new Set(markers.unreachable);
     const styles = new Map<number, KeyStyle>();
     for (const key of [...keys].sort((a, b) => a.frame - b.frame)) {
-        const style = { auto: !!key.auto, unreachable: unreachable.has(key.name) };
+        const parked = !!key.parked && key.frame >= duration;
+        const style = { auto: !!key.auto, unreachable: parked || unreachable.has(key.name) };
         if (style.auto || style.unreachable) styles.set(key.frame, style);
     }
     return styles;

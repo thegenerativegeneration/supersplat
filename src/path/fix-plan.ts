@@ -1,5 +1,5 @@
 import { planDetours } from './detours';
-import { keyRoutes, type KeyRoutes } from './key-graph';
+import { keyRoutes, mainGroup, type KeyRoutes } from './key-graph';
 import type { NavGrid } from './nav-grid';
 import { orderKeys } from './order';
 import type { Route } from './route';
@@ -13,7 +13,7 @@ type FixKey = CurvePose & { name: string, linger: number, distance: number };
 type RouteFn = (grid: NavGrid, from: Vec3Like, to: Vec3Like) => Route | null;
 
 type FixPlanInput = {
-    // user keys by frame; the first stays first
+    // user keys by frame; the first key of the main group comes first
     keys: FixKey[],
     grid: NavGrid,
     eyeHeight: number,
@@ -29,6 +29,7 @@ type FixPlan = {
     detours: number,
     // frames of the keys that start a blocked segment
     blocked: number[],
+    // names of the keys outside the main group, by frame; not in poses
     unreachable: string[],
     insideGeometry: string[],
     // the timing of the final poses; on failure they are evenly spaced
@@ -67,39 +68,30 @@ const pairRoutes = (grid: NavGrid, positions: Vec3Like[], route: RouteFn): KeyRo
     };
 };
 
-// Route distances between keys, dist[i][j] from i to j. With keepOrder only
-// the distances from the first key are needed (they decide reachability);
-// pairs with an unreachable key are not routed.
-const distanceMatrix = (n: number, length: (i: number, j: number) => number, keepOrder: boolean) => {
-    const dist = Array.from({ length: n }, () => new Array<number>(n).fill(0));
-    for (let k = 1; k < n; k++) dist[0][k] = length(0, k);
-    if (keepOrder) return dist;
-    for (let i = 1; i < n; i++) {
-        for (let j = 0; j < n; j++) {
-            if (i !== j) dist[i][j] = dist[0][i] === Infinity || dist[0][j] === Infinity ? Infinity : length(i, j);
-        }
-    }
-    return dist;
-};
+// Route distances between the given keys, dist[a][b] from keys[a] to
+// keys[b]. With keepOrder they are not needed.
+const distanceMatrix = (keys: number[], length: (i: number, j: number) => number, keepOrder: boolean) => keys.map(
+    (i, a) => keys.map((j, b) => (keepOrder || a === b ? 0 : length(i, j)))
+);
 
-// Orders the user keys by route distance (first key fixed, unreachable keys
-// last), adds detour keys so the camera curve stays in free space and times
-// all keys with Balance. User keys keep their lingers; detours get none and
-// time by their target distance.
+// Plans the main group of keys (the most keys that reach each other) and
+// leaves the others out as unreachable. Orders the group by route distance
+// (its earliest key first), adds detour keys so the camera curve stays in
+// free space and times all keys with Balance. User keys keep their lingers;
+// detours get none and time by their target distance.
 const planFixPath = (input: FixPlanInput): FixPlan => {
     const { keys, grid, eyeHeight, keepOrder, timeline } = input;
     const start = performance.now();
     const positions = keys.map(k => k.position);
     const routes = input.route ? pairRoutes(grid, positions, input.route) : keyRoutes(grid, positions);
-    const n = keys.length;
-    const { order, unreachable } = orderKeys(distanceMatrix(n, routes.length, keepOrder), { loop: timeline.loop, keepOrder });
-    const cut = new Set(unreachable);
+    const main = mainGroup(keys.length, routes.length);
+    const tour = orderKeys(distanceMatrix(main, routes.length, keepOrder), { loop: timeline.loop, keepOrder }).order.map(a => main[a]);
+    const inMain = new Set(main);
+    const unreachable = keys.map((_, i) => i).filter(i => !inMain.has(i));
 
-    const segments = timeline.loop ? n : n - 1;
-    const segmentRoutes = Array.from({ length: segments }, (_, s) => {
-        const a = order[s], b = order[(s + 1) % n];
-        return cut.has(a) || cut.has(b) ? null : routes.points(a, b);
-    });
+    const n = tour.length;
+    const segments = n < 2 ? 0 : timeline.loop ? n : n - 1;
+    const segmentRoutes = Array.from({ length: segments }, (_, s) => routes.points(tour[s], tour[(s + 1) % n]));
 
     const user = new Map<CurvePose, FixKey>(keys.map(k => [k, k]));
     let balance: BalanceResult;
@@ -114,7 +106,7 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
         return 'frames' in balance ? balance.frames : evenFrames(poses.length, timeline.frames, timeline.loop);
     };
 
-    const ordered = order.map(i => keys[i]);
+    const ordered = tour.map(i => keys[i]);
     const routed = performance.now();
     const plan = planDetours({
         keys: ordered,

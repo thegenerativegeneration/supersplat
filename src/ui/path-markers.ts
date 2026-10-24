@@ -5,7 +5,7 @@ import { blockedBands, keyStyles, type KeyInfo, type MarkerSet } from '../path/m
 const NO_MARKERS: MarkerSet = { blocked: [], unreachable: [], insideGeometry: [] };
 
 // Fix path marks on the timeline: detour keys in their own colour, blocked
-// segments as red bands, unreachable keys ringed in red. Keeps the markers of
+// segments as red bands, unreachable and parked keys ringed in red. Keeps the markers of
 // the last run; the timeline redraws on path.markers.
 class TimelinePathMarkers {
     private markers = NO_MARKERS;
@@ -22,7 +22,7 @@ class TimelinePathMarkers {
         area.style.setProperty('--blocked-rgb', cssChannels(BLOCKED_COLOR));
 
         const poses = this.events.invoke('camera.poses') as KeyInfo[] ?? [];
-        const styles = keyStyles(poses, this.markers);
+        const styles = keyStyles(poses, this.markers, this.events.invoke('timeline.frames'));
         const keyEls = Array.from(area.querySelectorAll<HTMLElement>('.time-label.key[data-frame]'));
 
         keyEls.forEach((el) => {

@@ -39,15 +39,17 @@ const polyline = (corners) => {
     return out;
 };
 
-// straight routes, or around the wall end at z = 3; keys at x >= 20 are cut off
-const fakeRoute = (grid, from, to) => {
-    if (from.x >= 20 || to.x >= 20) return null;
+// straight routes, or around the wall end at z = 3; keys at x >= cut form a
+// group of their own
+const routeWithCut = cut => (grid, from, to) => {
+    if ((from.x >= cut.x) !== (to.x >= cut.x)) return null;
     const crosses = (from.x - 6) * (to.x - 6) < 0;
     const points = polyline(crosses ? [from, { x: 6, y: from.y, z: 3 }, to] : [from, to]);
     let length = 0;
     for (let i = 1; i < points.length; i++) length += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
     return { points, length, fromSnapped: false, toSnapped: false };
 };
+const fakeRoute = routeWithCut({ x: 20 });
 
 const pose = (name, frame, x, auto) => ({
     name,
@@ -57,6 +59,8 @@ const pose = (name, frame, x, auto) => ({
     fov: 60,
     ...(auto ? { auto: true } : {})
 });
+
+const parkedOf = events => events.invoke('camera.poses').filter(p => p.parked).sort((a, b) => a.frame - b.frame);
 
 const setup = (poses, opts = {}) => {
     const events = new Events();
@@ -162,31 +166,116 @@ const fixPathEventsChecks = {
         await events.invoke('path.fix', FIX);
         const shown = markers[markers.length - 1];
         assert.deepEqual(shown.unreachable, ['camera_1']);
-        assert.ok(shown.blocked.length > 0);
+        // the parked key has no segment in the shot
+        assert.deepEqual(shown.blocked, []);
 
         events.fire('track.addKey', 100);
         assert.deepEqual(markers[markers.length - 1], { blocked: [], unreachable: [], insideGeometry: [] });
 
         for (const [name, value] of [['timeline.loop', false], ['timeline.frames', 240]]) {
             await events.invoke('path.fix', FIX);
-            assert.ok(markers[markers.length - 1].blocked.length > 0);
+            assert.ok(markers[markers.length - 1].unreachable.length > 0);
             events.fire(name, value);
             assert.deepEqual(markers[markers.length - 1], { blocked: [], unreachable: [], insideGeometry: [] }, name);
         }
     },
 
-    async 'path: unreachable key ends up last and is reported'() {
-        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 20), pose('camera_2', 60, 8), pose('camera_3', 90, 4)]);
+    async 'path: unreachable key is parked after the shot and reported'() {
+        const { events, markers } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 20), pose('camera_2', 60, 8), pose('camera_3', 90, 4)]);
         const result = await events.invoke('path.fix', FIX);
         assert.equal(result.ok, true);
         assert.deepEqual(result.unreachable, ['camera_1']);
+        assert.deepEqual(markers[markers.length - 1].unreachable, ['camera_1']);
         const poses = events.invoke('camera.poses');
         const frameOf = name => poses.find(p => p.name === name).frame;
-        assert.equal(frameOf('camera_1'), Math.max(...poses.map(p => p.frame)));
-        // shortest order: 0 -> 4 -> 8, then the unreachable key
+        assert.deepEqual(parkedOf(events).map(p => `${p.name}@${p.frame}`), ['camera_1@181']);
+        assert.ok(poses.filter(p => !p.parked).every(p => p.frame < 181));
+        // shortest order: 0 -> 4 -> 8
         assert.ok(frameOf('camera_3') < frameOf('camera_2'));
-        assert.deepEqual(result.blocked, [frameOf('camera_2')]);
+        assert.deepEqual(result.blocked, []);
         assert.deepEqual(result.insideGeometry, []);
+    },
+
+    async 'path: an isolated first key is parked and the main group starts the shot'() {
+        const { events } = setup([pose('camera_0', 0, 25), pose('camera_1', 30, 8), pose('camera_2', 60, 0), pose('camera_3', 90, 4)]);
+        const result = await events.invoke('path.fix', FIX);
+        assert.equal(result.ok, true);
+        assert.deepEqual(result.unreachable, ['camera_0']);
+        assert.deepEqual(parkedOf(events).map(p => `${p.name}@${p.frame}`), ['camera_0@181']);
+        const shot = summary(events).filter(n => !n.endsWith('*') && Number(n.split('@')[1]) < 181);
+        assert.equal(shot[0], 'camera_1@0');
+    },
+
+    async 'path: the smaller group is parked in its frame order and does not play'() {
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 22), pose('camera_2', 60, 4), pose('camera_3', 90, 20), pose('camera_4', 120, 2)]);
+        const seen = [];
+        events.on('camera.setPose', p => seen.push(p.position.x));
+        const result = await events.invoke('path.fix', FIX);
+        assert.deepEqual(result.unreachable, ['camera_1', 'camera_3']);
+        assert.deepEqual(parkedOf(events).map(p => `${p.name}@${p.frame}`), ['camera_1@181', 'camera_3@182']);
+        const kept = events.invoke('camera.poses').find(p => p.name === 'camera_1');
+        assert.equal(kept.position.x, 22);
+        seen.length = 0;
+        for (let f = 0; f <= 180; f += 10) events.fire('timeline.frame', f);
+        assert.ok(seen.length > 0 && seen.every(x => x < 20), 'parked keys do not play');
+    },
+
+    async 'path: two keys that cannot meet keep the first in the shot'() {
+        const { events, popups } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 25)]);
+        const result = await events.invoke('path.fix', FIX);
+        assert.equal(result.ok, true);
+        assert.deepEqual(result.unreachable, ['camera_1']);
+        assert.deepEqual(summary(events), ['camera_0@0', 'camera_1@181']);
+        assert.equal(popups.length, 0);
+    },
+
+    async 'path: rerun retries parked keys, undo restores in one step'() {
+        const cut = { x: 20 };
+        const { events, ops } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 20), pose('camera_2', 60, 4)], {
+            deps: { sceneGrid: async () => ({ grid: fakeGrid, eyeHeight: 1.6 }), route: routeWithCut(cut) }
+        });
+        const original = summary(events);
+        await events.invoke('path.fix', FIX);
+        assert.equal(parkedOf(events).length, 1);
+        assert.equal(ops.length, 1);
+        cut.x = 100;
+        const again = await events.invoke('path.fix', FIX);
+        assert.deepEqual(again.unreachable, []);
+        assert.equal(parkedOf(events).length, 0);
+        assert.ok(events.invoke('camera.poses').every(p => p.frame < 181));
+        ops[1].undo();
+        assert.equal(parkedOf(events).length, 1);
+        ops[0].undo();
+        assert.deepEqual(summary(events), original);
+        assert.equal(parkedOf(events).length, 0);
+    },
+
+    async 'path: moving a parked key into the shot clears parked'() {
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 20), pose('camera_2', 60, 4)]);
+        await events.invoke('path.fix', FIX);
+        events.fire('track.moveKey', 181, 190);
+        assert.equal(parkedOf(events)[0]?.frame, 190, 'still out of the shot');
+        events.fire('track.copyKey', 190, 200);
+        assert.equal(events.invoke('camera.poses').find(p => p.frame === 200).parked, undefined);
+        events.fire('track.moveKey', 190, 150);
+        assert.equal(events.invoke('camera.poses').find(p => p.frame === 150).parked, undefined);
+    },
+
+    async 'path: Balance leaves parked keys alone'() {
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 20), pose('camera_2', 60, 8), pose('camera_3', 90, 4)]);
+        registerTimingEvents(events);
+        await events.invoke('path.fix', FIX);
+        const before = summary(events);
+        assert.ok('frames' in await events.invoke('timing.balance'));
+        assert.deepEqual(summary(events), before);
+
+        // an unbalanced track with a parked key in the middle of the frame order
+        const raw = setup([pose('camera_0', 0, 0), pose('camera_1', 200, 20), { ...pose('camera_2', 190, 4), parked: true }, pose('camera_3', 50, 8)]);
+        registerTimingEvents(raw.events);
+        assert.ok('frames' in await raw.events.invoke('timing.balance'));
+        const poses = raw.events.invoke('camera.poses');
+        assert.equal(poses.find(p => p.name === 'camera_2').frame, 190);
+        assert.ok(poses.filter(p => p.name !== 'camera_2').every(p => p.frame < 181));
     },
 
     async 'path: balance failure applies evenly spaced keys and tells why'() {

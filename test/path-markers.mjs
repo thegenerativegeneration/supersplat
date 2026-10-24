@@ -43,6 +43,13 @@ const pathMarkersChecks = {
         ]);
     },
 
+    'path markers: parked keys after the shot are marked unreachable': async () => {
+        const keys = [{ name: 'camera_0', frame: 0 }, { name: 'camera_1', frame: 181, parked: true }, { name: 'camera_2', frame: 90, parked: true }];
+        const styles = keyStyles(keys, { blocked: [], unreachable: [], insideGeometry: [] }, 181);
+        // a parked key the timeline has grown over plays again
+        assert.deepEqual([...styles.entries()], [[181, { auto: false, unreachable: true }]]);
+    },
+
     'path markers: a clean run gets a status line with the detour count': async () => {
         assert.deepEqual(fixReport({ ok: true, ...NONE, detours: 3 }),
             { type: 'status', lines: [{ key: 'fix-path.status', params: { count: '3' } }] });

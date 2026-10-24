@@ -234,8 +234,8 @@ class CameraPoseGizmos extends Element {
             pushLine(tmpTR, tmpUpTip);
         }
 
-        // per camera: unreachable keys red, detour keys in the auto colour
-        poseColors(poses, this.unreachable).forEach((rgb, p) => {
+        // per camera: unreachable and parked keys red, detour keys in the auto colour
+        poseColors(poses, this.unreachable, this.scene.events.invoke('timeline.frames')).forEach((rgb, p) => {
             for (let i = p * VERTS_PER_CAMERA; i < (p + 1) * VERTS_PER_CAMERA; i++) {
                 for (let c = 0; c < 3; c++) colors[i * 4 + c] = Math.round(rgb[c] * 255);
                 colors[i * 4 + 3] = 255;

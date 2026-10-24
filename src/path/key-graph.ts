@@ -171,5 +171,28 @@ const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
     };
 };
 
-export { keyRoutes };
+// The main group of keys: keys reach each other when routes run both ways,
+// and groups join through shared keys. Returns the indices of the group with
+// the most keys, ascending; on a tie the group holding the lowest index.
+const mainGroup = (n: number, length: (i: number, j: number) => number): number[] => {
+    const root = Array.from({ length: n }, (_, i) => i);
+    const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i])));
+    for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+            if (find(i) !== find(j) && length(i, j) < Infinity && length(j, i) < Infinity) root[find(j)] = find(i);
+        }
+    }
+    const groups = new Map<number, number[]>();
+    for (let i = 0; i < n; i++) {
+        const r = find(i);
+        if (!groups.has(r)) groups.set(r, []);
+        groups.get(r).push(i);
+    }
+    // groups come in order of their lowest index, so the first largest wins
+    let best: number[] = [];
+    for (const g of groups.values()) if (g.length > best.length) best = g;
+    return best;
+};
+
+export { keyRoutes, mainGroup };
 export type { KeyRoutes };

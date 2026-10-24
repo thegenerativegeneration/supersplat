@@ -13,8 +13,25 @@ type Pose = {
     // seconds to hold at this key; absent or 0 means none
     linger?: number,
     // detour key inserted by Fix path; cleared when edited by hand
-    auto?: boolean
+    auto?: boolean,
+    // unreachable key Fix path moved after the end of the shot; cleared when
+    // the key moves into the shot
+    parked?: boolean
 };
+
+// a parked key that still sits after the end of the shot
+const isParked = (pose: { frame: number, parked?: boolean }, duration: number) => !!pose.parked && pose.frame >= duration;
+
+const copyPose = (p: Pose): Pose => ({
+    name: p.name,
+    frame: p.frame,
+    position: p.position.clone(),
+    target: p.target.clone(),
+    fov: p.fov,
+    linger: p.linger,
+    auto: p.auto,
+    parked: p.parked
+});
 
 const MAX_LINGER = 60;
 
@@ -77,7 +94,8 @@ class CameraAnimTrack implements AnimTrack {
             position: new Vec3(pose.position.x, pose.position.y, pose.position.z),
             target: new Vec3(pose.target.x, pose.target.y, pose.target.z),
             fov: pose.fov,
-            linger: existingIndex === -1 ? undefined : this.poses[existingIndex].linger
+            linger: existingIndex === -1 ? undefined : this.poses[existingIndex].linger,
+            parked: existingIndex === -1 ? undefined : this.poses[existingIndex].parked
         };
 
         if (existingIndex === -1) {
@@ -117,6 +135,7 @@ class CameraAnimTrack implements AnimTrack {
         const movedIndex = this.poses.findIndex(p => p.frame === fromFrame);
         this.poses[movedIndex].frame = toFrame;
         this.poses[movedIndex].auto = undefined;
+        this.unparkInShot();
         this.rebuildSpline();
         this.events.fire('track.keyMoved', fromFrame, toFrame);
         return true;
@@ -173,18 +192,28 @@ class CameraAnimTrack implements AnimTrack {
         ordered.forEach((p, i) => {
             p.frame = frames[i];
         });
+        this.unparkInShot();
         this.rebuildSpline();
         this.events.fire('track.keysLoaded');
         return true;
     }
 
+    // keys moved into the shot are no longer parked
+    private unparkInShot() {
+        const duration = this.events.invoke('timeline.frames');
+        for (const p of this.poses) {
+            if (p.parked && p.frame < duration) p.parked = undefined;
+        }
+    }
+
     /**
      * Append new poses and assign frames to all keys in one step. frames
-     * covers the existing poses ordered by frame, then the new poses.
+     * covers the existing poses ordered by frame, then the new poses; each
+     * key needs a frame of its own.
      */
     appendPoses(added: { position: Vec3, target: Vec3, fov: number }[], frames: number[]): boolean {
         if (frames.length !== this.poses.length + added.length) return false;
-        if (frames.some((f, i) => !Number.isFinite(f) || (i > 0 && f <= frames[i - 1]))) return false;
+        if (frames.some(f => !Number.isFinite(f)) || new Set(frames).size !== frames.length) return false;
 
         let next = 1 + Math.max(-1, ...this.poses.map(p => Number(/^camera_(\d+)$/.exec(p.name)?.[1] ?? -1)));
         const ordered = this.poses.slice().sort((a, b) => a.frame - b.frame);
@@ -213,15 +242,7 @@ class CameraAnimTrack implements AnimTrack {
         if (poses.some(p => !Number.isFinite(p.frame))) return false;
         if (new Set(poses.map(p => p.frame)).size !== poses.length) return false;
 
-        this.poses = poses.slice().sort((a, b) => a.frame - b.frame).map(p => ({
-            name: p.name,
-            frame: p.frame,
-            position: p.position.clone(),
-            target: p.target.clone(),
-            fov: p.fov,
-            linger: p.linger,
-            auto: p.auto
-        }));
+        this.poses = poses.slice().sort((a, b) => a.frame - b.frame).map(copyPose);
         this.rebuildSpline();
         this.events.fire('track.keysLoaded');
         return true;
@@ -238,27 +259,11 @@ class CameraAnimTrack implements AnimTrack {
     }
 
     snapshot(): Pose[] {
-        return this.poses.map(p => ({
-            name: p.name,
-            frame: p.frame,
-            position: p.position.clone(),
-            target: p.target.clone(),
-            fov: p.fov,
-            linger: p.linger,
-            auto: p.auto
-        }));
+        return this.poses.map(copyPose);
     }
 
     restore(snapshot: unknown): void {
-        this.poses = (snapshot as Pose[]).map(p => ({
-            name: p.name,
-            frame: p.frame,
-            position: p.position.clone(),
-            target: p.target.clone(),
-            fov: p.fov,
-            linger: p.linger,
-            auto: p.auto
-        }));
+        this.poses = (snapshot as Pose[]).map(copyPose);
         this.rebuildSpline();
         this.events.fire('track.keysLoaded');
     }
@@ -390,7 +395,8 @@ const registerCameraPosesEvents = (events: Events) => {
                     target: pack3(pose.target),
                     fov: pose.fov,
                     ...(pose.linger > 0 ? { linger: pose.linger } : {}),
-                    ...(pose.auto ? { auto: true } : {})
+                    ...(pose.auto ? { auto: true } : {}),
+                    ...(pose.parked ? { parked: true } : {})
                 };
             })
         }];
@@ -413,7 +419,8 @@ const registerCameraPosesEvents = (events: Events) => {
                 target: new Vec3(docPose.target),
                 fov: docPose.fov ?? defaultFov,
                 linger: docPose.linger ?? 0,
-                ...(docPose.auto ? { auto: true } : {})
+                ...(docPose.auto ? { auto: true } : {}),
+                ...(docPose.parked ? { parked: true } : {})
             };
         });
 
@@ -421,4 +428,4 @@ const registerCameraPosesEvents = (events: Events) => {
     });
 };
 
-export { registerCameraPosesEvents, CameraAnimTrack, Pose };
+export { registerCameraPosesEvents, CameraAnimTrack, isParked, Pose };

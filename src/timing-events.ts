@@ -1,5 +1,5 @@
 import { balanceTiming, BalanceInput, BalanceKey, BalanceResult } from './anim/balance-timing';
-import { Pose } from './camera-poses';
+import { isParked, Pose } from './camera-poses';
 import { Events } from './events';
 import { i18n } from './ui/localization';
 
@@ -58,6 +58,15 @@ const computeBalance = async (events: Events, poses: BalanceSource[]): Promise<{
     return { result, changed: false };
 };
 
+// Frames for all poses (by frame) from the frames of the balanced ones: parked
+// keys keep theirs, the others take balanced frames in order; frames beyond
+// them are appended for keys still to be added.
+const withParkedFrames = (poses: readonly Pose[], parked: (p: Pose) => boolean, balanced: readonly number[]) => {
+    let next = 0;
+    const frames = poses.map(p => (parked(p) ? p.frame : balanced[next++]));
+    return frames.concat(balanced.slice(next));
+};
+
 const showBalanceFailure = (events: Events, reason: string) => events.invoke('showPopup', {
     type: 'error',
     header: i18n.t('popup.balance.failed'),
@@ -66,11 +75,14 @@ const showBalanceFailure = (events: Events, reason: string) => events.invoke('sh
 
 const registerTimingEvents = (events: Events) => {
     // retime the camera keys so the camera moves at a steady perceived speed,
-    // as one undo step. Leaves the keys untouched and explains why on failure.
+    // as one undo step. Keys parked after the shot keep their frames. Leaves
+    // the keys untouched and explains why on failure.
     events.function('timing.balance', async (): Promise<BalanceResult> => {
         const poses = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
+        const duration = events.invoke('timeline.frames') as number;
+        const parked = (p: Pose) => isParked(p, duration);
         const fallbackFov = events.invoke('camera.fov') as number;
-        const sources: BalanceSource[] = poses.map(p => ({
+        const sources: BalanceSource[] = poses.filter(p => !parked(p)).map(p => ({
             position: p.position,
             target: p.target,
             fov: p.fov ?? fallbackFov,
@@ -81,7 +93,7 @@ const registerTimingEvents = (events: Events) => {
         const { result } = await computeBalance(events, sources);
 
         if ('frames' in result) {
-            events.fire('track.retime', result.frames);
+            events.fire('track.retime', withParkedFrames(poses, parked, result.frames));
         } else {
             await showBalanceFailure(events, result.reason);
         }
@@ -90,4 +102,4 @@ const registerTimingEvents = (events: Events) => {
     });
 };
 
-export { registerTimingEvents, computeBalance, finiteOr, showBalanceFailure, snapshotOf, timelineSettings, BalanceSource };
+export { registerTimingEvents, computeBalance, finiteOr, showBalanceFailure, snapshotOf, timelineSettings, withParkedFrames, BalanceSource };

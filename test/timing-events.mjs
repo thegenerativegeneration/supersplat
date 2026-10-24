@@ -114,6 +114,20 @@ const timingEventsChecks = {
         assert.equal(added.target.z, -2);
     },
 
+    async 'views: addKeys leaves parked keys after the shot'() {
+        const { events } = setup([0, 10], [], async poses => poses.map(() => 1));
+        events.fire('track.replacePath', [...events.invoke('camera.poses'),
+            { name: 'away', frame: 181, position: new Vec3(7, 0, 0), target: new Vec3(7, 0, -1), fov: 60, parked: true }]);
+        const result = await events.invoke('views.addKeys', [
+            { position: { x: 5, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 }, fov: 50, depth: 2 }
+        ]);
+        assert.equal(result.ok, true);
+        const poses = events.invoke('camera.poses');
+        assert.equal(poses.find(p => p.name === 'away').frame, 181);
+        assert.equal(poses.length, 4);
+        assert.ok(poses.filter(p => p.name !== 'away').every(p => p.frame < 181));
+    },
+
     async 'views: one pick on an empty track adds a key at frame 0 without a popup'() {
         const { events, popups } = setup([], [], async poses => poses.map(() => 1));
         const result = await events.invoke('views.addKeys', [

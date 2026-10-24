@@ -1,6 +1,6 @@
 import { Vec3 } from 'playcanvas';
 
-import { estimateEyeHeight, estimateTiltDeg, proposeBox } from './candidates/estimate';
+import { estimateEyeHeight, estimateTiltDeg, proposeBox, type Box } from './candidates/estimate';
 import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH, type GenerateOptions } from './candidates/generate';
 import { readOpaquePoints } from './candidates/read-points';
 import type { Candidate } from './candidates/sample';
@@ -32,6 +32,8 @@ const thumbnailOf = (rgba: Uint8Array) => {
 const registerCandidateEvents = (events: Events, scene: Scene) => {
     let points: Promise<Float32Array> | null = null;
     let running = false;
+    // box and eye height of the last Suggest Views run in this session
+    let lastSettings: { box: Box, eyeHeight: number } | null = null;
 
     const invalidate = () => {
         points = null;
@@ -55,6 +57,11 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         return points;
     };
 
+    // the cached opaque splat centres (x, y, z triples) of the visible layers
+    events.function('candidates.points', () => scenePoints());
+
+    events.function('candidates.lastSettings', () => lastSettings);
+
     events.function('candidates.prepare', async () => {
         const pts = await scenePoints();
         const box = proposeBox(pts);
@@ -69,6 +76,10 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     events.function('candidates.generate', async (opts: GenerateOptions, signal: AbortSignal): Promise<Scored[]> => {
         if (running || scene.lockedRenderMode) throw new Error('candidates.generate: the editor is already rendering');
         running = true;
+        lastSettings = {
+            box: { min: { ...opts.box.min }, max: { ...opts.box.max } },
+            eyeHeight: opts.eyeHeight
+        };
         try {
             const pts = await scenePoints();
             const { camera } = scene;

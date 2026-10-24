@@ -10,6 +10,7 @@ import { registerEditorEvents } from './editor';
 import { createEditorAPI, type EditorAPI } from './editor-api';
 import { Events } from './events';
 import { initFileHandler } from './file-handler';
+import { registerFixPathEvents } from './fix-path-events';
 import { registerIframeApi } from './iframe-api';
 import { registerPreferences } from './preferences';
 import { registerPublishEvents } from './publish';
@@ -122,6 +123,7 @@ const main = async () => {
     registerTrackManagerEvents(events);
     registerTimingEvents(events);
     registerViewKeyEvents(events);
+    registerFixPathEvents(events);
     registerTransformHandlerEvents(events);
     registerPublishEvents(events);
     registerIframeApi(events);

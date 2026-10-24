@@ -1,6 +1,6 @@
 import { insideBox, type Box } from './estimate';
-import { findLevels } from './levels';
-import { buildOccupancy } from './occupancy';
+import { findLevels, type Level } from './levels';
+import { buildOccupancy, type Occupancy } from './occupancy';
 import { mulberry32, sampleCandidates, shuffle, type Candidate } from './sample';
 import { candidateScore, diversify, imageMetrics, rejectBeforeRender, type Scored } from './score';
 
@@ -40,6 +40,14 @@ const pointsInBox = (points: Float32Array, box: Box) => {
     return out.subarray(0, n);
 };
 
+// Occupancy of the points inside the box at eyeHeight / VOXELS_PER_EYE and
+// the standable levels in it, shared by Suggest Views and Fix path.
+const buildSceneGrid = (points: Float32Array, box: Box, eyeHeight: number): { occ: Occupancy, levels: Level[] } => {
+    const occ = buildOccupancy(pointsInBox(points, box), eyeHeight / VOXELS_PER_EYE);
+    const minArea = 8 * (eyeHeight / 1.6) ** 2;
+    return { occ, levels: findLevels(occ, HEAD_VOXELS, minArea) };
+};
+
 // Finds levels in the points inside the box, samples candidate views, drops
 // those that see nothing or face a wall, then renders and scores the rest in
 // a seeded order that mixes levels. The result is score-sorted with near
@@ -52,9 +60,7 @@ const runGeneration = async <T>(
     signal: AbortSignal
 ): Promise<GenerateResult> => {
     const { box, eyeHeight, budget, seed } = opts;
-    const occ = buildOccupancy(pointsInBox(points, box), eyeHeight / VOXELS_PER_EYE);
-    const minArea = 8 * (eyeHeight / 1.6) ** 2;
-    const levels = findLevels(occ, HEAD_VOXELS, minArea);
+    const { occ, levels } = buildSceneGrid(points, box, eyeHeight);
     deps.onLevels(levels.map((l, index) => ({ index, height: l.height, area: l.area })));
     if (levels.length === 0) return { scored: [], reason: 'noLevels' };
 
@@ -93,5 +99,5 @@ const runGeneration = async <T>(
     return { scored: diversify(scored, eyeHeight), reason };
 };
 
-export { runGeneration, THUMB_HEIGHT, THUMB_WIDTH };
+export { buildSceneGrid, runGeneration, THUMB_HEIGHT, THUMB_WIDTH };
 export type { GenerateDeps, GenerateOptions, GenerateResult, LevelInfo };

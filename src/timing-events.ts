@@ -1,4 +1,4 @@
-import { balanceTiming, BalanceKey, BalanceResult } from './anim/balance-timing';
+import { balanceTiming, BalanceInput, BalanceKey, BalanceResult } from './anim/balance-timing';
 import { Pose } from './camera-poses';
 import { Events } from './events';
 import { i18n } from './ui/localization';
@@ -12,6 +12,15 @@ const snapshotOf = (events: Events) => (events.invoke('camera.poses') as Pose[])
 .sort((a, b) => a.frame - b.frame)
 .map(p => `${p.name}@${p.frame}`)
 .join('|');
+
+// the timeline values Balance works with, rotation weight clamped to [0, 4]
+const timelineSettings = (events: Events): Omit<BalanceInput, 'keys'> => ({
+    frames: events.invoke('timeline.frames'),
+    frameRate: events.invoke('timeline.frameRate'),
+    smoothness: events.invoke('timeline.smoothness'),
+    loop: events.invoke('timeline.loop'),
+    rotationWeight: Math.min(4, Math.max(0, finiteOr(events.invoke('timeline.rotationWeight'), 1)))
+});
 
 // samples scene distances for the given poses (in playback order) and balances
 // their timing. changed is true when the track keys moved while sampling, in
@@ -38,16 +47,7 @@ const computeBalance = async (events: Events, poses: BalanceSource[]): Promise<{
         distance: distances[i] ?? NaN
     }));
 
-    const rotationWeight = Math.min(4, Math.max(0, finiteOr(events.invoke('timeline.rotationWeight'), 1)));
-
-    const result = balanceTiming({
-        keys,
-        frames: events.invoke('timeline.frames'),
-        frameRate: events.invoke('timeline.frameRate'),
-        smoothness: events.invoke('timeline.smoothness'),
-        loop: events.invoke('timeline.loop'),
-        rotationWeight
-    });
+    const result = balanceTiming({ keys, ...timelineSettings(events) });
 
     const outcome = 'reason' in result ? `failed (${result.reason})` : `${result.iterations} iterations`;
     console.debug(`timing.balance: sampled ${poses.length} keys in ${sampleMs.toFixed(1)} ms, ${outcome}`);
@@ -86,4 +86,4 @@ const registerTimingEvents = (events: Events) => {
     });
 };
 
-export { registerTimingEvents, computeBalance, showBalanceFailure, BalanceSource };
+export { registerTimingEvents, computeBalance, finiteOr, showBalanceFailure, snapshotOf, timelineSettings, BalanceSource };

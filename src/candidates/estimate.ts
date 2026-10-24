@@ -64,7 +64,7 @@ const smallestEigenvector = (m: number[][]): number[] => {
     return [v[0][best], v[1][best], v[2][best]];
 };
 
-const inside = (x: number, y: number, z: number, box: Box) => {
+const insideBox = (x: number, y: number, z: number, box: Box) => {
     return x >= box.min.x && x <= box.max.x &&
            y >= box.min.y && y <= box.max.y &&
            z >= box.min.z && z <= box.max.z;
@@ -76,7 +76,7 @@ const estimateTiltDeg = (points: Float32Array): number => {
     const box = proposeBox(points);
     const sel: number[] = [];
     for (let i = 0; i + 2 < points.length; i += 3) {
-        if (inside(points[i], points[i + 1], points[i + 2], box)) sel.push(i);
+        if (insideBox(points[i], points[i + 1], points[i + 2], box)) sel.push(i);
     }
     if (sel.length < 3) return 0;
 
@@ -112,7 +112,7 @@ const estimateEyeHeight = (points: Float32Array, box: Box): number => {
 
     const hist = new Array<number>(BINS).fill(0);
     for (let i = 0; i + 2 < points.length; i += 3) {
-        if (!inside(points[i], points[i + 1], points[i + 2], box)) continue;
+        if (!insideBox(points[i], points[i + 1], points[i + 2], box)) continue;
         const b = Math.min(BINS - 1, Math.floor((points[i + 1] - box.min.y) / vertical * BINS));
         hist[b]++;
     }
@@ -124,5 +124,5 @@ const estimateEyeHeight = (points: Float32Array, box: Box): number => {
     return 0.55 * Math.abs(first.bin - second.bin) * vertical / BINS;
 };
 
-export { estimateEyeHeight, estimateTiltDeg, proposeBox };
+export { estimateEyeHeight, estimateTiltDeg, insideBox, proposeBox };
 export type { Box };

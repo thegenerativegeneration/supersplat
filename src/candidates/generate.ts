@@ -1,4 +1,4 @@
-import type { Box } from './estimate';
+import { insideBox, type Box } from './estimate';
 import { findLevels } from './levels';
 import { buildOccupancy } from './occupancy';
 import { mulberry32, sampleCandidates, shuffle, type Candidate } from './sample';
@@ -26,12 +26,12 @@ const VOXELS_PER_EYE = 4;
 // a level needs 1.25 eye heights of free space above it, in whole voxels
 const HEAD_VOXELS = Math.ceil(1.25 * VOXELS_PER_EYE);
 
-const insideBox = (points: Float32Array, box: Box) => {
+const pointsInBox = (points: Float32Array, box: Box) => {
     const out = new Float32Array(points.length);
     let n = 0;
     for (let i = 0; i + 2 < points.length; i += 3) {
         const x = points[i], y = points[i + 1], z = points[i + 2];
-        if (x >= box.min.x && x <= box.max.x && y >= box.min.y && y <= box.max.y && z >= box.min.z && z <= box.max.z) {
+        if (insideBox(x, y, z, box)) {
             out[n++] = x;
             out[n++] = y;
             out[n++] = z;
@@ -52,7 +52,7 @@ const runGeneration = async <T>(
     signal: AbortSignal
 ): Promise<GenerateResult> => {
     const { box, eyeHeight, budget, seed } = opts;
-    const occ = buildOccupancy(insideBox(points, box), eyeHeight / VOXELS_PER_EYE);
+    const occ = buildOccupancy(pointsInBox(points, box), eyeHeight / VOXELS_PER_EYE);
     const minArea = 8 * (eyeHeight / 1.6) ** 2;
     const levels = findLevels(occ, HEAD_VOXELS, minArea);
     deps.onLevels(levels.map((l, index) => ({ index, height: l.height, area: l.area })));

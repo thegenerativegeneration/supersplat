@@ -12,12 +12,15 @@ const togglePick = (picks: string[], id: string): string[] => {
     return picks.includes(id) ? picks.filter(p => p !== id) : [...picks, id];
 };
 
-// Levels from lowest to highest, numbered from 1.
-const levelOptions = (levels: LevelInfo[]) => {
+// Levels from lowest to highest, numbered from 1 over all levels. With items,
+// only the levels that have some are listed.
+const levelOptions = (levels: LevelInfo[], items?: { level: number }[]) => {
+    const used = items && new Set(items.map(i => i.level));
     return levels
     .slice()
     .sort((a, b) => a.height - b.height)
-    .map((l, i) => ({ index: l.index, number: i + 1, height: l.height }));
+    .map((l, i) => ({ index: l.index, number: i + 1, height: l.height }))
+    .filter(l => !used || used.has(l.index));
 };
 
 // The first pages * PAGE_SIZE items on the level (all levels for null) and

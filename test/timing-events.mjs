@@ -96,6 +96,7 @@ const timingEventsChecks = {
         assert.equal(frames[0], 0);
         assert.ok(frames[4] <= 180);
         assert.ok(frames.every((f, i) => i === 0 || f > frames[i - 1]));
+        assert.deepEqual(frames, [0, 45, 90, 135, 180]);
         assert.deepEqual(fallbackAppendFrames([], 3, 181), [0, 90, 180]);
     },
 
@@ -111,6 +112,16 @@ const timingEventsChecks = {
         assert.equal(sortedKeys(events).length, 4);
         const added = events.invoke('camera.poses').find(p => p.name === 'camera_2');
         assert.equal(added.target.z, -2);
+    },
+
+    async 'views: one pick on an empty track adds a key at frame 0 without a popup'() {
+        const { events, popups } = setup([], [], async poses => poses.map(() => 1));
+        const result = await events.invoke('views.addKeys', [
+            { position: { x: 5, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 }, fov: 50, depth: 2 }
+        ]);
+        assert.equal(result.reason, 'tooFewKeys');
+        assert.equal(popups.length, 0);
+        assert.deepEqual(sortedKeys(events), [0]);
     },
 
     async 'views: addKeys aborts when keys change during sampling'() {

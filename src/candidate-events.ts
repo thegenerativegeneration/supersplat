@@ -103,12 +103,13 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
                     return { rgba, thumbnail: thumbnailOf(rgba) };
                 },
                 restore: () => {
+                    // unlock first so a throwing camera call can't leave the editor locked
+                    scene.lockedRenderMode = false;
+                    scene.forceRender = true;
                     camera.fov = savedFov;
                     camera.setPose(user.position, user.target, 0);
                     camera.ortho = savedOrtho;
                     camera.onUpdate(0);
-                    scene.lockedRenderMode = false;
-                    scene.forceRender = true;
                 },
                 onProgress: (done, total) => events.fire('candidates.progress', done, total),
                 onAdded: (scored, thumbnail) => events.fire('candidates.added', scored, thumbnail),

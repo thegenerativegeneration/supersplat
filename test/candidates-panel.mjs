@@ -19,6 +19,17 @@ const candidatesPanelChecks = {
         assert.deepEqual(options.map(o => [o.index, o.number]), [[1, 1], [0, 2]]);
     },
 
+    'candidates panel: levels without candidates are not listed': async () => {
+        const levels = [
+            { index: 0, height: 0.1, area: 30 },
+            { index: 1, height: 3, area: 90 },
+            { index: 2, height: 6, area: 90 }
+        ];
+        const options = levelOptions(levels, [{ level: 0 }, { level: 2 }, { level: 2 }]);
+        assert.deepEqual(options.map(o => [o.index, o.number]), [[0, 1], [2, 3]]);
+        assert.deepEqual(levelOptions(levels, []), []);
+    },
+
     'candidates panel: filter and pages': async () => {
         const items = Array.from({ length: 100 }, (_, i) => ({ level: i % 2 }));
         assert.deepEqual([visibleItems(items, null, 1).shown.length, visibleItems(items, null, 1).more], [PAGE_SIZE, 100 - PAGE_SIZE]);

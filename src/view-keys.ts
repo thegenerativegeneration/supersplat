@@ -71,7 +71,8 @@ const registerViewKeyEvents = (events: Events) => {
             fallbackAppendFrames(existing.map(p => p.frame), added.length, events.invoke('timeline.frames'));
         events.fire('track.appendPoses', added, frames);
 
-        if ('reason' in result) {
+        // a lone key needs no balancing, so tooFewKeys is not worth a popup
+        if ('reason' in result && result.reason !== 'tooFewKeys') {
             await showBalanceFailure(events, result.reason);
         }
         return result;

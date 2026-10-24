@@ -114,6 +114,7 @@ class CandidatesSetup extends Container {
 
         // eye height preview: the user's view is saved on start and restored on stop
         let saved: ViewPose | null = null;
+        let savedOrtho = false;
 
         const showBox = (show: boolean) => {
             const inScene = !!box.scene;
@@ -142,6 +143,7 @@ class CandidatesSetup extends Container {
             if (!saved) {
                 events.fire('timeline.setPlaying', false);
                 saved = events.invoke('camera.getPose');
+                savedOrtho = scene.camera.ortho;
                 previewButton.class.add('active');
                 // the box seen from inside hides the view
                 showBox(false);
@@ -152,6 +154,7 @@ class CandidatesSetup extends Container {
         this.stopPreview = () => {
             if (saved) {
                 setPose(saved);
+                scene.camera.ortho = savedOrtho;
                 saved = null;
                 previewButton.class.remove('active');
                 showBox(active);

@@ -1,4 +1,4 @@
-import type { Box } from './estimate';
+import { insideBox, type Box } from './estimate';
 import type { Level } from './levels';
 import type { Occupancy, Vec3Like } from './occupancy';
 
@@ -105,10 +105,7 @@ const sampleCandidates = (levels: Level[], occ: Occupancy, opts: SampleOptions):
         const valid: Vec3Like[] = [];
         for (const [ix, iy, iz] of level.cells) {
             const p = { x: (ix + 0.5) * v, y: (iy + 1) * v + eyeHeight, z: (iz + 0.5) * v };
-            const within = p.x >= box.min.x && p.x <= box.max.x &&
-                           p.y >= box.min.y && p.y <= box.max.y &&
-                           p.z >= box.min.z && p.z <= box.max.z;
-            if (within && occ.isFree(p)) valid.push(p);
+            if (insideBox(p.x, p.y, p.z, box) && occ.isFree(p)) valid.push(p);
         }
         return shuffle(valid, rand);
     });

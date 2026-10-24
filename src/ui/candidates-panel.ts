@@ -114,6 +114,7 @@ class CandidatesPanel extends Container {
 
         // hover preview: the user's view is saved on the first hover and restored on leave
         let hoverSaved: ViewPose | null = null;
+        let hoverOrtho = false;
         // camera.getPose reads the camera entity, which otherwise only follows
         // a new pose on the next frame
         const setPose = (pose: ViewPose) => {
@@ -126,12 +127,14 @@ class CandidatesPanel extends Container {
             if (!hoverSaved) {
                 events.fire('timeline.setPlaying', false);
                 hoverSaved = events.invoke('camera.getPose');
+                hoverOrtho = scene.camera.ortho;
             }
             setPose(candidatePose(item));
         };
         const endPreview = () => {
             if (hoverSaved) {
                 setPose(hoverSaved);
+                scene.camera.ortho = hoverOrtho;
                 hoverSaved = null;
             }
         };
@@ -183,14 +186,14 @@ class CandidatesPanel extends Container {
             moreCount = Math.min(more, PAGE_SIZE);
             moreButton.hidden = more === 0;
             moreButton.text = i18n.t('candidates.show-more', { count: moreCount });
-            filterRow.hidden = running || levels.length < 2 || items.length === 0;
+            filterRow.hidden = running || levelOptions(levels, items).length < 2;
             updateBadges();
         };
 
         const updateLevelOptions = () => {
             levelSelect.options = [
                 { v: 'all', t: i18n.t('candidates.all-levels') },
-                ...levelOptions(levels).map(l => ({
+                ...levelOptions(levels, items).map(l => ({
                     v: String(l.index),
                     t: i18n.t('candidates.level-option', { number: l.number, height: l.height.toFixed(1) })
                 }))
@@ -404,8 +407,10 @@ class CandidatesPanel extends Container {
             endPreview();
             addButton.enabled = false;
             try {
+                const before = (events.invoke('camera.poses') as unknown[]).length;
                 await events.invoke('views.addKeys', views);
-                picks = [];
+                // keep the picks when nothing was appended (keys changed meanwhile)
+                if ((events.invoke('camera.poses') as unknown[]).length > before) picks = [];
             } catch (error) {
                 await events.invoke('showPopup', {
                     type: 'error',

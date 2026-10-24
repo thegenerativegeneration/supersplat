@@ -1,5 +1,5 @@
 import { insideBox, type Box } from './estimate';
-import { EXTENT_STRIDE, MAX_RADIUS, type SplatExtents } from './extent';
+import { EXTENT_STRIDE, maxRadiusAt, type SplatExtents } from './extent';
 import { findLevels, type Level } from './levels';
 import { buildOccupancy, type Occupancy } from './occupancy';
 import { mulberry32, sampleCandidates, shuffle, type Candidate } from './sample';
@@ -28,9 +28,9 @@ const VOXELS_PER_EYE = 4;
 const HEAD_VOXELS = Math.ceil(1.25 * VOXELS_PER_EYE);
 
 // the points with centres inside the box, plus the extents (with their
-// centres) of splats centred inside the box grown by MAX_RADIUS, since a
+// centres) of splats centred inside the box grown by maxRadius, since a
 // large splat just outside a face still reaches into the box
-const pointsInBox = (points: Float32Array, box: Box, extents?: SplatExtents): {
+const pointsInBox = (points: Float32Array, box: Box, maxRadius: number, extents?: SplatExtents): {
     points: Float32Array, extentPoints?: Float32Array, extents?: SplatExtents
 } => {
     const out = new Float32Array(points.length);
@@ -46,8 +46,8 @@ const pointsInBox = (points: Float32Array, box: Box, extents?: SplatExtents): {
     if (!extents) return { points: inside };
 
     const grown = {
-        min: { x: box.min.x - MAX_RADIUS, y: box.min.y - MAX_RADIUS, z: box.min.z - MAX_RADIUS },
-        max: { x: box.max.x + MAX_RADIUS, y: box.max.y + MAX_RADIUS, z: box.max.z + MAX_RADIUS }
+        min: { x: box.min.x - maxRadius, y: box.min.y - maxRadius, z: box.min.z - maxRadius },
+        max: { x: box.max.x + maxRadius, y: box.max.y + maxRadius, z: box.max.z + maxRadius }
     };
     const outPoints = new Float32Array(points.length);
     const outExtents = new Float32Array(extents.length);
@@ -78,8 +78,9 @@ const buildSceneGrid = (
     headVoxels = HEAD_VOXELS,
     extents?: SplatExtents
 ): { occ: Occupancy, levels: Level[] } => {
-    const inBox = pointsInBox(points, box, extents);
-    const occ = buildOccupancy(inBox.points, eyeHeight / VOXELS_PER_EYE, 2, inBox.extents, inBox.extentPoints);
+    const maxRadius = maxRadiusAt(eyeHeight);
+    const inBox = pointsInBox(points, box, maxRadius, extents);
+    const occ = buildOccupancy(inBox.points, eyeHeight / VOXELS_PER_EYE, 2, inBox.extents, inBox.extentPoints, maxRadius);
     const minArea = 8 * (eyeHeight / 1.6) ** 2;
     return { occ, levels: findLevels(occ, headVoxels, minArea) };
 };

@@ -3,17 +3,21 @@
 type SplatExtents = Float32Array;
 
 const EXTENT_STRIDE = 7;
-// radii are capped so floaters can't fill whole rooms
+// radii are capped so floaters can't fill whole rooms: MAX_RADIUS at an eye
+// height of 1.6, scaled with the eye height for scenes in other units
 const MAX_RADIUS = 1;
+
+const maxRadiusAt = (eyeHeight: number) => MAX_RADIUS * eyeHeight / 1.6;
 
 // Calls mark(ix, iy, iz) for every voxel whose centre lies inside splat i's
 // 2σ ellipsoid, with radii floored at half a voxel (so a thin surface marks
-// the voxel layer it passes through) and capped at MAX_RADIUS. Splats with
+// the voxel layer it passes through) and capped at maxRadius. Splats with
 // all radii below half a voxel mark nothing.
 const rasterizeExtents = (
     points: Float32Array,
     extents: SplatExtents,
     voxel: number,
+    maxRadius: number,
     mark: (ix: number, iy: number, iz: number) => void
 ) => {
     const half = voxel / 2;
@@ -22,9 +26,9 @@ const rasterizeExtents = (
         const e = i * EXTENT_STRIDE;
         const sx = extents[e], sy = extents[e + 1], sz = extents[e + 2];
         if (!(Math.max(sx, sy, sz) >= half)) continue;
-        const rx = Math.min(Math.max(sx, half), MAX_RADIUS);
-        const ry = Math.min(Math.max(sy, half), MAX_RADIUS);
-        const rz = Math.min(Math.max(sz, half), MAX_RADIUS);
+        const rx = Math.min(Math.max(sx, half), maxRadius);
+        const ry = Math.min(Math.max(sy, half), maxRadius);
+        const rz = Math.min(Math.max(sz, half), maxRadius);
 
         // rotation matrix columns are the splat's axes in world space
         const qx = extents[e + 3], qy = extents[e + 4], qz = extents[e + 5], qw = extents[e + 6];
@@ -61,5 +65,5 @@ const rasterizeExtents = (
     }
 };
 
-export { EXTENT_STRIDE, MAX_RADIUS, rasterizeExtents };
+export { EXTENT_STRIDE, MAX_RADIUS, maxRadiusAt, rasterizeExtents };
 export type { SplatExtents };

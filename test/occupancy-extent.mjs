@@ -136,6 +136,21 @@ const occupancyExtentChecks = {
         assert.ok(occupiedCount(occ) > 50, `${occupiedCount(occ)} voxels`);
     },
 
+    'occupancy: the radius cap and the grown box scale with the eye height'() {
+        // a huge floater inside the box and a large splat 1.5 outside its face
+        const big = [[3.13, 1.57, 3.31, 3, 3, 3], [11.53, 2.17, 5.11, 3, 3, 3]];
+        const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 10, y: 5, z: 10 } };
+        const cellsAt = (scale) => {
+            const { points, extents } = cloud(big.map(s => s.map(v => v * scale)), []);
+            const scaled = { min: { x: 0, y: 0, z: 0 }, max: { x: 10 * scale, y: 5 * scale, z: 10 * scale } };
+            const { occ } = buildSceneGrid(points, scale === 1 ? box : scaled, EYE * scale, NAV_HEAD_VOXELS, extents);
+            return [...occ.cells()].map(c => c.join(',')).sort();
+        };
+        const metric = cellsAt(1);
+        assert.ok(metric.length > 50, `${metric.length} voxels`);
+        assert.deepEqual(cellsAt(0.1), metric);
+    },
+
     'occupancy: small splats count by centre only and no extents keeps the old rule'() {
         const { points, extents } = cloud([[0.1, 0.1, 0.1, 0.19, 0.19, 0.19]], []);
         assert.equal(occupiedCount(buildOccupancy(points, V, 2, extents)), 0);

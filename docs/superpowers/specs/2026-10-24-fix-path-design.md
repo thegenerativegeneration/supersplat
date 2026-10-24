@@ -110,3 +110,17 @@ Calls made by me (check these):
 - **Occupancy uses splat extent:** each opaque splat (opacity > 0.5) marks every voxel whose centre lies inside its 2σ ellipsoid (radii floored at half a voxel so thin surfaces still mark the voxels they pass through; radii capped at 1 m against floaters). Splats smaller than half a voxel keep the centre rule. Shared by Suggest Views and Fix Path.
 - **Reachability:** the main group is the connected group containing the most keys (tie → the one containing the first key). Keys outside it are parked. If the first key is parked, the shot starts at the earliest-frame key of the main group.
 - **Parked keys:** a `parked` flag on the pose (saved with the project), drawn at the timeline's pinned out-of-range position with the red ring; Balance leaves parked keys alone (doesn't pull them back into range); moving a parked key into the shot by hand clears the flag; Fix Path retries parked keys on the next run.
+
+## Addendum 2 (2026-10-24, indoor reachability)
+
+The re-check had no wall/roof clipping and a sensible order, but four indoor views were parked; the user: losing indoor areas is not acceptable. Diagnosis (experiment repo fix-path/reach-diagnosis): all exits of the upper-floor rooms have ≤ 0.8 m free height in the scan (a staircase with lost headroom, a band over a gallery parapet, bands/openings in a raised room); the attic connects only over the roofs (scan gap). Loosening fly rules reconnects everything but reopens the roof route and ~26 wall shortcuts.
+
+Decided by the user:
+- Staircase (A) and parapet band (B) are real passages; the raised-room spots (C, D) are uncertain.
+- The camera may go low through such openings (passing 0.4–0.8 m above a sill/parapet).
+- A user lever for the opening size.
+
+Calls made by me (check these):
+- **"Smallest opening"** setting in the Fix Path options (scene units, shown in metres when the scene looks metric), default 0.8 × (eye height / 1.6), range 0.4–2.0 × (eye height / 1.6). Walk cells may dip below eye height as far as needed, down to the row where the free height above the floor is at least this value; nav levels need only enough headroom for that opening. Fly rules unchanged.
+- No width lever: walking already passes 0.9 m wide doors.
+- The attic stays parked (only exit is over the roofs).

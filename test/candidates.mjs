@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Mat4 } from 'playcanvas';
 
 import { estimateEyeHeight, estimateTiltDeg, proposeBox } from './.build/src/candidates/estimate.js';
+import { densityOccupancyCache } from './.build/src/candidates/density.js';
 import { buildSceneGrid, runGeneration } from './.build/src/candidates/generate.js';
 import { findLevels } from './.build/src/candidates/levels.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
@@ -393,7 +394,7 @@ const candidatesChecks = {
         const density = await readDensitySplats(splats);
         const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 7, y: 4, z: 7 } };
         assert.equal(buildSceneGrid(points, box, 1.6, undefined, extents).levels.length, 0);
-        assert.equal(buildSceneGrid(points, box, 1.6, undefined, extents, density).levels.length, 1);
+        assert.equal(buildSceneGrid(points, box, 1.6, undefined, extents, densityOccupancyCache().of(density)).levels.length, 1);
     },
 
     'candidates: the solid rule is shared, defaults to bodies and resets on scene.clear': async () => {

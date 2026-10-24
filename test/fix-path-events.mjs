@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Vec3 } from 'playcanvas';
 
 import { registerCandidateEvents } from './.build/src/candidate-events.js';
+import { buildDensityOccupancy } from './.build/src/candidates/density.js';
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
 import { Events } from './.build/src/events.js';
 import { registerFixPathEvents } from './.build/src/fix-path-events.js';
@@ -437,6 +438,24 @@ const fixPathEventsChecks = {
         const density = await events.invoke('path.fix', FIX);
         assert.deepEqual(density.unreachable, [], 'the faint slab is a floor');
         assert.equal(density.balance.ok, true);
+    },
+
+    async 'path: the density occupancy is built once until the splats change'() {
+        const { events } = setup([high('camera_0', 0, 1), high('camera_1', 30, 4)], { deps: {} });
+        let builds = 0;
+        const build = (...args) => {
+            builds++;
+            return buildDensityOccupancy(...args);
+        };
+        registerCandidateEvents(events, { lockedRenderMode: false, camera: { fov: 60, ortho: false }, getElementsByType: () => [fakeSlab()] }, build);
+        events.fire('candidates.setSolidRule', 'density');
+        await events.invoke('path.fix', FIX);
+        await events.invoke('path.fix', FIX);
+        assert.equal(builds, 1, 'second run reuses the occupancy');
+        events.fire('splat.moved');
+        const moved = await events.invoke('path.fix', FIX);
+        assert.equal(builds, 2, 'a moved splat rebuilds it');
+        assert.deepEqual(moved.unreachable, []);
     },
 
     async 'path: a cleared scene forgets the last Suggest Views settings'() {

@@ -1,10 +1,9 @@
-import { buildDensityOccupancy } from './density';
+import type { DensityOccupancy } from './density';
 import { insideBox, type Box } from './estimate';
 import { EXTENT_STRIDE, maxRadiusAt, type SplatExtents } from './extent';
 import { isovist, opennessOf } from './isovist';
 import { findLevels, type Level } from './levels';
 import { buildOccupancy, type Occupancy } from './occupancy';
-import type { DensitySplats } from './read-density';
 import { AZIMUTHS, mulberry32, sampleCandidates, shuffle, type Candidate } from './sample';
 import { candidateScore, diversify, imageMetrics, rejectBeforeRender, type Scored } from './score';
 import { wallAngle } from './walls';
@@ -85,7 +84,7 @@ const buildSceneGrid = (
     eyeHeight: number,
     headVoxels = HEAD_VOXELS,
     extents?: SplatExtents,
-    density?: DensitySplats
+    density?: DensityOccupancy
 ): { occ: Occupancy, levels: Level[] } => {
     const voxel = eyeHeight / VOXELS_PER_EYE;
     const maxRadius = maxRadiusAt(eyeHeight);
@@ -94,7 +93,7 @@ const buildSceneGrid = (
         // the box's voxel range with a one voxel margin keeps big splats cheap
         const lo = [box.min.x, box.min.y, box.min.z].map(v => Math.floor(v / voxel) - 1) as [number, number, number];
         const hi = [box.max.x, box.max.y, box.max.z].map(v => Math.floor(v / voxel) + 1) as [number, number, number];
-        occ = buildDensityOccupancy(density, voxel, { bounds: { min: lo, max: hi } });
+        occ = density(voxel, { min: lo, max: hi });
     } else {
         const inBox = pointsInBox(points, box, maxRadius, extents);
         occ = buildOccupancy(inBox.points, voxel, 2, inBox.extents, inBox.extentPoints, maxRadius);
@@ -141,7 +140,7 @@ const runGeneration = async <T>(
     opts: GenerateOptions,
     signal: AbortSignal,
     extents?: SplatExtents,
-    density?: DensitySplats
+    density?: DensityOccupancy
 ): Promise<GenerateResult> => {
     const { box, eyeHeight, budget, seed } = opts;
     const { occ, levels } = buildSceneGrid(points, box, eyeHeight, HEAD_VOXELS, extents, density);

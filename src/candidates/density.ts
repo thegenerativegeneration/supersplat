@@ -15,11 +15,12 @@ type DensityOptions = {
 // per-voxel density at which further splats cannot change the outcome
 const SATURATION = 7;
 
-// Half extents of the axis-aligned box around the box of half sizes r·σ along
-// the splat axes, rotated by the unit quaternion q (as splat-transform does).
-const aabbHalfExtents = (
+// Writes the rotation of the unit quaternion q (row-major, out[0..8]) and the
+// half extents of the axis-aligned box around the box of half sizes r·σ along
+// the splat axes (out[9..11]), as splat-transform does.
+const rotationAndHalfExtents = (
     r: number, sx: number, sy: number, sz: number, qx: number, qy: number, qz: number, qw: number,
-    out: number[]
+    out: Float64Array
 ) => {
     const xx = qx * qx, yy = qy * qy, zz = qz * qz;
     const xy = qx * qy, xz = qx * qz, yz = qy * qz;
@@ -27,10 +28,12 @@ const aabbHalfExtents = (
     const r00 = 1 - 2 * (yy + zz), r01 = 2 * (xy - wz), r02 = 2 * (xz + wy);
     const r10 = 2 * (xy + wz), r11 = 1 - 2 * (xx + zz), r12 = 2 * (yz - wx);
     const r20 = 2 * (xz - wy), r21 = 2 * (yz + wx), r22 = 1 - 2 * (xx + yy);
-    out[0] = r * (Math.abs(r00) * sx + Math.abs(r01) * sy + Math.abs(r02) * sz);
-    out[1] = r * (Math.abs(r10) * sx + Math.abs(r11) * sy + Math.abs(r12) * sz);
-    out[2] = r * (Math.abs(r20) * sx + Math.abs(r21) * sy + Math.abs(r22) * sz);
-    return [r00, r01, r02, r10, r11, r12, r20, r21, r22];
+    out[0] = r00; out[1] = r01; out[2] = r02;
+    out[3] = r10; out[4] = r11; out[5] = r12;
+    out[6] = r20; out[7] = r21; out[8] = r22;
+    out[9] = r * (Math.abs(r00) * sx + Math.abs(r01) * sy + Math.abs(r02) * sz);
+    out[10] = r * (Math.abs(r10) * sx + Math.abs(r11) * sy + Math.abs(r12) * sz);
+    out[11] = r * (Math.abs(r20) * sx + Math.abs(r21) * sy + Math.abs(r22) * sz);
 };
 
 const NEIGHBOURS_26: [number, number, number][] = [];
@@ -74,22 +77,24 @@ const buildDensityOccupancy = (splats: DensitySplats, voxel: number, opts: Densi
     const lo = bounds?.min ?? [-Infinity, -Infinity, -Infinity];
     const hi = bounds?.max ?? [Infinity, Infinity, Infinity];
     const density = new Map<number, number>();
-    const half = [0, 0, 0];
+    const frame = new Float64Array(12);
 
     for (let i = 0; i + DENSITY_STRIDE <= splats.length; i += DENSITY_STRIDE) {
         const cx = splats[i], cy = splats[i + 1], cz = splats[i + 2];
         const sx = splats[i + 3], sy = splats[i + 4], sz = splats[i + 5];
         const opacity = splats[i + 10];
-        const [r00, r01, r02, r10, r11, r12, r20, r21, r22] = aabbHalfExtents(
-            sigmaCutoff, sx, sy, sz, splats[i + 6], splats[i + 7], splats[i + 8], splats[i + 9], half
-        );
         if (!(sx > 0 && sy > 0 && sz > 0 && opacity > 0)) continue;
-        if (!(Number.isFinite(half[0]) && Number.isFinite(half[1]) && Number.isFinite(half[2]) &&
-            Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(cz))) continue;
+        if (!(Number.isFinite(cx) && Number.isFinite(cy) && Number.isFinite(cz))) continue;
+        rotationAndHalfExtents(sigmaCutoff, sx, sy, sz, splats[i + 6], splats[i + 7], splats[i + 8], splats[i + 9], frame);
+        const hx = frame[9], hy = frame[10], hz = frame[11];
+        if (!(Number.isFinite(hx) && Number.isFinite(hy) && Number.isFinite(hz))) continue;
+        const r00 = frame[0], r01 = frame[1], r02 = frame[2];
+        const r10 = frame[3], r11 = frame[4], r12 = frame[5];
+        const r20 = frame[6], r21 = frame[7], r22 = frame[8];
 
-        const x0 = Math.max(lo[0], Math.floor((cx - half[0]) / voxel)), x1 = Math.min(hi[0], Math.floor((cx + half[0]) / voxel));
-        const y0 = Math.max(lo[1], Math.floor((cy - half[1]) / voxel)), y1 = Math.min(hi[1], Math.floor((cy + half[1]) / voxel));
-        const z0 = Math.max(lo[2], Math.floor((cz - half[2]) / voxel)), z1 = Math.min(hi[2], Math.floor((cz + half[2]) / voxel));
+        const x0 = Math.max(lo[0], Math.floor((cx - hx) / voxel)), x1 = Math.min(hi[0], Math.floor((cx + hx) / voxel));
+        const y0 = Math.max(lo[1], Math.floor((cy - hy) / voxel)), y1 = Math.min(hi[1], Math.floor((cy + hy) / voxel));
+        const z0 = Math.max(lo[2], Math.floor((cz - hz) / voxel)), z1 = Math.min(hi[2], Math.floor((cz + hz) / voxel));
 
         for (let ix = x0; ix <= x1; ix++) {
             const dx = Math.min(Math.max(cx, ix * voxel), (ix + 1) * voxel) - cx;
@@ -139,5 +144,27 @@ const buildDensityOccupancy = (splats: DensitySplats, voxel: number, opts: Densi
     return { voxel, occupied, isFree, cells };
 };
 
-export { buildDensityOccupancy };
-export type { DensityOptions };
+type DensityBounds = NonNullable<DensityOptions['bounds']>;
+
+// solid voxels of the density rule for a voxel size, within inclusive voxel bounds
+type DensityOccupancy = (voxel: number, bounds: DensityBounds) => Occupancy;
+
+// Keeps the last occupancy built, for the same splats buffer, voxel and bounds.
+const densityOccupancyCache = (build = buildDensityOccupancy) => {
+    let last: { splats: DensitySplats, key: string, occ: Occupancy } | null = null;
+    return {
+        of: (splats: DensitySplats): DensityOccupancy => (voxel, bounds) => {
+            const key = [voxel, ...bounds.min, ...bounds.max].join();
+            if (last?.splats !== splats || last.key !== key) {
+                last = { splats, key, occ: build(splats, voxel, { bounds }) };
+            }
+            return last.occ;
+        },
+        clear: () => {
+            last = null;
+        }
+    };
+};
+
+export { buildDensityOccupancy, densityOccupancyCache };
+export type { DensityBounds, DensityOccupancy, DensityOptions };

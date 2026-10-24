@@ -85,6 +85,11 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     let opening: number | undefined;
     let estimate: number | null = null;
     const openingAt = (eyeHeight: number) => clampOpening(opening, eyeHeight);
+    // a new or loaded project starts from the default opening and a fresh estimate
+    events.on('scene.clear', () => {
+        opening = undefined;
+        estimate = null;
+    });
     let markersShown = false;
 
     const setMarkers = (markers: PathMarkers) => {

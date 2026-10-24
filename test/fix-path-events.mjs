@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import { Vec3 } from 'playcanvas';
 
+import { registerCandidateEvents } from './.build/src/candidate-events.js';
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
 import { Events } from './.build/src/events.js';
 import { registerFixPathEvents } from './.build/src/fix-path-events.js';
@@ -363,6 +364,34 @@ const fixPathEventsChecks = {
         assert.equal(openingAt(3.2), 0.8);
         events.function('candidates.lastSettings', () => ({ box: null, eyeHeight: 3.2 }));
         assert.equal(opening(), 0.8);
+    },
+
+    async 'path: a cleared scene drops the opening and the eye height estimate'() {
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], {
+            deps: { sceneGrid: async () => ({ grid: fakeGrid, eyeHeight: 2 }), route: fakeRoute }
+        });
+        events.fire('path.setSettings', { smallestOpening: 0.45 });
+        await events.invoke('path.fix', FIX);
+        // clamped to the range at the estimated eye height of 2
+        assert.equal(events.invoke('path.settings').smallestOpening, 0.5);
+        events.fire('scene.clear');
+        // the default at eye height 1.6
+        assert.equal(events.invoke('path.settings').smallestOpening, 0.8);
+    },
+
+    async 'path: a cleared scene forgets the last Suggest Views settings'() {
+        const events = new Events();
+        events.function('camera.getPose', () => ({ position: new Vec3(1, 1, 1), target: new Vec3(1, 1, 0) }));
+        const scene = { lockedRenderMode: false, camera: { fov: 60, ortho: false }, getElementsByType: () => [] };
+        registerCandidateEvents(events, scene);
+        registerFixPathEvents(events);
+        const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 10, y: 3, z: 10 } };
+        await events.invoke('candidates.generate', { box, eyeHeight: 1.2, budget: 4, seed: 1 }, new AbortController().signal);
+        assert.deepEqual(await events.invoke('path.eyeHeight'), { eyeHeight: 1.2, estimated: false, metric: true });
+        events.fire('scene.clear');
+        assert.equal(events.invoke('candidates.lastSettings'), null);
+        // Fix path prepares afresh, which finds no splats here
+        assert.equal(await events.invoke('path.eyeHeight'), null);
     }
 };
 

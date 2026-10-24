@@ -38,6 +38,10 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     const invalidate = () => {
         points = null;
     };
+    // a new or loaded project starts without the last run's settings
+    events.on('scene.clear', () => {
+        lastSettings = null;
+    });
     // only splats matter: the area box joins and leaves the scene as well
     for (const name of ['scene.elementAdded', 'scene.elementRemoved']) {
         events.on(name, (element: { type: ElementType }) => element?.type === ElementType.splat && invalidate());

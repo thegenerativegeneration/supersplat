@@ -4,6 +4,7 @@ import { buildCameraCurve } from './.build/src/anim/camera-curve.js';
 import { buildSceneGrid } from './.build/src/candidates/generate.js';
 import { CAMERA_RADIUS_VOXELS, pointClearance } from './.build/src/path/clearance.js';
 import { checkCurve } from './.build/src/path/curve-check.js';
+import { planFixPath } from './.build/src/path/fix-plan.js';
 import { buildNavGrid, NAV_HEAD_VOXELS } from './.build/src/path/nav-grid.js';
 import { sheet } from './nav-doors.mjs';
 
@@ -21,6 +22,19 @@ const wallGrid = (cameraRadius) => {
     const { occ, levels } = buildSceneGrid(points, BOX, EYE, NAV_HEAD_VOXELS);
     return buildNavGrid(occ, levels, BOX, EYE, false, undefined, cameraRadius);
 };
+
+// floor, ceiling at 2.8 and a wall at x = 10 with a 1.3 m x 2.1 m door at z 5 .. 6.3
+const doorGrid = () => {
+    const points = new Float32Array([
+        ...sheet(0, 20, 0, 10, (x, z) => [x, 0, z]),
+        ...sheet(0, 20, 0, 10, (x, z) => [x, 2.8, z]),
+        ...sheet(0, 2.8, 0, 10, (y, z) => [10, y, z], (y, z) => z >= 5 - 1e-9 && z < 6.3 - 1e-9 && y < 2.1)
+    ]);
+    const { occ, levels } = buildSceneGrid(points, BOX, EYE, NAV_HEAD_VOXELS);
+    return buildNavGrid(occ, levels, BOX, EYE, false, undefined, CAMERA_RADIUS_VOXELS);
+};
+
+const fixKey = (name, x, z, t) => ({ name, position: { x, y: 1.6, z }, target: { x: t[0], y: 1.6, z: t[1] }, fov: 60, linger: 0, distance: 5 });
 
 const curvePose = (x, z, t) => ({ position: { x, y: 2, z }, target: { x: t[0], y: 2, z: t[1] }, fov: 60 });
 
@@ -85,6 +99,19 @@ const clearanceChecks = {
         const grid = wallGrid(CAMERA_RADIUS_VOXELS);
         assert.ok(grid.pointFree(keys[0].position));
         assert.deepEqual(checkCurve(curve, [0, 30], grid, [0, 30], 0.25 * V), []);
+    },
+
+    'path: the Balance result belongs to the returned poses after a rejected prune trial'() {
+        // the last prune trial of this plan is rejected
+        const plan = planFixPath({
+            keys: [fixKey('a', 6.92, 9.02, [7.01, 9.31]), fixKey('b', 6.56, 4.12, [6.4, 3.31]), fixKey('c', 12.56, 9.48, [12.48, 10.26])],
+            grid: doorGrid(),
+            eyeHeight: EYE,
+            keepOrder: true,
+            timeline: { frames: 60, frameRate: 30, smoothness: 1, loop: false, rotationWeight: 1 }
+        });
+        assert.ok(plan.balance.ok);
+        assert.deepEqual(plan.balance.frames, plan.poses.map(p => p.frame));
     }
 };
 

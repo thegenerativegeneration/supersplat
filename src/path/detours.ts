@@ -19,6 +19,7 @@ type DetourInput = {
     routes: (Vec3Like[] | null)[],
     grid: NavGrid,
     eyeHeight: number,
+    // frames for the poses; the plan's frames are the array of one of these calls
     retime: (poses: CurvePose[]) => number[],
     curveOpts: CurveOptions,
     look?: LookOptions

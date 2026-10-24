@@ -137,16 +137,20 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
     const segmentRoutes = Array.from({ length: segments }, (_, s) => routes.points(tour[s], tour[(s + 1) % n]));
 
     const user = new Map<CurvePose, FixKey>(keys.map(k => [k, k]));
-    let balance: BalanceResult;
+    // the Balance result behind each frames array retime returns; planDetours
+    // evaluates trials it may reject, so the result is looked up by the frames it kept
+    const balances = new WeakMap<number[], BalanceResult>();
     const retime = (poses: CurvePose[]) => {
-        balance = balanceTiming({
+        const balance = balanceTiming({
             ...timeline,
             keys: poses.map((p) => {
                 const key = user.get(p);
                 return { position: p.position, target: p.target, fov: p.fov, linger: key?.linger ?? 0, distance: key?.distance ?? NaN };
             })
         });
-        return 'frames' in balance ? balance.frames : evenFrames(poses.length, timeline.frames, timeline.loop);
+        const frames = 'frames' in balance ? balance.frames : evenFrames(poses.length, timeline.frames, timeline.loop);
+        balances.set(frames, balance);
+        return frames;
     };
 
     const ordered = tour.map(i => keys[i]);
@@ -169,7 +173,7 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
         blocked: plan.blocked.map(s => frameOf.get(ordered[s])),
         unreachable: unreachable.map(i => keys[i].name),
         insideGeometry: keys.filter(k => !grid.pointFree(k.position)).map(k => k.name),
-        balance,
+        balance: balances.get(plan.frames),
         times: { routes: routed - start, detours: performance.now() - routed },
         graph: routes.size
     };

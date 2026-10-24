@@ -1,4 +1,3 @@
-import type { DensityOccupancy } from './density';
 import { insideBox, type Box } from './estimate';
 import { EXTENT_STRIDE, maxRadiusAt, type SplatExtents } from './extent';
 import { isovist, opennessOf } from './isovist';
@@ -9,9 +8,6 @@ import { candidateScore, diversify, imageMetrics, rejectBeforeRender, type Score
 import { wallAngle } from './walls';
 
 type GenerateOptions = { box: Box, eyeHeight: number, budget: number, seed: number, fov?: number, alignToWalls?: boolean, preferOpen?: boolean };
-
-// what counts as solid: opaque splat centres and extents, or summed splat density
-type SolidRule = 'bodies' | 'density';
 
 type LevelInfo = { index: number, height: number, area: number };
 
@@ -74,30 +70,19 @@ const pointsInBox = (points: Float32Array, box: Box, maxRadius: number, extents?
     };
 };
 
-// Occupancy inside the box at eyeHeight / VOXELS_PER_EYE and the levels in it
-// whose surfaces have headVoxels free voxels above, shared by Suggest Views and
-// Fix path. From the points (and splat extents, if given), or, with density,
-// from the summed density of all splats reaching the box.
+// Occupancy of the points (and splat extents, if given) inside the box at
+// eyeHeight / VOXELS_PER_EYE and the levels in it whose surfaces have
+// headVoxels free voxels above, shared by Suggest Views and Fix path.
 const buildSceneGrid = (
     points: Float32Array,
     box: Box,
     eyeHeight: number,
     headVoxels = HEAD_VOXELS,
-    extents?: SplatExtents,
-    density?: DensityOccupancy
+    extents?: SplatExtents
 ): { occ: Occupancy, levels: Level[] } => {
-    const voxel = eyeHeight / VOXELS_PER_EYE;
     const maxRadius = maxRadiusAt(eyeHeight);
-    let occ: Occupancy;
-    if (density) {
-        // the box's voxel range with a one voxel margin keeps big splats cheap
-        const lo = [box.min.x, box.min.y, box.min.z].map(v => Math.floor(v / voxel) - 1) as [number, number, number];
-        const hi = [box.max.x, box.max.y, box.max.z].map(v => Math.floor(v / voxel) + 1) as [number, number, number];
-        occ = density(voxel, { min: lo, max: hi });
-    } else {
-        const inBox = pointsInBox(points, box, maxRadius, extents);
-        occ = buildOccupancy(inBox.points, voxel, 2, inBox.extents, inBox.extentPoints, maxRadius);
-    }
+    const inBox = pointsInBox(points, box, maxRadius, extents);
+    const occ = buildOccupancy(inBox.points, eyeHeight / VOXELS_PER_EYE, 2, inBox.extents, inBox.extentPoints, maxRadius);
     const minArea = 8 * (eyeHeight / 1.6) ** 2;
     return { occ, levels: findLevels(occ, headVoxels, minArea) };
 };
@@ -139,11 +124,10 @@ const runGeneration = async <T>(
     points: Float32Array,
     opts: GenerateOptions,
     signal: AbortSignal,
-    extents?: SplatExtents,
-    density?: DensityOccupancy
+    extents?: SplatExtents
 ): Promise<GenerateResult> => {
     const { box, eyeHeight, budget, seed } = opts;
-    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, HEAD_VOXELS, extents, density);
+    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, HEAD_VOXELS, extents);
     deps.onLevels(levels.map((l, index) => ({ index, height: l.height, area: l.area })));
     if (levels.length === 0) return { scored: [], reason: 'noLevels' };
 
@@ -200,4 +184,4 @@ const runGeneration = async <T>(
 };
 
 export { buildSceneGrid, runGeneration, THUMB_HEIGHT, THUMB_WIDTH, VOXELS_PER_EYE };
-export type { GenerateDeps, GenerateOptions, GenerateResult, LevelInfo, SolidRule };
+export type { GenerateDeps, GenerateOptions, GenerateResult, LevelInfo };

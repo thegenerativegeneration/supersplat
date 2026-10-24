@@ -1,9 +1,7 @@
 import { Vec3 } from 'playcanvas';
 
-import { buildDensityOccupancy, densityOccupancyCache } from './candidates/density';
 import { estimateEyeHeight, estimateTiltDeg, proposeBox, type Box } from './candidates/estimate';
-import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH, type GenerateOptions, type SolidRule } from './candidates/generate';
-import { readDensitySplats, type DensitySplats } from './candidates/read-density';
+import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH, type GenerateOptions } from './candidates/generate';
 import { readOpaquePoints, type OpaquePoints } from './candidates/read-points';
 import type { Candidate } from './candidates/sample';
 import type { Scored } from './candidates/score';
@@ -31,12 +29,8 @@ const thumbnailOf = (rgba: Uint8Array) => {
     return canvas;
 };
 
-// buildDensity: builds the density rule's occupancy (replaceable for tests)
-const registerCandidateEvents = (events: Events, scene: Scene, buildDensity = buildDensityOccupancy) => {
+const registerCandidateEvents = (events: Events, scene: Scene) => {
     let points: Promise<OpaquePoints> | null = null;
-    let density: Promise<DensitySplats> | null = null;
-    const densityOccupancy = densityOccupancyCache(buildDensity);
-    let solidRule: SolidRule = 'bodies';
     let alignToWalls = false;
     let preferOpen = false;
     let running = false;
@@ -45,13 +39,10 @@ const registerCandidateEvents = (events: Events, scene: Scene, buildDensity = bu
 
     const invalidate = () => {
         points = null;
-        density = null;
-        densityOccupancy.clear();
     };
     // a new or loaded project starts without the last run's settings
     events.on('scene.clear', () => {
         lastSettings = null;
-        solidRule = 'bodies';
         alignToWalls = false;
         preferOpen = false;
     });
@@ -73,29 +64,6 @@ const registerCandidateEvents = (events: Events, scene: Scene, buildDensity = bu
         }
         return points;
     };
-
-    const sceneDensity = () => {
-        if (!density) {
-            const pending = readDensitySplats(scene.getElementsByType(ElementType.splat) as Splat[]);
-            pending.catch(() => {
-                if (density === pending) density = null;
-            });
-            density = pending;
-        }
-        return density;
-    };
-
-    // every visible splat with its covariance and opacity, for the density rule
-    events.function('candidates.density', () => sceneDensity());
-
-    // the density rule's occupancy for a voxel size and bounds, built once until the splats change
-    const sceneDensityOccupancy = async () => densityOccupancy.of(await sceneDensity());
-    events.function('candidates.densityOccupancy', () => sceneDensityOccupancy());
-
-    events.function('candidates.solidRule', () => solidRule);
-    events.on('candidates.setSolidRule', (rule: SolidRule) => {
-        solidRule = rule === 'density' ? 'density' : 'bodies';
-    });
 
     // whether Suggest Views turns its views to the walls; each run gets it in its options
     events.function('candidates.alignToWalls', () => alignToWalls);
@@ -134,7 +102,6 @@ const registerCandidateEvents = (events: Events, scene: Scene, buildDensity = bu
         };
         try {
             const { points: pts, extents } = await scenePoints();
-            const densityGrid = solidRule === 'density' ? await sceneDensityOccupancy() : undefined;
             const { camera } = scene;
             const fov = opts.fov ?? camera.fov;
             const saved = events.invoke('camera.getPose');
@@ -178,7 +145,7 @@ const registerCandidateEvents = (events: Events, scene: Scene, buildDensity = bu
                 onProgress: (done, total) => events.fire('candidates.progress', done, total),
                 onAdded: (scored, thumbnail) => events.fire('candidates.added', scored, thumbnail),
                 onLevels: levels => events.fire('candidates.levels', levels)
-            }, pts, { ...opts, fov }, signal, extents, densityGrid);
+            }, pts, { ...opts, fov }, signal, extents);
 
             console.debug(`candidates.generate: ${rendered} rendered in ${(performance.now() - start).toFixed(0)} ms`);
             events.fire('candidates.done', result.scored.length, result.reason);

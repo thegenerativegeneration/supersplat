@@ -32,9 +32,6 @@ Click the gear next to **Fix Path**.
 
 - **Keep my order**: keeps your key order and only adds detour keys. Default off.
 - **Allow flying**: lets the camera fly where walking can't reach, for example up to a gallery. Default on. The camera still prefers walking at eye height. Off means walking only (stairs work if the scan has them).
-- **Keep clear of walls (new)**: checks the camera as a small ball with a radius of a tenth of the eye height (0.16 m at eye height 1.6 m), so the path doesn't graze walls and door frames. Default off, being compared. Keys you placed against a wall are not reported for that.
-- **Look ahead (new)**: detour keys look at the path about 2 s ahead (one to four eye heights), at most 35° off the travel direction, and face straight ahead through doors. Near your keys they turn from and to your key's view. Default off, being compared.
-- **Density solid space (new)**: decides what is solid the way the published viewer's walk collision does: faint splats add up and small floating clumps are ignored. Default off, being compared with the standard rule. The setting is shared with [Suggest Views](view-candidates.md).
 - **Smallest opening**: the lowest free band the camera may pass, measured above a sill, railing or stair tread. Default 0.8 m, range 0.4–2.0 m, for an eye height of 1.6 m; default and range scale with the eye height. In metres when the scene looks metric, else in scene units. Rounds to steps of a quarter of the eye height (0.4 m).
   - Lower: the camera squeezes through lower bands, e.g. over a gallery railing, through a window over a desk, or on stairs under a low, sloping ceiling. It dips down there; at the default as low as 0.4 m above the sill.
   - Higher: low bands stay closed; rooms behind them are parked. Above the eye height it acts like the eye height, so normal doors (2 m) always pass.
@@ -99,9 +96,7 @@ With camera poses shown, the camera path is drawn as a line.
 
 ## Limits
 
-- The camera is a small ball (see **Keep clear of walls**). It may not pass very narrow gaps. With **Keep clear of walls** on, the minimum **Smallest opening** setting flags low passes as blocked.
 - Holes in the scan can still look like doors, so the route may lead through them. Play the shot to check.
-- **Density solid space** reads every splat and is slower on large scans.
 - Low doors and gaps at floor level (below about 2 m at eye height 1.6 m) don't pass at any **Smallest opening**: the camera can't drop that far in one step.
 - Rooms reachable only through bands lower than **Smallest opening**, or through stairs the scan missed, stay unreachable. Lower **Smallest opening** to reach them, then play the shot: the scan may show a gap where there is glass or a lost ceiling.
 - The path check uses the scan's splats, including the size of large ones. Sparse walls with gaps may still leak, so the camera can pass through them. Play the shot to check.

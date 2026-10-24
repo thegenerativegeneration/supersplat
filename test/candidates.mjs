@@ -3,15 +3,12 @@ import assert from 'node:assert/strict';
 import { Mat4 } from 'playcanvas';
 
 import { estimateEyeHeight, estimateTiltDeg, proposeBox } from './.build/src/candidates/estimate.js';
-import { densityOccupancyCache } from './.build/src/candidates/density.js';
-import { buildSceneGrid, runGeneration } from './.build/src/candidates/generate.js';
+import { runGeneration } from './.build/src/candidates/generate.js';
 import { findLevels } from './.build/src/candidates/levels.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
 import { sampleCandidates } from './.build/src/candidates/sample.js';
-import { readDensitySplats } from './.build/src/candidates/read-density.js';
 import { readOpaquePoints } from './.build/src/candidates/read-points.js';
 import { diversify, imageMetrics, rejectBeforeRender } from './.build/src/candidates/score.js';
-import { registerCandidateEvents } from './.build/src/candidate-events.js';
 import { Events } from './.build/src/events.js';
 import { registerRenderEvents } from './.build/src/render.js';
 
@@ -110,7 +107,7 @@ const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true, geome
         },
         resource: {
             source: {
-                meta: { chunkSize: Math.max(64, n), numChunks: [1], numGaussians: n, layouts },
+                meta: { chunkSize: 64, numChunks: [1], numGaussians: n, layouts },
                 read: async ({ position, geometric }) => {
                     const pos = new Float32Array(position.data);
                     const geo = new Float32Array(geometric.data);
@@ -123,27 +120,6 @@ const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true, geome
             }
         }
     };
-};
-
-// 6 x 6 m slab at eye 1.6 (voxel 0.4): four splats of opacity 0.05 per voxel,
-// plus opaque splats at the corners of floor and ceiling, so the opaque points span a metric box
-const fakeSlab = () => {
-    const rows = [];
-    const geo = [];
-    const add = (x, z, logit, y = 0.2) => {
-        rows.push([x, y, z, logit]);
-        geo.push([1, 0, 0, 0, Math.log(0.05), Math.log(0.05), Math.log(0.05), logit]);
-    };
-    for (let ix = 0; ix < 15; ix++) {
-        for (let iz = 0; iz < 15; iz++) {
-            for (let k = 0; k < 4; k++) add((ix + 0.5) * 0.4, (iz + 0.5) * 0.4, Math.log(0.05 / 0.95));
-        }
-    }
-    [[0, 0], [0, 6], [6, 0], [6, 6]].forEach(([x, z]) => {
-        add(x, z, 5);
-        add(x, z, 5, 3);
-    });
-    return fakeSplat(rows, { geometricRows: geo });
 };
 
 const candidatesChecks = {
@@ -388,26 +364,6 @@ const candidatesChecks = {
         assert.ok(out[3 * 9] > 30, `${out}`);
     },
 
-    'candidates: a slab of faint splats is a level under the density rule only': async () => {
-        const splats = [fakeSlab()];
-        const { points, extents } = await readOpaquePoints(splats);
-        const density = await readDensitySplats(splats);
-        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 7, y: 4, z: 7 } };
-        assert.equal(buildSceneGrid(points, box, 1.6, undefined, extents).levels.length, 0);
-        assert.equal(buildSceneGrid(points, box, 1.6, undefined, extents, densityOccupancyCache().of(density)).levels.length, 1);
-    },
-
-    'candidates: the solid rule is shared, defaults to bodies and resets on scene.clear': async () => {
-        const events = new Events();
-        registerCandidateEvents(events, { getElementsByType: () => [] });
-        assert.equal(events.invoke('candidates.solidRule'), 'bodies');
-        events.fire('candidates.setSolidRule', 'density');
-        assert.equal(events.invoke('candidates.solidRule'), 'density');
-        assert.equal((await events.invoke('candidates.density')).length, 0);
-        events.fire('scene.clear');
-        assert.equal(events.invoke('candidates.solidRule'), 'bodies');
-    },
-
     'candidates: image and video renders refuse while a locked render runs': async () => {
         const events = new Events();
         // any camera or target access would throw a TypeError instead of busy
@@ -423,4 +379,4 @@ const candidatesChecks = {
     }
 };
 
-export { candidatesChecks, fakeSlab, fakeSplat };
+export { candidatesChecks, fakeSplat };

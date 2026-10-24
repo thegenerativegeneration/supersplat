@@ -2,20 +2,16 @@ import { Vec3 } from 'playcanvas';
 
 import type { BalanceResult } from './anim/balance-timing';
 import { Pose } from './camera-poses';
-import type { DensityOccupancy } from './candidates/density';
 import { insideBox, looksMetric, type Box } from './candidates/estimate';
 import { buildSceneGrid } from './candidates/generate';
 import type { OpaquePoints } from './candidates/read-points';
 import { Events } from './events';
-import { CAMERA_RADIUS_VOXELS } from './path/clearance';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
 import { buildNavGrid, clampOpening, navHeadVoxels, type NavGrid } from './path/nav-grid';
 import { finiteOr, showBalanceFailure, snapshotOf, timelineSettings } from './timing-events';
 
-// smallestOpening: in scene units, see clampOpening; keepClear: check the
-// camera as a ball of CAMERA_RADIUS_VOXELS; lookAhead: detour keys look
-// ahead along the path (see lookOptions)
-type FixPathOptions = { keepOrder: boolean, allowFlying: boolean, keepClear: boolean, lookAhead: boolean, smallestOpening: number };
+// smallestOpening: in scene units, see clampOpening
+type FixPathOptions = { keepOrder: boolean, allowFlying: boolean, smallestOpening: number };
 
 type FixPathResult = {
     ok: boolean,
@@ -42,9 +38,8 @@ type SceneGrid = { grid: NavGrid, eyeHeight: number, box?: Box };
 type OpeningAt = (eyeHeight: number) => number;
 
 type FixPathDeps = {
-    // the navigation grid of the scene, null without visible splats;
-    // cameraRadius in voxels
-    sceneGrid?: (allowFlying: boolean, openingAt: OpeningAt, cameraRadius: number) => Promise<SceneGrid | null>,
+    // the navigation grid of the scene, null without visible splats
+    sceneGrid?: (allowFlying: boolean, openingAt: OpeningAt) => Promise<SceneGrid | null>,
     route?: RouteFn
 };
 
@@ -58,16 +53,14 @@ const STALE_EVENTS = [
 
 // Grid from the cached scene points and splat extents, with the box and eye
 // height of the last Suggest Views run, else fresh estimates.
-const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt, cameraRadius: number): Promise<SceneGrid | null> => {
+const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt): Promise<SceneGrid | null> => {
     const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
     if (!points || points.length === 0) return null;
     const settings: { box: Box, eyeHeight: number } = events.invoke('candidates.lastSettings') ?? await events.invoke('candidates.prepare');
     const { box, eyeHeight } = settings;
     const opening = openingAt(eyeHeight);
-    const rule = events.functions.has('candidates.solidRule') ? events.invoke('candidates.solidRule') : 'bodies';
-    const density = rule === 'density' ? await events.invoke('candidates.densityOccupancy') as DensityOccupancy : undefined;
-    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, navHeadVoxels(eyeHeight, opening), extents, density);
-    return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying, opening, cameraRadius), eyeHeight, box };
+    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, navHeadVoxels(eyeHeight, opening), extents);
+    return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying, opening), eyeHeight, box };
 };
 
 type EyeHeightInfo = { eyeHeight: number, estimated: boolean, metric: boolean };
@@ -89,17 +82,14 @@ const namer = (poses: readonly Pose[]) => {
 
 const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     const sceneGrid = deps.sceneGrid ?? defaultSceneGrid(events);
-    const settings = { keepOrder: false, allowFlying: true, keepClear: false, lookAhead: false };
+    const settings = { keepOrder: false, allowFlying: true };
     // the user's smallest opening in scene units, undefined for the default
     let opening: number | undefined;
     let estimate: number | null = null;
     const openingAt = (eyeHeight: number) => clampOpening(opening, eyeHeight);
-    // a new or loaded project starts from the default opening and wall
-    // clearance and a fresh estimate
+    // a new or loaded project starts from the default opening and a fresh estimate
     events.on('scene.clear', () => {
         opening = undefined;
-        settings.keepClear = false;
-        settings.lookAhead = false;
         estimate = null;
     });
     let markersShown = false;
@@ -115,8 +105,6 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     events.on('path.setSettings', (changes: Partial<FixPathOptions>) => {
         if (typeof changes.keepOrder === 'boolean') settings.keepOrder = changes.keepOrder;
         if (typeof changes.allowFlying === 'boolean') settings.allowFlying = changes.allowFlying;
-        if (typeof changes.keepClear === 'boolean') settings.keepClear = changes.keepClear;
-        if (typeof changes.lookAhead === 'boolean') settings.lookAhead = changes.lookAhead;
         if (Number.isFinite(changes.smallestOpening)) opening = changes.smallestOpening;
     });
 
@@ -147,8 +135,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
         const snapshot = snapshotOf(events);
 
         const runOpening = Number.isFinite(options?.smallestOpening) ? options.smallestOpening : opening;
-        const cameraRadius = opts.keepClear ? CAMERA_RADIUS_VOXELS : 0;
-        const scene = await sceneGrid(opts.allowFlying, eyeHeight => clampOpening(runOpening, eyeHeight), cameraRadius);
+        const scene = await sceneGrid(opts.allowFlying, eyeHeight => clampOpening(runOpening, eyeHeight));
         if (!scene) return { ok: false, reason: 'noSplats', ...empty };
         estimate = scene.eyeHeight;
         const gridMs = performance.now() - start;
@@ -176,8 +163,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             eyeHeight: scene.eyeHeight,
             keepOrder: opts.keepOrder,
             timeline,
-            route: deps.route,
-            look: { enabled: opts.lookAhead }
+            route: deps.route
         });
         // every key needs a frame of its own
         if (plan.poses.length > timeline.frames) return { ok: false, reason: 'tooFewFrames', ...empty };

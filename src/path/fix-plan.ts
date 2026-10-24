@@ -1,4 +1,4 @@
-import { planDetours, type LookOptions } from './detours';
+import { planDetours } from './detours';
 import { keyRoutes, mainGroup, type KeyRoutes } from './key-graph';
 import type { NavGrid } from './nav-grid';
 import { orderKeys } from './order';
@@ -20,9 +20,7 @@ type FixPlanInput = {
     keepOrder: boolean,
     timeline: Omit<BalanceInput, 'keys'>,
     // routes each pair on its own instead of keyRoutes (for checks)
-    route?: RouteFn,
-    // detour keys look ahead along the path (see lookOptions)
-    look?: { enabled: boolean }
+    route?: RouteFn
 };
 
 type FixPlan = {
@@ -67,46 +65,6 @@ const pairRoutes = (grid: NavGrid, positions: Vec3Like[], route: RouteFn): KeyRo
             return i < j ? r.points : r.points.slice().reverse();
         },
         size: undefined
-    };
-};
-
-// seconds of look-ahead at the planned speed
-const LOOK_SECONDS = 2;
-// largest angle between a detour key's view and the travel direction
-const LOOK_MAX_OFFSET_DEG = 35;
-
-const polylineLength = (points: Vec3Like[]) => {
-    let sum = 0;
-    for (let i = 1; i < points.length; i++) {
-        const a = points[i - 1], b = points[i];
-        sum += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
-    }
-    return sum;
-};
-
-// Look-ahead for the detour keys of the ordered keys. The planned speed is
-// the routed length over the time left after the lingers; the camera looks
-// LOOK_SECONDS ahead at it, between one and four eye heights. Doors and
-// other passages face along travel.
-const lookOptions = (
-    ordered: FixKey[],
-    segmentRoutes: (Vec3Like[] | null)[],
-    grid: NavGrid,
-    eyeHeight: number,
-    timeline: Pick<FixPlanInput['timeline'], 'frames' | 'frameRate'>
-): LookOptions => {
-    const n = ordered.length;
-    const length = segmentRoutes.reduce((sum, r, i) => (
-        r ? sum + polylineLength([ordered[i].position, ...r, ordered[(i + 1) % n].position]) : sum
-    ), 0);
-    const lingerFrames = ordered.reduce((sum, k) => sum + k.linger * timeline.frameRate, 0);
-    const seconds = (timeline.frames - lingerFrames) / timeline.frameRate;
-    const speed = seconds > 0 ? length / seconds : 0;
-    return {
-        ahead: Math.min(4 * eyeHeight, Math.max(eyeHeight, LOOK_SECONDS * speed)),
-        maxOffsetDeg: LOOK_MAX_OFFSET_DEG,
-        ease: 2 * eyeHeight,
-        narrow: p => grid.inPassage(p)
     };
 };
 
@@ -161,8 +119,7 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
         grid,
         eyeHeight,
         retime,
-        curveOpts: { duration: timeline.frames, smoothness: timeline.smoothness, loop: timeline.loop },
-        look: input.look?.enabled ? lookOptions(ordered, segmentRoutes, grid, eyeHeight, timeline) : undefined
+        curveOpts: { duration: timeline.frames, smoothness: timeline.smoothness, loop: timeline.loop }
     });
 
     const poses = plan.poses.map((p, i) => ({ pose: p.pose, frame: plan.frames[i], key: p.auto ? null : user.get(p.pose) }));
@@ -179,5 +136,5 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
     };
 };
 
-export { evenFrames, lookOptions, planFixPath };
+export { evenFrames, planFixPath };
 export type { FixKey, FixPlan, FixPlanInput, RouteFn };

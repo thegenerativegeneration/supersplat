@@ -1,10 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { buildCameraCurve } from './.build/src/anim/camera-curve.js';
 import { buildSceneGrid } from './.build/src/candidates/generate.js';
-import { CAMERA_RADIUS_VOXELS } from './.build/src/path/clearance.js';
-import { checkCurve } from './.build/src/path/curve-check.js';
-import { planDetours } from './.build/src/path/detours.js';
 import { buildNavGrid, clampOpening, NAV_HEAD_VOXELS, navHeadVoxels } from './.build/src/path/nav-grid.js';
 import { keyRoutes } from './.build/src/path/key-graph.js';
 import { findRoute } from './.build/src/path/route.js';
@@ -25,11 +21,11 @@ const sheet = (u0, u1, w0, w1, f, skip = () => false, step = 0.1) => {
 };
 
 // floor at fy, ceiling 2.8 m above it and a wall at x = 10 with a door
-// (z z0 .. z0 + width, below fy + height)
-const room = (fy, height, width = 0.9, z0 = 5) => new Float32Array([
+// (z 5 .. 5 + width, below fy + height)
+const room = (fy, height, width = 0.9) => new Float32Array([
     ...sheet(0, 20, 0, 10, (x, z) => [x, fy, z]),
     ...sheet(0, 20, 0, 10, (x, z) => [x, fy + 2.8, z]),
-    ...sheet(fy, fy + 2.8, 0, 10, (y, z) => [10, y, z], (y, z) => z >= z0 - 1e-9 && z < z0 + width - 1e-9 && y < fy + height)
+    ...sheet(fy, fy + 2.8, 0, 10, (y, z) => [10, y, z], (y, z) => z >= 5 && z < 5 + width && y < fy + height)
 ]);
 
 // floor at 0, ceiling at 2.8 and a 1.2 m thick wall at x = 10 whose only
@@ -133,25 +129,6 @@ const navDoorsChecks = {
             const at = route.points.find(p => p.x > 10 && p.x < 10.4);
             assert.ok(at.z >= 5 && at.z <= 5.9, `crosses at z ${at.z}`);
             assert.ok(at.y < fy + 2.0, `below the lintel at ${at.y}`);
-        }
-    },
-
-    'path: a 0.9 m door routes with a curve clear of the frame at both alignments'() {
-        // door z 5 .. 5.9 leaves one free voxel column, z 5.2 .. 6.1 two
-        for (const z0 of [5, 5.2]) {
-            const { occ, levels } = buildSceneGrid(room(0, 2.0, 0.9, z0), BOX, EYE, NAV_HEAD_VOXELS);
-            const grid = buildNavGrid(occ, levels, BOX, EYE, false, undefined, CAMERA_RADIUS_VOXELS);
-            const pose = (x, dx) => ({ position: { x, y: 2, z: 5.4 }, target: { x: x + dx, y: 2, z: 5.4 }, fov: 60 });
-            const keys = [pose(3, 1), pose(17, 1)];
-            const route = findRoute(grid, keys[0].position, keys[1].position);
-            assert.ok(route, `route at z0 ${z0}`);
-            const curveOpts = { duration: 100000, smoothness: 1, loop: false };
-            const retime = poses => poses.map((_, i) => i * 20);
-            const plan = planDetours({ keys, routes: [route.points], grid, eyeHeight: EYE, retime, curveOpts });
-            assert.deepEqual(plan.blocked, [], `blocked at z0 ${z0}`);
-            const curve = buildCameraCurve(plan.poses.map(p => p.pose), plan.frames, curveOpts);
-            const userFrames = plan.frames.filter((_, i) => !plan.poses[i].auto);
-            assert.deepEqual(checkCurve(curve, plan.frames, grid, userFrames, 0.1), [], `curve at z0 ${z0}`);
         }
     },
 

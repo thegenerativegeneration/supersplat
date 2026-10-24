@@ -11,7 +11,7 @@ const MIN_KEYS = 2;
 // runs shorter than this finish without a spinner
 const SPINNER_DELAY_MS = 300;
 
-type Options = { keepOrder: boolean, allowFlying: boolean, keepClear: boolean, lookAhead: boolean, smallestOpening: number };
+type Options = { keepOrder: boolean, allowFlying: boolean, smallestOpening: number };
 
 type EyeHeightInfo = { eyeHeight: number, estimated: boolean, metric: boolean };
 
@@ -30,7 +30,7 @@ class FixPathOptions extends Container {
     constructor(events: Events, tooltips: Tooltips) {
         super({ class: 'fix-path-options', hidden: true });
 
-        const toggle = (text: string, tooltip: string, onChange: (value: boolean) => void) => {
+        const toggle = (key: keyof Options, text: string, tooltip: string) => {
             const row = new Container({ class: 'fix-path-option' });
             const input = new BooleanInput({ class: 'fix-path-option-input' });
             const label = new Label({ class: 'fix-path-option-label' });
@@ -38,7 +38,7 @@ class FixPathOptions extends Container {
             row.append(input);
             row.append(label);
             this.append(row);
-            input.on('change', onChange);
+            input.on('change', (value: boolean) => events.fire('path.setSettings', { [key]: value }));
             label.dom.addEventListener('click', () => {
                 input.value = !input.value;
             });
@@ -46,15 +46,8 @@ class FixPathOptions extends Container {
             return input;
         };
 
-        const setting = (key: keyof Options) => (value: boolean) => events.fire('path.setSettings', { [key]: value });
-        const keepOrder = toggle('fix-path.keep-order', 'tooltip.fix-path.keep-order', setting('keepOrder'));
-        const allowFlying = toggle('fix-path.allow-flying', 'tooltip.fix-path.allow-flying', setting('allowFlying'));
-        const keepClear = toggle('fix-path.keep-clear', 'tooltip.fix-path.keep-clear', setting('keepClear'));
-        const lookAhead = toggle('fix-path.look-ahead', 'tooltip.fix-path.look-ahead', setting('lookAhead'));
-        // the rule is shared with Suggest Views
-        const solidDensity = toggle('candidates.solid-density', 'tooltip.candidates.solid-density', (value: boolean) => {
-            events.fire('candidates.setSolidRule', value ? 'density' : 'bodies');
-        });
+        const keepOrder = toggle('keepOrder', 'fix-path.keep-order', 'tooltip.fix-path.keep-order');
+        const allowFlying = toggle('allowFlying', 'fix-path.allow-flying', 'tooltip.fix-path.allow-flying');
 
         const openingRow = new Container({ class: 'fix-path-opening' });
         const openingLabel = new Label({ class: 'fix-path-opening-label' });
@@ -122,9 +115,6 @@ class FixPathOptions extends Container {
             const settings = events.invoke('path.settings') as Options;
             keepOrder.value = settings.keepOrder;
             allowFlying.value = settings.allowFlying;
-            keepClear.value = settings.keepClear;
-            lookAhead.value = settings.lookAhead;
-            solidDensity.value = events.invoke('candidates.solidRule') === 'density';
             syncing = true;
             openingInput.value = Number(settings.smallestOpening.toFixed(2));
             syncing = false;

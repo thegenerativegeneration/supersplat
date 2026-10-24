@@ -3,14 +3,11 @@ import assert from 'node:assert/strict';
 import { Vec3 } from 'playcanvas';
 
 import { registerCandidateEvents } from './.build/src/candidate-events.js';
-import { buildDensityOccupancy } from './.build/src/candidates/density.js';
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
 import { Events } from './.build/src/events.js';
 import { registerFixPathEvents } from './.build/src/fix-path-events.js';
-import { CAMERA_RADIUS_VOXELS } from './.build/src/path/clearance.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
-import { fakeSlab } from './candidates.mjs';
 import { bandRoom } from './nav-doors.mjs';
 
 const V = 0.4;
@@ -20,7 +17,6 @@ const occupied = p => Math.abs(p.x - 6) < 0.2 && p.z < 2;
 const fakeGrid = {
     voxel: V,
     pointFree: p => !occupied(p),
-    sphereFree: p => !occupied(p),
     lineFree: (a, b) => {
         const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) / (0.25 * V)));
         for (let i = 0; i <= n; i++) {
@@ -65,9 +61,6 @@ const pose = (name, frame, x, auto) => ({
     fov: 60,
     ...(auto ? { auto: true } : {})
 });
-
-// keys at eye height above the slab of fakeSlab
-const high = (name, frame, x) => ({ ...pose(name, frame, x), position: new Vec3(x, 2, 1), target: new Vec3(x, 2, 0) });
 
 const parkedOf = events => events.invoke('camera.poses').filter(p => p.parked).sort((a, b) => a.frame - b.frame);
 
@@ -335,9 +328,9 @@ const fixPathEventsChecks = {
 
     async 'path: settings default to reorder and flying'() {
         const { events } = setup([]);
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, keepClear: false, lookAhead: false, smallestOpening: 0.8 });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, smallestOpening: 0.8 });
         events.fire('path.setSettings', { keepOrder: true });
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, keepClear: false, lookAhead: false, smallestOpening: 0.8 });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, smallestOpening: 0.8 });
         // missing options come from the settings
         const fixed = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 8), pose('camera_2', 60, 4)]);
         fixed.events.fire('path.setSettings', { keepOrder: true });
@@ -418,56 +411,6 @@ const fixPathEventsChecks = {
         assert.equal(events.invoke('path.settings').smallestOpening, 0.8);
     },
 
-    async 'path: keep clear of walls reaches the grid and resets with the scene'() {
-        const radii = [];
-        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], {
-            deps: {
-                sceneGrid: async (allowFlying, openingAt, cameraRadius) => {
-                    radii.push(cameraRadius);
-                    return { grid: fakeGrid, eyeHeight: 1.6 };
-                },
-                route: fakeRoute
-            }
-        });
-        assert.equal(events.invoke('path.settings').keepClear, false);
-        await events.invoke('path.fix', FIX);
-        events.fire('path.setSettings', { keepClear: true });
-        assert.equal(events.invoke('path.settings').keepClear, true);
-        await events.invoke('path.fix', FIX);
-        assert.deepEqual(radii, [0, CAMERA_RADIUS_VOXELS]);
-        events.fire('scene.clear');
-        assert.equal(events.invoke('path.settings').keepClear, false);
-    },
-
-    async 'path: the density rule finds a floor of faint splats that the bodies rule misses'() {
-        const { events } = setup([high('camera_0', 0, 1), high('camera_1', 30, 4)], { deps: {} });
-        registerCandidateEvents(events, { lockedRenderMode: false, camera: { fov: 60, ortho: false }, getElementsByType: () => [fakeSlab()] });
-        const bodies = await events.invoke('path.fix', FIX);
-        assert.deepEqual(bodies.unreachable, ['camera_1'], 'no floor without the density rule');
-        events.fire('candidates.setSolidRule', 'density');
-        const density = await events.invoke('path.fix', FIX);
-        assert.deepEqual(density.unreachable, [], 'the faint slab is a floor');
-        assert.equal(density.balance.ok, true);
-    },
-
-    async 'path: the density occupancy is built once until the splats change'() {
-        const { events } = setup([high('camera_0', 0, 1), high('camera_1', 30, 4)], { deps: {} });
-        let builds = 0;
-        const build = (...args) => {
-            builds++;
-            return buildDensityOccupancy(...args);
-        };
-        registerCandidateEvents(events, { lockedRenderMode: false, camera: { fov: 60, ortho: false }, getElementsByType: () => [fakeSlab()] }, build);
-        events.fire('candidates.setSolidRule', 'density');
-        await events.invoke('path.fix', FIX);
-        await events.invoke('path.fix', FIX);
-        assert.equal(builds, 1, 'second run reuses the occupancy');
-        events.fire('splat.moved');
-        const moved = await events.invoke('path.fix', FIX);
-        assert.equal(builds, 2, 'a moved splat rebuilds it');
-        assert.deepEqual(moved.unreachable, []);
-    },
-
     async 'path: a cleared scene forgets the last Suggest Views settings'() {
         const events = new Events();
         events.function('camera.getPose', () => ({ position: new Vec3(1, 1, 1), target: new Vec3(1, 1, 0) }));
@@ -484,4 +427,4 @@ const fixPathEventsChecks = {
     }
 };
 
-export { FIX, fakeGrid, fakeRoute, fixPathEventsChecks, pose, setup };
+export { fixPathEventsChecks };

@@ -75,10 +75,6 @@ class CandidatesSetup extends Container {
             return { toggle, input };
         };
 
-        // solid space rule, shared with Fix Path
-        const { toggle: solidRow, input: solidInput } = toggleRow('candidates.solid-density', 'tooltip.candidates.solid-density', (value) => {
-            events.fire('candidates.setSolidRule', value ? 'density' : 'bodies');
-        });
         const { toggle: alignRow, input: alignInput } = toggleRow('candidates.align-walls', 'tooltip.candidates.align-walls', (value) => {
             events.fire('candidates.setAlignToWalls', value);
         });
@@ -97,7 +93,6 @@ class CandidatesSetup extends Container {
 
         this.append(areaRow);
         this.append(eyeRow);
-        this.append(solidRow);
         this.append(alignRow);
         this.append(openRow);
         this.append(tiltRow);
@@ -216,7 +211,6 @@ class CandidatesSetup extends Container {
         this.activate = () => {
             active = true;
             this.hidden = false;
-            solidInput.value = events.invoke('candidates.solidRule') === 'density';
             alignInput.value = events.invoke('candidates.alignToWalls');
             openInput.value = events.invoke('candidates.preferOpen');
             if (gizmo.mode === 'none') gizmo.setMode('translate');

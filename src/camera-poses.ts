@@ -59,8 +59,10 @@ class CameraAnimTrack implements AnimTrack {
             this.evaluate(frame);
         });
 
-        // Rebuild spline when timeline parameters change
+        // Rebuild spline when timeline parameters change; parked keys inside a
+        // longer shot play again
         events.on('timeline.frames', () => {
+            this.unparkInShot();
             this.rebuildSpline();
         });
 

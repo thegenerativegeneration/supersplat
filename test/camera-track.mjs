@@ -7,9 +7,9 @@ import { Events } from './.build/src/events.js';
 import { registerTimelineEvents } from './.build/src/timeline.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 
-export const setup = (frames) => {
+export const setup = (frames, total = { frames: 181 }) => {
     const events = new Events();
-    events.function('timeline.frames', () => 181);
+    events.function('timeline.frames', () => total.frames);
     events.function('timeline.frameRate', () => 30);
     events.function('timeline.smoothness', () => 1);
     events.function('timeline.loop', () => false);
@@ -139,6 +139,18 @@ const cameraTrackChecks = {
 
         events.fire('track.retime', [0, 60, 120]);
         assert.equal(isParked(), false);
+    },
+
+    'track: raising Total Frames past a parked key unparks it'() {
+        const total = { frames: 181 };
+        const { events } = setup([[0], [60]], total);
+        const away = (name, frame) => ({ name, frame, position: new Vec3(5, 0, 0), target: new Vec3(5, 0, -1), fov: 60, parked: true });
+        events.fire('track.replacePath', [...events.invoke('camera.poses'), away('near', 181), away('far', 182)]);
+        total.frames = 182;
+        events.fire('timeline.frames', 182);
+        const parked = name => !!events.invoke('camera.poses').find(p => p.name === name).parked;
+        assert.equal(parked('near'), false);
+        assert.equal(parked('far'), true);
     },
 
     'track: a copied or replaced auto key is a normal key'() {

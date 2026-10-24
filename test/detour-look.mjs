@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 
+import { inPassage } from './.build/src/path/clearance.js';
 import { detourPoses } from './.build/src/path/detours.js';
 import { lookOptions } from './.build/src/path/fix-plan.js';
 import { FIX, fakeGrid, fakeRoute, pose, setup } from './fix-path-events.mjs';
@@ -65,19 +66,70 @@ const detourLookChecks = {
         });
     },
 
+    'detours: narrow poses still ease into the next key'() {
+        const route = [];
+        for (let i = 0; i <= 20; i++) route.push(P(i * 0.4, 0));
+        // the next key looks sideways; the whole route is a passage
+        const { from, to } = endKeys(route, P(8, 5));
+        from.target = P(1, 0);
+        const poses = detourPoses(route, from, to, EYE, { ...LOOK, narrow: () => true });
+        const s = arcs(route);
+        const total = s[s.length - 1];
+        const keyView = p => unit({ x: to.target.x - p.position.x, y: 0, z: to.target.z - p.position.z });
+        let last = Infinity, lastView = null;
+        poses.forEach((p, k) => {
+            const i = k + 1;
+            if (total - s[i] >= LOOK.ease - 1e-9) return;
+            const view = viewOf(p);
+            assert.ok(angleDeg(view, tangentAt(route, i)) > 1, `pose ${i} is eased`);
+            const off = angleDeg(view, keyView(p));
+            assert.ok(off < last, `pose ${i} turns towards the key view`);
+            if (lastView) assert.ok(angleDeg(view, lastView) < 20, `pose ${i} turns smoothly`);
+            last = off;
+            lastView = view;
+        });
+        assert.ok(lastView, 'poses in the ease zone');
+    },
+
+    'clearance: passages need occupied space on both sides'() {
+        const v = 0.4;
+        const at = (ix, iz) => ({ x: (ix + 0.5) * v, y: 0.5 * v, z: (iz + 0.5) * v });
+        // walls in columns x = 0 and x = 3: a two-voxel door at x = 1, 2
+        const door = (ix, iy) => iy === 0 && (ix === 0 || ix === 3);
+        assert.equal(inPassage(door, v, at(1, 0)), true);
+        assert.equal(inPassage(door, v, at(2, 0)), true);
+        // a three-voxel door between x = 0 and x = 4
+        const wide = (ix, iy) => iy === 0 && (ix === 0 || ix === 4);
+        assert.equal(inPassage(wide, v, at(2, 0)), true);
+        // beside a single wall
+        const wall = (ix, iy) => iy === 0 && ix === 0;
+        assert.equal(inPassage(wall, v, at(1, 0)), false);
+        // at an outside corner: walls along x < 0 at z = 0 and along z < 0 at x = 0
+        const corner = (ix, iy, iz) => iy === 0 && ((iz === 0 && ix <= 0) || (ix === 0 && iz <= 0));
+        assert.equal(inPassage(corner, v, at(1, 1)), false);
+        // another row does not count
+        assert.equal(inPassage(door, v, { ...at(1, 0), y: 1.5 * v }), false);
+    },
+
     'detours: a next key looking back along travel gives finite unit views'() {
         const route = [];
         for (let i = 0; i <= 20; i++) route.push(P(i * 0.4, 0));
         const { from, to } = endKeys(route, P(5, 0));
         // from looks back too, so both ease zones turn half a circle
         from.target = P(-3, 0);
-        for (const p of detourPoses(route, from, to, EYE, LOOK)) {
+        const s = arcs(route);
+        const total = s[s.length - 1];
+        detourPoses(route, from, to, EYE, LOOK).forEach((p, k) => {
+            const i = k + 1;
+            if (s[i] >= LOOK.ease && total - s[i] >= LOOK.ease) {
+                assert.ok(angleDeg(viewOf(p), tangentAt(route, i)) <= 35 + 1e-6, `pose ${i}`);
+            }
             const d = { x: p.target.x - p.position.x, y: p.target.y - p.position.y, z: p.target.z - p.position.z };
             assert.ok([d.x, d.y, d.z].every(Number.isFinite));
             const len = Math.hypot(d.x, d.y, d.z);
             assert.ok(len > 0);
             assert.ok(Math.abs(Math.hypot(...[d.x, d.y, d.z].map(c => c / len)) - 1) < 1e-9);
-        }
+        });
     },
 
     'detours: without look the views are unchanged'() {
@@ -97,7 +149,7 @@ const detourLookChecks = {
 
     'detours: look-ahead distance follows the planned speed'() {
         const key = (x, linger = 0) => ({ position: P(x, 0), target: P(x, -1), fov: 60, name: `k${x}`, linger, distance: NaN });
-        const grid = { voxel: 0.4, clearance: p => Math.abs(p.x - 5) };
+        const grid = { voxel: 0.4, inPassage: p => Math.abs(p.x - 5) < 0.4 };
         const timeline = { frames: 300, frameRate: 30 };
         // 20 units over 10 s: 2 units/s, 4 ahead
         const keys = [key(0), key(10), key(20)];
@@ -115,7 +167,7 @@ const detourLookChecks = {
     },
 
     async 'path: look ahead changes detour views and resets with the scene'() {
-        const grid = { ...fakeGrid, clearance: () => Infinity };
+        const grid = { ...fakeGrid, inPassage: () => false };
         const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 12)], {
             deps: { sceneGrid: () => Promise.resolve({ grid, eyeHeight: 1.6 }), route: fakeRoute }
         });

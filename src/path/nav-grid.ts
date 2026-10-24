@@ -1,5 +1,5 @@
 import { CellStore } from './cell-store';
-import { pointClearance } from './clearance';
+import { inPassage, pointClearance } from './clearance';
 import { addTo, inIntervals, lowerBound, nearIntervals, occupiedRows, sorted, type Bounds } from './columns';
 import type { Box } from '../candidates/estimate';
 import { VOXELS_PER_EYE } from '../candidates/generate';
@@ -24,6 +24,8 @@ type NavGrid = {
     pointFree(p: Vec3Like): boolean,
     // distance to the nearest occupied voxel, Infinity beyond one voxel
     clearance(p: Vec3Like): number,
+    // p lies between occupied space on opposite sides, as in a door
+    inPassage(p: Vec3Like): boolean,
     // the camera ball (cameraRadius voxels) around p touches no occupied voxel
     sphereFree(p: Vec3Like): boolean
 };
@@ -396,6 +398,7 @@ const buildNavGrid = (
     };
 
     const clearance = (p: Vec3Like) => pointClearance((x, y, z) => occ.occupied(x, y, z), v, p);
+    const passage = (p: Vec3Like) => inPassage((x, y, z) => occ.occupied(x, y, z), v, p);
 
     const radius = cameraRadius * v;
     const sphereFree = (p: Vec3Like) => (radius > 0 ? clearance(p) >= radius : pointFree(p));
@@ -415,7 +418,7 @@ const buildNavGrid = (
         return true;
     };
 
-    return { voxel: v, cellOf, nearestFree, centre, neighbours, lineFree, pointFree, clearance, sphereFree };
+    return { voxel: v, cellOf, nearestFree, centre, neighbours, lineFree, pointFree, clearance, inPassage: passage, sphereFree };
 };
 
 export { buildNavGrid, clampOpening, NAV_HEAD_VOXELS, navHeadVoxels };

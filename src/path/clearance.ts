@@ -31,4 +31,36 @@ const pointClearance = (
     return Math.sqrt(best2);
 };
 
-export { CAMERA_RADIUS_VOXELS, pointClearance };
+// how far, in voxels, a passage's sides may be from the point
+const PASSAGE_VOXELS = 1.5;
+
+// an occupied voxel in the row of p, between from and to along one axis
+// (dx, dz), whose box is within PASSAGE_VOXELS of p along that axis
+const sideOccupied = (
+    occupied: (ix: number, iy: number, iz: number) => boolean,
+    voxel: number,
+    p: Vec3Like,
+    dx: number,
+    dz: number
+) => {
+    const cx = Math.floor(p.x / voxel), cy = Math.floor(p.y / voxel), cz = Math.floor(p.z / voxel);
+    const reach = PASSAGE_VOXELS * voxel * (1 + 1e-6);
+    const along = dx !== 0 ? p.x : p.z;
+    const c = dx !== 0 ? cx : cz;
+    const dir = dx + dz;
+    for (let k = 0; k <= Math.ceil(PASSAGE_VOXELS) + 1; k++) {
+        const i = c + dir * k;
+        if (gap(along, i * voxel, voxel) > reach) break;
+        if (occupied(dx !== 0 ? i : cx, cy, dz !== 0 ? i : cz)) return true;
+    }
+    return false;
+};
+
+// p lies in a passage such as a door: in its voxel row there is occupied
+// space within PASSAGE_VOXELS on both sides along x or on both sides along z
+const inPassage = (occupied: (ix: number, iy: number, iz: number) => boolean, voxel: number, p: Vec3Like) => {
+    const side = (dx: number, dz: number) => sideOccupied(occupied, voxel, p, dx, dz);
+    return (side(-1, 0) && side(1, 0)) || (side(0, -1) && side(0, 1));
+};
+
+export { CAMERA_RADIUS_VOXELS, inPassage, pointClearance };

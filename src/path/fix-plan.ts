@@ -86,8 +86,8 @@ const polylineLength = (points: Vec3Like[]) => {
 
 // Look-ahead for the detour keys of the ordered keys. The planned speed is
 // the routed length over the time left after the lingers; the camera looks
-// LOOK_SECONDS ahead at it, between one and four eye heights. Passages
-// narrower than a voxel's clearance face along travel.
+// LOOK_SECONDS ahead at it, between one and four eye heights. Doors and
+// other passages face along travel.
 const lookOptions = (
     ordered: FixKey[],
     segmentRoutes: (Vec3Like[] | null)[],
@@ -106,7 +106,7 @@ const lookOptions = (
         ahead: Math.min(4 * eyeHeight, Math.max(eyeHeight, LOOK_SECONDS * speed)),
         maxOffsetDeg: LOOK_MAX_OFFSET_DEG,
         ease: 2 * eyeHeight,
-        narrow: p => grid.clearance(p) < grid.voxel
+        narrow: p => grid.inPassage(p)
     };
 };
 

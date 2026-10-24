@@ -7,8 +7,8 @@ type PlannedPose = { pose: CurvePose, auto: boolean };
 
 // Look-ahead view rule for detour keys: look at the route point ahead
 // further on, at most maxOffsetDeg off the travel direction; ease from and to
-// the end keys' views over ease of route length; face along travel where
-// narrow(position) holds.
+// the end keys' views over ease of route length. Where narrow(position)
+// holds the view outside the ease zones is the travel direction.
 type LookOptions = { ahead: number, maxOffsetDeg: number, ease: number, narrow?: (p: Vec3Like) => boolean };
 
 type DetourInput = {
@@ -132,9 +132,8 @@ const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 const lookDirection = (route: Vec3Like[], s: number[], i: number, from: CurvePose, toView: Vec3Like | null, look: LookOptions) => {
     const pos = route[i];
     const tangent = normalize(sub(route[i + 1], route[i - 1])) ?? SIDE;
-    if (look.narrow?.(pos)) return tangent;
     const ahead = normalize(sub(pointAt(route, s, s[i] + look.ahead), pos)) ?? tangent;
-    let dir = clampTowards(tangent, ahead, look.maxOffsetDeg * Math.PI / 180);
+    let dir = look.narrow?.(pos) ? tangent : clampTowards(tangent, ahead, look.maxOffsetDeg * Math.PI / 180);
     const ease = look.ease > 0 ? look.ease : 1e-9;
     const wOut = clamp01(1 - s[i] / ease);
     const wIn = clamp01(1 - (s[s.length - 1] - s[i]) / ease);

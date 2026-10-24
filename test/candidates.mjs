@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 
+import { estimateEyeHeight, estimateTiltDeg, proposeBox } from './.build/src/candidates/estimate.js';
 import { findLevels } from './.build/src/candidates/levels.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
+import { sampleCandidates } from './.build/src/candidates/sample.js';
 
 const VOXEL = 0.8;
 
@@ -28,6 +30,17 @@ const wall = () => {
 };
 
 const occupancyOf = (...parts) => buildOccupancy(new Float32Array(parts.flat()), VOXEL);
+
+// level of ncx x ncz surface cells at voxel row iy with a nominal area
+const syntheticLevel = (ncx, ncz, iy, area) => {
+    const cells = [];
+    for (let x = 0; x < ncx; x++) {
+        for (let z = 0; z < ncz; z++) cells.push([x, iy, z]);
+    }
+    return { cells, area, height: (iy + 0.5) * VOXEL };
+};
+
+const BIG_BOX = { min: { x: -100, y: -100, z: -100 }, max: { x: 100, y: 100, z: 100 } };
 
 const candidatesChecks = {
     'candidates: lone splats are not occupied': async () => {
@@ -64,6 +77,74 @@ const candidatesChecks = {
     'candidates: one-voxel step stays one level': async () => {
         const occ = occupancyOf(floor(0, 0, 5, 0, 10), floor(0.8, 5, 10, 0, 10));
         assert.equal(findLevels(occ, 3, 20).length, 1);
+    },
+
+    'candidates: proposeBox ignores 2% outliers': async () => {
+        const pts = [];
+        for (let i = 0; i < 1000; i++) pts.push(Math.random(), Math.random(), Math.random());
+        for (let i = 0; i < 10; i++) pts.push(1e3, 1e3, 1e3);
+        const box = proposeBox(new Float32Array(pts));
+        assert.ok(box.max.x < 2 && box.max.y < 2 && box.max.z < 2, JSON.stringify(box));
+    },
+
+    'candidates: tilt of a level floor is ~0': async () => {
+        const flat = new Float32Array(floor(0, 0, 10, 0, 10));
+        assert.ok(estimateTiltDeg(flat) < 2);
+
+        const a = 15 * Math.PI / 180;
+        const tilted = new Float32Array(flat.length);
+        for (let i = 0; i < flat.length; i += 3) {
+            tilted[i] = flat[i];
+            tilted[i + 1] = flat[i + 1] * Math.cos(a) - flat[i + 2] * Math.sin(a);
+            tilted[i + 2] = flat[i + 1] * Math.sin(a) + flat[i + 2] * Math.cos(a);
+        }
+        assert.ok(Math.abs(estimateTiltDeg(tilted) - 15) <= 2, `${estimateTiltDeg(tilted)}`);
+    },
+
+    'candidates: metric scene gets eye height 1.6': async () => {
+        const pts = new Float32Array([...floor(0, 0, 20, 0, 20, 0.5), ...floor(4, 0, 20, 0, 20, 0.5)]);
+        assert.equal(estimateEyeHeight(pts, proposeBox(pts)), 1.6);
+    },
+
+    'candidates: unitless room scales eye height': async () => {
+        const pts = new Float32Array([...floor(0, 0, 2, 0, 2, 0.05), ...floor(0.5, 0, 2, 0, 2, 0.05)]);
+        const h = estimateEyeHeight(pts, proposeBox(pts));
+        assert.ok(h > 0.1 && h < 0.3, `${h}`);
+    },
+
+    'candidates: budget split by level area': async () => {
+        const levels = [syntheticLevel(30, 16, 0, 300), syntheticLevel(20, 8, 0, 100)];
+        const occ = buildOccupancy(new Float32Array(0), VOXEL);
+        const out = sampleCandidates(levels, occ, { eyeHeight: 1.6, box: BIG_BOX, fov: 60, budget: 240, seed: 1 });
+        const n0 = out.filter(c => c.level === 0).length;
+        const n1 = out.filter(c => c.level === 1).length;
+        assert.ok(Math.abs(n0 - 180) <= 8, `${n0}`);
+        assert.ok(Math.abs(n1 - 60) <= 8, `${n1}`);
+        assert.equal(n0 + n1, 240);
+    },
+
+    'candidates: positions are free and inside box': async () => {
+        const occ = occupancyOf(floor(0, 0, 10, 0, 10));
+        const levels = findLevels(occ, 3, 20);
+        const box = { min: { x: 1, y: -1, z: 1 }, max: { x: 9, y: 6, z: 9 } };
+        const out = sampleCandidates(levels, occ, { eyeHeight: 1.6, box, fov: 60, budget: 40, seed: 3 });
+        assert.ok(out.length > 0);
+        for (const c of out) {
+            const p = c.position;
+            assert.ok(occ.isFree(p));
+            assert.ok(p.x >= box.min.x && p.x <= box.max.x && p.z >= box.min.z && p.z <= box.max.z);
+            assert.ok(p.y >= box.min.y && p.y <= box.max.y);
+            assert.ok(Math.abs(p.y - (levels[c.level].height + VOXEL + 1.6)) <= VOXEL + 1e-6, `${p.y}`);
+            assert.ok(Math.abs(Math.hypot(c.direction.x, c.direction.y, c.direction.z) - 1) < 1e-6);
+            assert.equal(c.fov, 60);
+        }
+    },
+
+    'candidates: same seed gives same candidates': async () => {
+        const occ = occupancyOf(floor(0, 0, 10, 0, 10));
+        const levels = findLevels(occ, 3, 20);
+        const opts = { eyeHeight: 1.6, box: BIG_BOX, fov: 60, budget: 30, seed: 7 };
+        assert.deepEqual(sampleCandidates(levels, occ, opts), sampleCandidates(levels, occ, opts));
     }
 };
 

@@ -18,7 +18,7 @@ Suggest Views looks at your scene and proposes camera views. No photos needed. Y
 4. Optional, all off by default and being compared with the standard behaviour:
    - **Align views to walls (new)**: points views along and across the walls instead of fixed compass directions. Rooms without clear walls keep the fixed directions.
    - **Prefer open views (new)**: ranks views that see more of the space higher.
-   - **Density solid space (new)**: decides what is solid the way the published viewer's walk collision does: faint splats add up and small floating clumps are ignored. Default off, being compared with the standard rule. Reads every splat, so it is slower on large scans. The setting is shared with [Fix Path](fix-path.md).
+   - **Density solid space (new)**: decides what is solid the way the published viewer's walk collision does: faint splats add up and small floating clumps are ignored. The setting is shared with [Fix Path](fix-path.md).
 5. Click **Generate**.
 
 ## While it generates

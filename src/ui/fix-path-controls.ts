@@ -27,6 +27,8 @@ const OPENING_STEP = 0.25;
 class FixPathOptions extends Container {
     open: (anchor: HTMLElement) => void;
 
+    close: () => void;
+
     constructor(events: Events, tooltips: Tooltips) {
         super({ class: 'fix-path-options', hidden: true });
 
@@ -103,8 +105,12 @@ class FixPathOptions extends Container {
         let anchorEl: HTMLElement | null = null;
 
         const close = () => {
+            // blur first: a typed opening only commits on blur, and must do so
+            // before a click on Fix Path runs
+            if (!this.hidden) openingInput.blur();
             this.hidden = true;
         };
+        this.close = close;
 
         this.open = (anchor: HTMLElement) => {
             anchorEl = anchor;
@@ -233,7 +239,7 @@ class FixPathControls extends Container {
             if (options.hidden) {
                 options.open(optionsButton.dom);
             } else {
-                options.hidden = true;
+                options.close();
             }
         });
 

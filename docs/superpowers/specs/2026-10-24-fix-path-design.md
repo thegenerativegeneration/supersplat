@@ -94,3 +94,19 @@ Part 2 of 3 of the shot workflow:
 ## Docs
 
 - Guide `docs/fix-path.md`, README Guides link; update `docs/view-candidates.md` limits line (paths now fixable with Fix path).
+
+## Addendum (2026-10-24, after the courtyard check)
+
+User check on the courtyard showed (a) the first route climbed over a gallery roof and back down through it, and (b) back-and-forth jumps at the end of the shot.
+
+Causes found:
+- The occupancy grid marks only voxels that contain splat centres (≥ 2 per voxel). Roofs and plain surfaces consist of few large splats (up to 0.74 m); the roof leg of the route passed 14–15 opaque splats whose bodies covered it while only 2–8 centres lay near it. Routes and the curve check leak through such surfaces.
+- Unreachable keys appended at the end of the shot produce straight flights across the scene; reachability measured only from the first key let one isolated first key make every other key "unreachable".
+
+Decided by the user:
+- **Unreachable keys are parked:** they stay in the project, marked red, but are moved after the end of the shot (frames ≥ Total Frames) so they don't play. The user decides later whether to delete or move them. This replaces "unreachable keys go to the end of the order".
+
+Calls made by me (check these):
+- **Occupancy uses splat extent:** each opaque splat (opacity > 0.5) marks every voxel whose centre lies inside its 2σ ellipsoid (radii floored at half a voxel so thin surfaces still mark the voxels they pass through; radii capped at 1 m against floaters). Splats smaller than half a voxel keep the centre rule. Shared by Suggest Views and Fix Path.
+- **Reachability:** the main group is the connected group containing the most keys (tie → the one containing the first key). Keys outside it are parked. If the first key is parked, the shot starts at the earliest-frame key of the main group.
+- **Parked keys:** a `parked` flag on the pose (saved with the project), drawn at the timeline's pinned out-of-range position with the red ring; Balance leaves parked keys alone (doesn't pull them back into range); moving a parked key into the shot by hand clears the flag; Fix Path retries parked keys on the next run.

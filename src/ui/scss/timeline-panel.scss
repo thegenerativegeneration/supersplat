@@ -101,6 +101,40 @@
                     }
                 }
 
+                > #fix-path-controls {
+                    display: flex;
+                    align-items: center;
+                    gap: 1px;
+                    margin-left: 4px;
+
+                    > #fix-path, > #fix-path-options {
+                        height: 24px;
+                        margin: 0;
+                        flex-shrink: 0;
+                        border-radius: 4px;
+                        line-height: 24px;
+
+                        &:not(.pcui-disabled):hover {
+                            color: #ff9900;
+                            cursor: pointer;
+                            box-shadow: none;
+                            border-color: #ff990088;
+                        }
+                    }
+
+                    > #fix-path {
+                        padding: 0 8px;
+                    }
+
+                    > #fix-path-options {
+                        font-family: pc-icon;
+                        font-size: 13px;
+                        width: 24px;
+                        padding: 0;
+                        text-align: center;
+                    }
+                }
+
                 > #loop {
                     font-family: pc-icon;
                     font-weight: bold;
@@ -167,6 +201,30 @@
                 pointer-events: none;
             }
 
+            // a Fix path segment that still runs through geometry, from its
+            // key to the next; colours come from src/path/colors.ts
+            > .blocked-band {
+                position: absolute;
+                bottom: 1px;
+                height: 36px;
+                background-color: rgba(var(--blocked-rgb), 0.18);
+                border-top: 2px solid rgb(var(--blocked-rgb));
+                box-sizing: border-box;
+                pointer-events: none;
+            }
+
+            // red ring behind a key Fix path couldn't reach
+            > .key-ring {
+                position: absolute;
+                bottom: 20px;
+                width: 16px;
+                height: 16px;
+                transform: translate(-50%, 0);
+                background-color: rgb(var(--blocked-rgb));
+                clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+                pointer-events: none;
+            }
+
             > .time-tick {
                 position: absolute;
                 bottom: 1px;
@@ -211,6 +269,11 @@
                     &.out-of-range {
                         background-color: $error;
                         opacity: 0.7;
+                    }
+
+                    // detour key added by Fix path
+                    &.auto {
+                        background-color: rgb(var(--auto-key-rgb));
                     }
                 }
 
@@ -271,5 +334,51 @@
             width: 70px;
             flex-shrink: 0;
         }
+    }
+}
+
+// options popover of the Fix Path button (see fix-path-controls.ts)
+.fix-path-options {
+    position: fixed;
+    z-index: 100;
+    min-width: 200px;
+    padding: 8px;
+    flex-direction: column;
+    gap: 4px;
+    background-color: $bcg-primary;
+    border: 1px solid $bcg-darker;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+
+    &:not(.pcui-hidden) {
+        display: flex;
+    }
+
+    > .fix-path-option {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+
+        > .fix-path-option-input {
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        > .fix-path-option-label {
+            margin: 0;
+            cursor: pointer;
+        }
+    }
+
+    > .fix-path-eye-height {
+        margin: 6px 0 0 0;
+        color: $clr-active;
+    }
+
+    > .fix-path-hint {
+        margin: 0;
+        font-size: 11px;
+        color: $clr-disabled;
     }
 }

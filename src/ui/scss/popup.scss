@@ -55,6 +55,8 @@
 
         #popup-text {
             text-wrap: wrap;
+            // messages may list items on separate lines
+            white-space: pre-line;
             text-align: center;
             padding: 20px 10px;
 

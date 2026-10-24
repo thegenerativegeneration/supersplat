@@ -3,8 +3,10 @@ import { Button, Container, Element, NumericInput, SelectInput } from '@playcanv
 import { Events } from '../events';
 import { ShortcutManager } from '../shortcut-manager';
 import { BalanceControls } from './balance-controls';
+import { FixPathControls } from './fix-path-controls';
 import { KeyLingerPopover } from './key-linger-popover';
 import { i18n } from './localization';
+import { TimelinePathMarkers } from './path-markers';
 import { SuggestViewsButton } from './suggest-views-button';
 import { Tooltips } from './tooltips';
 
@@ -29,6 +31,9 @@ class Ticks extends Container {
         // pcui wrappers around key markers, kept so their tooltips unregister
         // (via the destroy event) when the timeline is rebuilt
         let keyElements: Element[] = [];
+
+        // Fix path marks, drawn by rebuild
+        const pathMarkers = new TimelinePathMarkers(events);
 
         // rebuild the timeline
         const rebuild = () => {
@@ -241,6 +246,8 @@ class Ticks extends Container {
                 createKey(keyFrame, index);
             });
 
+            pathMarkers.draw(workArea.dom, offsetFromFrame, lastFrame, looping);
+
             // cursor
 
             const cursor = document.createElement('div');
@@ -347,6 +354,10 @@ class Ticks extends Container {
         });
 
         events.on('track.keysCleared', () => {
+            rebuild();
+        });
+
+        events.on('path.markers', () => {
             rebuild();
         });
     }
@@ -484,6 +495,7 @@ class TimelinePanel extends Container {
         settingsControls.append(smoothness);
         settingsControls.append(loop);
         settingsControls.append(new BalanceControls(events, tooltips));
+        settingsControls.append(new FixPathControls(events, tooltips));
         settingsControls.append(new SuggestViewsButton(events, tooltips));
 
         // append control groups

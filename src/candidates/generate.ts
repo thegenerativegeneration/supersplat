@@ -136,5 +136,5 @@ const runGeneration = async <T>(
     return { scored: diversify(scored, eyeHeight), reason };
 };
 
-export { buildSceneGrid, runGeneration, THUMB_HEIGHT, THUMB_WIDTH };
+export { buildSceneGrid, runGeneration, THUMB_HEIGHT, THUMB_WIDTH, VOXELS_PER_EYE };
 export type { GenerateDeps, GenerateOptions, GenerateResult, LevelInfo };

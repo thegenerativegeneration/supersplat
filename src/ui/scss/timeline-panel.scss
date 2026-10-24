@@ -386,6 +386,30 @@
         }
     }
 
+    > .fix-path-opening {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+        margin-top: 4px;
+
+        > .fix-path-opening-label {
+            margin: 0;
+            flex-grow: 1;
+        }
+
+        > .fix-path-opening-input {
+            width: 60px;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        > .fix-path-opening-unit {
+            margin: 0;
+            color: $clr-disabled;
+        }
+    }
+
     > .fix-path-eye-height {
         margin: 6px 0 0 0;
         color: $clr-active;

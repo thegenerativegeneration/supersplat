@@ -326,14 +326,43 @@ const fixPathEventsChecks = {
 
     async 'path: settings default to reorder and flying'() {
         const { events } = setup([]);
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, smallestOpening: 0.8 });
         events.fire('path.setSettings', { keepOrder: true });
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, smallestOpening: 0.8 });
         // missing options come from the settings
         const fixed = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 8), pose('camera_2', 60, 4)]);
         fixed.events.fire('path.setSettings', { keepOrder: true });
         await fixed.events.invoke('path.fix', { allowFlying: true });
         assert.deepEqual(summary(fixed.events).filter(n => !n.endsWith('*')).map(n => n.split('@')[0]), ['camera_0', 'camera_1', 'camera_2']);
+    },
+
+    async 'path: the smallest opening round-trips, clamps and reaches the grid'() {
+        let openingAt = null;
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], {
+            deps: {
+                sceneGrid: async (allowFlying, opening) => {
+                    openingAt = opening;
+                    return { grid: fakeGrid, eyeHeight: 1.6 };
+                },
+                route: fakeRoute
+            }
+        });
+        const opening = () => events.invoke('path.settings').smallestOpening;
+        events.fire('path.setSettings', { smallestOpening: 0.6 });
+        assert.equal(opening(), 0.6);
+        events.fire('path.setSettings', { smallestOpening: 0.1 });
+        assert.equal(opening(), 0.4);
+        events.fire('path.setSettings', { smallestOpening: 5 });
+        assert.equal(opening(), 2.0);
+        events.fire('path.setSettings', { smallestOpening: NaN });
+        assert.equal(opening(), 2.0);
+        events.fire('path.setSettings', { smallestOpening: 0.6 });
+        await events.invoke('path.fix', FIX);
+        assert.equal(openingAt(1.6), 0.6);
+        // the range follows the eye height Fix path uses
+        assert.equal(openingAt(3.2), 0.8);
+        events.function('candidates.lastSettings', () => ({ box: null, eyeHeight: 3.2 }));
+        assert.equal(opening(), 0.8);
     }
 };
 

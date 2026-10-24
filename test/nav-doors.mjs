@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 
 import { buildSceneGrid } from './.build/src/candidates/generate.js';
-import { buildNavGrid, NAV_HEAD_VOXELS } from './.build/src/path/nav-grid.js';
+import { buildNavGrid, clampOpening, NAV_HEAD_VOXELS, navHeadVoxels } from './.build/src/path/nav-grid.js';
 import { keyRoutes } from './.build/src/path/key-graph.js';
 import { findRoute } from './.build/src/path/route.js';
 
@@ -27,6 +27,21 @@ const room = (fy, height, width = 0.9) => new Float32Array([
     ...sheet(0, 20, 0, 10, (x, z) => [x, fy + 2.8, z]),
     ...sheet(fy, fy + 2.8, 0, 10, (y, z) => [10, y, z], (y, z) => z >= 5 && z < 5 + width && y < fy + height)
 ]);
+
+// floor at 0, ceiling at 2.8 and a 1.2 m thick wall at x = 10 whose only
+// gap is a band of free voxel rows from y0 to y1 (multiples of 0.4)
+const bandRoom = (y0, y1) => new Float32Array([
+    ...sheet(0, 20, 0, 10, (x, z) => [x, 0, z]),
+    ...sheet(0, 20, 0, 10, (x, z) => [x, 2.8, z]),
+    ...[10, 10.4, 10.8].flatMap(x => sheet(0, 2.8, 0, 10, (y, z) => [x + 0.2, y, z], y => y >= y0 && y < y1))
+]);
+
+// walking route across the band room with the given smallest opening
+const bandRoute = (points, opening, allowFlying = false) => {
+    const { occ, levels } = buildSceneGrid(points, BOX, EYE, navHeadVoxels(EYE, opening));
+    const grid = buildNavGrid(occ, levels, BOX, EYE, allowFlying, opening);
+    return findRoute(grid, { x: 3, y: 2, z: 5.4 }, { x: 17, y: 2, z: 5.4 });
+};
 
 // summed step costs along a route of cell centres
 const costOf = (grid, points) => {
@@ -110,6 +125,42 @@ const navDoorsChecks = {
     'path: a 1 m high opening does not route'() {
         assert.equal(walkRoute(room(0, 1.0), 0), null);
         assert.equal(walkRoute(room(0, 1.0), 0, true), null);
+    },
+
+    'path: a 0.8 m band routes at the default opening, not at 1.2 m'() {
+        const points = bandRoom(1.6, 2.4);
+        for (const allowFlying of [false, true]) {
+            const route = bandRoute(points, 0.8, allowFlying);
+            assert.ok(route, `default, flying ${allowFlying}`);
+            // the camera stays in the free band while it crosses the wall
+            for (const p of route.points.filter(q => q.x > 10 && q.x < 11.2)) {
+                assert.ok(p.y >= 1.6 && p.y < 2.4, `in the band at ${p.y}`);
+            }
+            assert.equal(bandRoute(points, 1.2, allowFlying), null, `1.2 m, flying ${allowFlying}`);
+        }
+    },
+
+    'path: a 0.4 m band routes only with an opening of 0.5 m or less'() {
+        const points = bandRoom(2.0, 2.4);
+        assert.equal(bandRoute(points, 0.8), null);
+        assert.equal(bandRoute(points, 0.6), null);
+        for (const opening of [0.5, 0.4]) {
+            const route = bandRoute(points, opening);
+            assert.ok(route, `opening ${opening}`);
+            for (const p of route.points.filter(q => q.x > 10 && q.x < 11.2)) {
+                assert.ok(p.y >= 2.0 && p.y < 2.4, `in the band at ${p.y}`);
+            }
+        }
+    },
+
+    'path: the smallest opening defaults to half the eye height and clamps'() {
+        assert.equal(navHeadVoxels(EYE, 0.8), NAV_HEAD_VOXELS);
+        assert.equal(clampOpening(undefined, 1.6), 0.8);
+        assert.equal(clampOpening(undefined, 3.2), 1.6);
+        assert.equal(clampOpening(0.1, 1.6), 0.4);
+        assert.equal(clampOpening(9, 1.6), 2.0);
+        assert.equal(clampOpening(0.6, 1.6), 0.6);
+        assert.equal(clampOpening(0.6, 3.2), 0.8);
     },
 
     'path: one search per key matches A* for every pair'() {

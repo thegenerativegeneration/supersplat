@@ -1,4 +1,4 @@
-import { BooleanInput, Button, Container, Label } from '@playcanvas/pcui';
+import { BooleanInput, Button, Container, Label, NumericInput } from '@playcanvas/pcui';
 
 import { Events } from '../events';
 import { i18n } from './localization';
@@ -13,9 +13,13 @@ const SPINNER_DELAY_MS = 300;
 // how long the status line after a clean run stays up
 const STATUS_MS = 4000;
 
-type Options = { keepOrder: boolean, allowFlying: boolean };
+type Options = { keepOrder: boolean, allowFlying: boolean, smallestOpening: number };
 
-type Settings = { eyeHeight: number };
+type EyeHeightInfo = { eyeHeight: number, estimated: boolean, metric: boolean };
+
+// range of the smallest opening, as a fraction of eye height (see clampOpening)
+const OPENING_MIN = 0.25;
+const OPENING_MAX = 1.25;
 
 // options for Fix path, opened from the gear next to the button
 class FixPathOptions extends Container {
@@ -42,6 +46,33 @@ class FixPathOptions extends Container {
 
         const keepOrder = toggle('keepOrder', 'fix-path.keep-order', 'tooltip.fix-path.keep-order');
         const allowFlying = toggle('allowFlying', 'fix-path.allow-flying', 'tooltip.fix-path.allow-flying');
+
+        const openingRow = new Container({ class: 'fix-path-opening' });
+        const openingLabel = new Label({ class: 'fix-path-opening-label' });
+        i18n.bindText(openingLabel, 'fix-path.smallest-opening');
+        const openingInput = new NumericInput({ class: 'fix-path-opening-input', step: 0.05, precision: 2 });
+        const openingUnit = new Label({ class: 'fix-path-opening-unit' });
+        openingRow.append(openingLabel);
+        openingRow.append(openingInput);
+        openingRow.append(openingUnit);
+        this.append(openingRow);
+        tooltips.register(openingRow, () => i18n.t('tooltip.fix-path.smallest-opening'), 'right');
+
+        // set while the input shows the current setting, so the default stays a default
+        let syncing = false;
+        openingInput.on('change', (value: number) => {
+            if (!syncing && Number.isFinite(value)) events.fire('path.setSettings', { smallestOpening: value });
+        });
+
+        const showOpening = (eye: number, metric: boolean) => {
+            syncing = true;
+            openingInput.min = Number((OPENING_MIN * eye).toFixed(2));
+            openingInput.max = Number((OPENING_MAX * eye).toFixed(2));
+            openingInput.value = Number((events.invoke('path.settings') as Options).smallestOpening.toFixed(2));
+            syncing = false;
+            openingUnit.text = i18n.t(metric ? 'fix-path.unit-metres' : 'fix-path.unit-scene');
+        };
+
         const eyeHeight = new Label({ class: 'fix-path-eye-height' });
         const hint = new Label({ class: 'fix-path-hint' });
         i18n.bindText(hint, 'fix-path.eye-height-hint');
@@ -50,24 +81,20 @@ class FixPathOptions extends Container {
 
         const formatHeight = (height: number) => (Number.isFinite(height) ? height.toFixed(2) : '–');
 
-        // the eye height Fix path will use: the last Suggest Views value, else the estimate
+        // the eye height Fix path will use (the last Suggest Views value, else
+        // the estimate) and the opening range and unit that follow from it
         const showEyeHeight = async () => {
-            const last = events.invoke('candidates.lastSettings') as Settings | null;
-            if (last) {
-                eyeHeight.text = i18n.t('fix-path.eye-height', { height: formatHeight(last.eyeHeight) });
-                return;
-            }
             eyeHeight.text = i18n.t('fix-path.eye-height', { height: '…' });
-            let estimate = NaN;
+            let info: EyeHeightInfo | null = null;
             try {
-                const prepared = await events.invoke('candidates.prepare') as Settings & { points: number };
-                if (prepared.points > 0) estimate = prepared.eyeHeight;
+                info = await events.invoke('path.eyeHeight') as EyeHeightInfo | null;
             } catch {
                 // no splats to estimate from
             }
-            if (!this.hidden && !events.invoke('candidates.lastSettings')) {
-                eyeHeight.text = i18n.t('fix-path.eye-height-estimated', { height: formatHeight(estimate) });
-            }
+            if (this.hidden) return;
+            const key = info && !info.estimated ? 'fix-path.eye-height' : 'fix-path.eye-height-estimated';
+            eyeHeight.text = i18n.t(key, { height: formatHeight(info?.eyeHeight ?? NaN) });
+            showOpening(info?.eyeHeight ?? 1.6, info?.metric ?? false);
         };
 
         let anchorEl: HTMLElement | null = null;
@@ -81,6 +108,9 @@ class FixPathOptions extends Container {
             const settings = events.invoke('path.settings') as Options;
             keepOrder.value = settings.keepOrder;
             allowFlying.value = settings.allowFlying;
+            syncing = true;
+            openingInput.value = Number(settings.smallestOpening.toFixed(2));
+            syncing = false;
             this.hidden = false;
             showEyeHeight();
 

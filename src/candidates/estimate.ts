@@ -99,13 +99,20 @@ const estimateTiltDeg = (points: Float32Array): number => {
 const BINS = 32;
 const PEAK_SEPARATION = 4;
 
+// a box of a few metres up to a few hundred across and 2 to 100 high, as
+// scanned rooms, buildings and streets measured in metres are
+const looksMetric = (box: Box) => {
+    const horizontal = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+    const vertical = box.max.y - box.min.y;
+    return horizontal >= 5 && horizontal <= 500 && vertical >= 2 && vertical <= 100;
+};
+
 // 1.6 for metric-looking scenes. Otherwise a fraction of the storey height,
 // taken as the distance between the two strongest peaks of the height
 // histogram, or of the vertical extent when there is only one peak.
 const estimateEyeHeight = (points: Float32Array, box: Box): number => {
-    const horizontal = Math.max(box.max.x - box.min.x, box.max.z - box.min.z);
+    if (looksMetric(box)) return 1.6;
     const vertical = box.max.y - box.min.y;
-    if (horizontal >= 5 && horizontal <= 500 && vertical >= 2 && vertical <= 100) return 1.6;
 
     const fallback = 0.08 * vertical;
     if (!(vertical > 0)) return fallback;
@@ -124,5 +131,5 @@ const estimateEyeHeight = (points: Float32Array, box: Box): number => {
     return 0.55 * Math.abs(first.bin - second.bin) * vertical / BINS;
 };
 
-export { estimateEyeHeight, estimateTiltDeg, insideBox, proposeBox };
+export { estimateEyeHeight, estimateTiltDeg, insideBox, looksMetric, proposeBox };
 export type { Box };

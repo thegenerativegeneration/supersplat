@@ -1,6 +1,7 @@
 import { CellStore } from './cell-store';
 import { addTo, inIntervals, lowerBound, nearIntervals, occupiedRows, sorted, type Bounds } from './columns';
 import type { Box } from '../candidates/estimate';
+import { VOXELS_PER_EYE } from '../candidates/generate';
 import type { Level } from '../candidates/levels';
 import type { Occupancy, Vec3Like } from '../candidates/occupancy';
 
@@ -40,21 +41,43 @@ const MARGIN = 2;
 
 // per-cell store layout: occupancy (2 bits), clear (2 bits), fly factor code
 // (4 bits: 1 = not a graph cell, 2 + k = k voxels above walking), walk flag,
-// squared distance code (4 bits: 1 + min(d^2, PROXIMITY_RANGE^2))
+// squared distance code (4 bits: 1 + min(d^2, PROXIMITY_RANGE^2)), dip
+// depth of walk cells (3 bits: rows below eye height)
 const OCC_EMPTY = 1, OCC_FULL = 2;
 const CLEAR_YES = 1 << 2, CLEAR_NO = 2 << 2, CLEAR_MASK = 3 << 2;
 const FACTOR_SHIFT = 4, FACTOR_MASK = 15 << FACTOR_SHIFT;
 const WALK = 1 << 8;
 const DIST_SHIFT = 9, DIST_MASK = 15 << DIST_SHIFT;
-const DIP = 1 << 13;
+const DIP_SHIFT = 13, DIP_MASK = 7 << DIP_SHIFT;
 
-// head clearance in voxels of the surfaces walk cells stand on (Suggest
-// Views levels need more)
-const NAV_HEAD_VOXELS = 3;
-// extra cost of a step into a dip walk cell (one voxel lower, under a lintel)
+// smallest opening the camera passes, as a fraction of eye height: default
+// (0.8 at 1.6) and range
+const OPENING_DEFAULT = 0.5;
+const OPENING_MIN = 0.25;
+const OPENING_MAX = 1.25;
+
+// extra cost per row of dip of a step into a walk cell below eye height
 const DIP_COST = 2;
 
 const BLOCKED = 0;
+
+// the smallest opening for an eye height: the default when unset or not a
+// number, else the value clamped to the range
+const clampOpening = (opening: number | undefined, eyeHeight: number) => {
+    const value = Number.isFinite(opening) ? opening : OPENING_DEFAULT * eyeHeight;
+    return Math.min(OPENING_MAX * eyeHeight, Math.max(OPENING_MIN * eyeHeight, value));
+};
+
+// free voxel rows an opening needs, at least one; half a voxel rounds up
+// also when the division lands just below it
+const openingVoxels = (opening: number, voxel: number) => Math.max(1, Math.round(opening / voxel + 1e-6));
+
+// head clearance in voxels of the surfaces walk cells stand on, for the
+// grid of Suggest Views (voxel = eyeHeight / VOXELS_PER_EYE)
+const navHeadVoxels = (eyeHeight: number, opening: number) => openingVoxels(opening, eyeHeight / VOXELS_PER_EYE);
+
+// head clearance for the default opening
+const NAV_HEAD_VOXELS = navHeadVoxels(1.6, OPENING_DEFAULT * 1.6);
 
 type Step = { dx: number, dy: number, dz: number, length: number, block: number, walkBlock: number };
 
@@ -104,10 +127,11 @@ const latticeBounds = (box: Box, v: number): Bounds => {
 };
 
 // A node is passable when its own voxel is unoccupied. Walk cells stand on
-// level surface voxels (levels found with NAV_HEAD_VOXELS): eye height above
-// the surface when the voxels from the second row above it up to that node
-// are unoccupied, else one voxel lower (a dip, e.g. under a door lintel)
-// when those up to the lower node are; connected horizontally (8
+// level surface voxels (levels found with navHeadVoxels of the opening): in
+// the highest of the free rows right above the surface, up to eye height,
+// when at least openingVoxels rows are free. Below eye height the cell is a
+// dip (under a lintel, a low slab or in a band over a parapet) and each step
+// into it costs DIP_COST per row of dip. Walk cells are connected horizontally (8
 // neighbours, |dy| <= 1, diagonals only between walk orthogonals, walkBlock),
 // so doors route. Fly cells (allowFlying): nodes in the box with 1-voxel clearance
 // (occ.isFree), within NEAR_VOXELS of an occupied voxel and at least eye
@@ -115,9 +139,19 @@ const latticeBounds = (box: Box, v: number): Bounds => {
 // scaled by height above walking. Every step adds the proximity cost of the
 // cell it enters and needs its 2x2x2 block passable (see STEPS). Cells are classified lazily, so memory grows with the cells a
 // search touches.
-const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: number, allowFlying: boolean): NavGrid => {
+const buildNavGrid = (
+    occ: Occupancy,
+    levels: Level[],
+    box: Box,
+    eyeHeight: number,
+    allowFlying: boolean,
+    opening = OPENING_DEFAULT * eyeHeight
+): NavGrid => {
     const v = occ.voxel;
     const eyeVoxels = Math.round(eyeHeight / v);
+    // rows above a surface up to the walk cell at eye height
+    const fullRows = eyeVoxels + 1;
+    const minRows = Math.min(fullRows, openingVoxels(opening, v));
     const bounds = latticeBounds(box, v);
     const { x0, y0, z0, nx, ny, nz } = bounds;
     const plane = nx * nz;
@@ -193,18 +227,19 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
     };
 
     const stepCost = (step: Step, factor: number, ix: number, iy: number, iz: number) => {
-        return factor * step.length + proximity(ix, iy, iz) + ((get(ix, iy, iz) & DIP) ? DIP_COST : 0);
+        return factor * step.length + proximity(ix, iy, iz) + DIP_COST * ((get(ix, iy, iz) & DIP_MASK) >> DIP_SHIFT);
     };
 
     const walkSets = new Map<number, Set<number>>();
     for (const level of levels) {
         for (const [ix, iy, iz] of level.cells) {
-            // free rows iy + 2 .. top
-            let top = iy + 1;
-            while (top < iy + 1 + eyeVoxels && passable(ix, top + 1, iz)) top++;
-            const cy = top === iy + 1 + eyeVoxels ? top : iy + eyeVoxels;
-            if (top >= iy + eyeVoxels && inBox(ix, cy, iz)) {
-                set(ix, cy, iz, get(ix, cy, iz) | WALK | (2 << FACTOR_SHIFT) | (cy < iy + 1 + eyeVoxels ? DIP : 0));
+            // free rows iy + 1 .. iy + free
+            let free = 0;
+            while (free < fullRows && passable(ix, iy + 1 + free, iz)) free++;
+            const cy = iy + free;
+            if (free >= minRows && inBox(ix, cy, iz)) {
+                const dip = Math.min(7, fullRows - free) << DIP_SHIFT;
+                set(ix, cy, iz, get(ix, cy, iz) | WALK | (2 << FACTOR_SHIFT) | dip);
                 addTo(walkSets, column(ix, iz), [cy]);
             }
         }
@@ -369,5 +404,5 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
     return { voxel: v, cellOf, nearestFree, centre, neighbours, lineFree, pointFree };
 };
 
-export { buildNavGrid, NAV_HEAD_VOXELS };
+export { buildNavGrid, clampOpening, NAV_HEAD_VOXELS, navHeadVoxels };
 export type { Cell, NavGrid, Neighbour };

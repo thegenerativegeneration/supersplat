@@ -44,9 +44,10 @@ const imageMetrics = (rgba: Uint8Array, width: number, height: number): Metrics 
     return { blur: flat / sums.length, dark: dark / grey.length };
 };
 
-// True when the view hits nothing or ends closer than 1.1 eye heights.
+// True when the view hits nothing or ends closer than 0.75 eye heights, which
+// keeps views across narrow rooms.
 const rejectBeforeRender = (depth: number | null, eyeHeight: number) => {
-    return depth === null || depth < 1.1 * eyeHeight;
+    return depth === null || depth < 0.75 * eyeHeight;
 };
 
 const candidateScore = (m: Metrics, pitch: number) => {

@@ -21,7 +21,6 @@ type GenerateResult = { scored: Scored[], reason?: 'noLevels' | 'cancelled' };
 
 const THUMB_WIDTH = 320;
 const THUMB_HEIGHT = 200;
-const HEAD_VOXELS = 3;
 const DEFAULT_FOV = 60;
 
 const insideBox = (points: Float32Array, box: Box) => {
@@ -50,9 +49,11 @@ const runGeneration = async <T>(
     signal: AbortSignal
 ): Promise<GenerateResult> => {
     const { box, eyeHeight, budget, seed } = opts;
-    const occ = buildOccupancy(insideBox(points, box), eyeHeight / 2);
-    const minArea = 20 * (eyeHeight / 1.6) ** 2;
-    const levels = findLevels(occ, HEAD_VOXELS, minArea);
+    const voxel = eyeHeight / 4;
+    const occ = buildOccupancy(insideBox(points, box), voxel);
+    const headVoxels = Math.ceil(1.25 * eyeHeight / voxel);
+    const minArea = 8 * (eyeHeight / 1.6) ** 2;
+    const levels = findLevels(occ, headVoxels, minArea);
     deps.onLevels(levels.map((l, index) => ({ index, height: l.height, area: l.area })));
     if (levels.length === 0) return { scored: [], reason: 'noLevels' };
 

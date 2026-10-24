@@ -196,9 +196,38 @@ const candidatesChecks = {
         const out = sampleCandidates(levels, occ, { eyeHeight: 1.6, box: BIG_BOX, fov: 60, budget: 240, seed: 1 });
         const n0 = out.filter(c => c.level === 0).length;
         const n1 = out.filter(c => c.level === 1).length;
-        assert.ok(Math.abs(n0 - 180) <= 8, `${n0}`);
-        assert.ok(Math.abs(n1 - 60) <= 8, `${n1}`);
+        assert.equal(n0, 176);
+        assert.equal(n1, 64);
         assert.equal(n0 + n1, 240);
+    },
+
+    'candidates: small level gets the per-level minimum': async () => {
+        const levels = [syntheticLevel(30, 16, 0, 1000), syntheticLevel(4, 4, 0, 10)];
+        const occ = buildOccupancy(new Float32Array(0), VOXEL);
+        const out = sampleCandidates(levels, occ, { eyeHeight: 1.6, box: BIG_BOX, fov: 60, budget: 240, seed: 1 });
+        assert.ok(out.filter(c => c.level === 1).length >= 8);
+        assert.equal(out.length, 240);
+    },
+
+    'candidates: per-level minimum respects the budget': async () => {
+        const levels = Array.from({ length: 40 }, (v, i) => syntheticLevel(4, 4, 0, 100 - i));
+        const occ = buildOccupancy(new Float32Array(0), VOXEL);
+        const out = sampleCandidates(levels, occ, { eyeHeight: 1.6, box: BIG_BOX, fov: 60, budget: 240, seed: 1 });
+        for (let i = 0; i < 40; i++) assert.equal(out.filter(c => c.level === i).length, 6);
+        assert.equal(out.length, 240);
+    },
+
+    'candidates: budget below level count gives the largest levels one each': async () => {
+        const levels = Array.from({ length: 10 }, (v, i) => syntheticLevel(4, 4, 0, 100 - i));
+        const occ = buildOccupancy(new Float32Array(0), VOXEL);
+        const out = sampleCandidates(levels, occ, { eyeHeight: 1.6, box: BIG_BOX, fov: 60, budget: 4, seed: 1 });
+        assert.deepEqual(out.map(c => c.level), [0, 1, 2, 3]);
+    },
+
+    'candidates: low room is found with finer voxels': async () => {
+        const occ = buildOccupancy(new Float32Array([...floor(0, 0, 10, 0, 10), ...floor(2.6, 0, 10, 0, 10)]), 0.4);
+        const levels = findLevels(occ, 5, 8);
+        assert.ok(levels.some(l => Math.abs(l.height) <= 0.4), `${levels.map(l => l.height)}`);
     },
 
     'candidates: positions are free and inside box': async () => {
@@ -244,6 +273,12 @@ const candidatesChecks = {
         assert.equal(rejectBeforeRender(null, 1.6), true);
         assert.equal(rejectBeforeRender(1.0, 1.6), true);
         assert.equal(rejectBeforeRender(5, 1.6), false);
+    },
+
+    'candidates: near wall threshold is 0.75 eye heights': async () => {
+        assert.equal(rejectBeforeRender(1.19, 1.6), true);
+        assert.equal(rejectBeforeRender(1.21, 1.6), false);
+        assert.equal(rejectBeforeRender(null, 1.6), true);
     },
 
     'candidates: diversify drops near duplicates': async () => {

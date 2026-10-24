@@ -34,11 +34,24 @@ const mulberry32 = (seed: number) => {
     };
 };
 
-// Splits budget across levels in proportion to weight (largest remainder),
-// never giving a level more than its capacity. Leftovers go to levels with room.
+const LEVEL_MINIMUM = 8;
+
+// Gives every level min(LEVEL_MINIMUM, capacity) first, or an equal share of
+// at least one when the budget cannot cover that, in level order (levels come
+// sorted by area, so the largest win when the budget runs out). The
+// rest is split in proportion to weight (largest remainder), never giving a
+// level more than its capacity. Leftovers go to levels with room.
 const allocate = (weights: number[], capacity: number[], budget: number): number[] => {
-    const counts = weights.map(() => 0);
+    const levelCount = weights.length;
+    const floorEach = LEVEL_MINIMUM * levelCount <= budget ?
+        LEVEL_MINIMUM :
+        Math.max(1, Math.floor(budget / levelCount));
     let remaining = Math.min(budget, capacity.reduce((a, b) => a + b, 0));
+    const counts = capacity.map((cap) => {
+        const k = Math.min(floorEach, cap, remaining);
+        remaining -= k;
+        return k;
+    });
     while (remaining > 0) {
         const open = weights.map((w, i) => (counts[i] < capacity[i] ? i : -1)).filter(i => i >= 0);
         const total = open.reduce((a, i) => a + weights[i], 0);
@@ -81,8 +94,8 @@ const directionOf = (azimuth: number, pitch: number): Vec3Like => {
 };
 
 // Places cameras at eye height above each level's surface cells, keeps free
-// positions inside the box, and picks a view direction for each. The budget is
-// shared by level area. Azimuth and pitch are in degrees; azimuth 0 looks along -Z.
+// positions inside the box, and picks a view direction for each. Every level
+// gets a minimum share of the budget and the rest is split by level area. Azimuth and pitch are in degrees; azimuth 0 looks along -Z.
 const sampleCandidates = (levels: Level[], occ: Occupancy, opts: SampleOptions): Candidate[] => {
     const { eyeHeight, box, fov, budget, seed } = opts;
     const rand = mulberry32(seed);

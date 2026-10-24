@@ -3,7 +3,7 @@ import type { Vec3Like } from '../candidates/occupancy';
 
 type Route = { points: Vec3Like[], length: number, fromSnapped: boolean, toSnapped: boolean };
 
-const MAX_EXPANSIONS = 2000000;
+const MAX_EXPANSIONS = 300000;
 const SNAP_VOXELS = 2;
 
 const distance = (a: Vec3Like, b: Vec3Like) => Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);

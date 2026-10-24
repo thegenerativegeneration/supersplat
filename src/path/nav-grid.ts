@@ -1,4 +1,5 @@
 import { CellStore } from './cell-store';
+import { addTo, inIntervals, lowerBound, nearIntervals, occupiedRows, sorted, type Bounds } from './columns';
 import type { Box } from '../candidates/estimate';
 import type { Level } from '../candidates/levels';
 import type { Occupancy, Vec3Like } from '../candidates/occupancy';
@@ -20,15 +21,15 @@ type NavGrid = {
     lineFree(a: Vec3Like, b: Vec3Like): boolean
 };
 
-type Bounds = { x0: number, y0: number, z0: number, nx: number, ny: number, nz: number };
-
 // fly cells must lie within this many voxels (per axis) of an occupied voxel
 const NEAR_VOXELS = 8;
 const FLY_PENALTY = 0.5;
 const MAX_PENALTY_VOXELS = 10;
-// extra cost of entering a cell next to an occupied voxel, so routes keep to
-// the middle of doors and corridors
-const PROXIMITY_COST = 2;
+// entering a cell d voxels from the nearest occupied voxel costs
+// PROXIMITY_WEIGHT * max(0, PROXIMITY_RANGE - d) / PROXIMITY_RANGE more, so
+// routes keep to the middle of doors and corridors
+const PROXIMITY_WEIGHT = 3;
+const PROXIMITY_RANGE = 3;
 // lifts points on a voxel boundary into the row above, as a fraction of a voxel
 const LIFT = 1e-4;
 // lineFree sampling step, as a fraction of a voxel
@@ -37,11 +38,13 @@ const LINE_STEP = 0.25;
 const MARGIN = 2;
 
 // per-cell store layout: occupancy (2 bits), clear (2 bits), fly factor code
-// (4 bits: 1 = not a graph cell, 2 + k = k voxels above walking), walk flag
+// (4 bits: 1 = not a graph cell, 2 + k = k voxels above walking), walk flag,
+// squared distance code (4 bits: 1 + min(d^2, PROXIMITY_RANGE^2))
 const OCC_EMPTY = 1, OCC_FULL = 2;
 const CLEAR_YES = 1 << 2, CLEAR_NO = 2 << 2, CLEAR_MASK = 3 << 2;
 const FACTOR_SHIFT = 4, FACTOR_MASK = 15 << FACTOR_SHIFT;
 const WALK = 1 << 8;
+const DIST_SHIFT = 9, DIST_MASK = 15 << DIST_SHIFT;
 
 const BLOCKED = 0;
 
@@ -70,29 +73,6 @@ for (let dz = -1; dz <= 1; dz++) {
     }
 }
 
-// index of the first value >= lo
-const lowerBound = (arr: Int32Array, lo: number) => {
-    let a = 0, b = arr.length;
-    while (a < b) {
-        const m = (a + b) >> 1;
-        if (arr[m] < lo) a = m + 1;
-        else b = m;
-    }
-    return a;
-};
-
-const addTo = (map: Map<number, Set<number>>, key: number, values: Iterable<number>) => {
-    let set = map.get(key);
-    if (!set) map.set(key, set = new Set());
-    for (const v of values) set.add(v);
-};
-
-const sorted = (map: Map<number, Set<number>>) => {
-    const out = new Map<number, Int32Array>();
-    map.forEach((set, key) => out.set(key, Int32Array.from(set).sort()));
-    return out;
-};
-
 // Integer lattice bounds whose node centres lie inside the box.
 const latticeBounds = (box: Box, v: number): Bounds => {
     const range = (lo: number, hi: number, offset: number) => {
@@ -108,70 +88,15 @@ const latticeBounds = (box: Box, v: number): Bounds => {
     return { x0, y0, z0, nx: Math.max(0, x1 - x0 + 1), ny: Math.max(0, y1 - y0 + 1), nz: Math.max(0, z1 - z0 + 1) };
 };
 
-// Sorts flat [lo, hi, lo, hi, ...] row intervals and merges overlapping ones.
-const mergeIntervals = (flat: number[]) => {
-    const pairs: [number, number][] = [];
-    for (let i = 0; i < flat.length; i += 2) pairs.push([flat[i], flat[i + 1]]);
-    pairs.sort((p, q) => p[0] - q[0]);
-    const out: number[] = [];
-    for (const [lo, hi] of pairs) {
-        if (out.length && lo <= out[out.length - 1] + 1) out[out.length - 1] = Math.max(out[out.length - 1], hi);
-        else out.push(lo, hi);
-    }
-    return out;
-};
-
-const pushTo = (map: Map<number, number[]>, key: number, values: number[]) => {
-    const list = map.get(key);
-    if (list) list.push(...values);
-    else map.set(key, values.slice());
-};
-
-// Per box column (key lx + nx lz): the rows within NEAR_VOXELS of an
-// occupied voxel as merged intervals (dilated along y, then x, then z), and
-// the lowest occupied row of the column itself.
-const nearColumns = (occ: Occupancy, b: Bounds) => {
-    const wide = b.nx + 2 * NEAR_VOXELS;
-    const raw = new Map<number, number[]>();
-    for (const [ix, iy, iz] of occ.cells()) {
-        const lx = ix - b.x0 + NEAR_VOXELS, lz = iz - b.z0 + NEAR_VOXELS;
-        if (lx >= 0 && lx < wide && lz >= 0 && lz < b.nz + 2 * NEAR_VOXELS) pushTo(raw, lx + wide * lz, [iy]);
-    }
-
-    const ground = new Map<number, number>();
-    const alongX = new Map<number, number[]>();
-    raw.forEach((rows, key) => {
-        const lz = Math.floor(key / wide), lx = key - lz * wide - NEAR_VOXELS;
-        if (lx >= 0 && lx < b.nx && lz >= NEAR_VOXELS && lz < b.nz + NEAR_VOXELS) {
-            ground.set(lx + b.nx * (lz - NEAR_VOXELS), rows.reduce((m, r) => Math.min(m, r), Infinity));
-        }
-        const intervals = mergeIntervals(rows.flatMap(r => [r - NEAR_VOXELS, r + NEAR_VOXELS]));
-        for (let x = Math.max(0, lx - NEAR_VOXELS); x <= Math.min(b.nx - 1, lx + NEAR_VOXELS); x++) {
-            pushTo(alongX, x + b.nx * lz, intervals);
-        }
-    });
-
-    const near = new Map<number, number[]>();
-    alongX.forEach((flat, key) => {
-        const lz = Math.floor(key / b.nx) - NEAR_VOXELS, lx = key % b.nx;
-        const intervals = mergeIntervals(flat);
-        for (let z = Math.max(0, lz - NEAR_VOXELS); z <= Math.min(b.nz - 1, lz + NEAR_VOXELS); z++) {
-            pushTo(near, lx + b.nx * z, intervals);
-        }
-    });
-    near.forEach((flat, key) => near.set(key, mergeIntervals(flat)));
-    return { near, ground };
-};
-
 // A node is passable when its own voxel is unoccupied. Walk cells: nodes eye
 // height above level surface voxels whose voxels one below and one above
-// are unoccupied too (vertical headroom), connected
-// horizontally (8 neighbours, |dy| <= 1, diagonals only between walk
-// orthogonals). Fly cells (allowFlying): passable nodes in the box within
-// NEAR_VOXELS of an occupied voxel, 26 neighbours, cost per step scaled by
-// height above walking. Entering a node next to an occupied voxel costs
-// PROXIMITY_COST more. Every step also needs its 2x2x2 block passable (see
-// STEPS). Cells are classified lazily, so memory grows with the cells a
+// are unoccupied too (vertical headroom), connected horizontally (8
+// neighbours, |dy| <= 1, diagonals only between walk orthogonals), so doors
+// route. Fly cells (allowFlying): nodes in the box with 1-voxel clearance
+// (occ.isFree), within NEAR_VOXELS of an occupied voxel and at least eye
+// height above the occupied voxel below them; 26 neighbours, cost per step
+// scaled by height above walking. Every step adds the proximity cost of the
+// cell it enters and needs its 2x2x2 block passable (see STEPS). Cells are classified lazily, so memory grows with the cells a
 // search touches.
 const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: number, allowFlying: boolean): NavGrid => {
     const v = occ.voxel;
@@ -225,8 +150,33 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         return ok;
     };
 
+    const near2 = nearIntervals(occ, bounds, PROXIMITY_RANGE - 1);
+
+    // proximity cost of entering the node; occupied voxels with d < RANGE lie
+    // within RANGE - 1 per axis, so the 5x5x5 cube is enough
+    const proximity = (ix: number, iy: number, iz: number) => {
+        const s = get(ix, iy, iz);
+        let code = (s & DIST_MASK) >> DIST_SHIFT;
+        if (code === 0) {
+            const r = PROXIMITY_RANGE - 1;
+            let d2 = PROXIMITY_RANGE * PROXIMITY_RANGE;
+            if (inIntervals(near2.get(column(ix, iz)), iy)) {
+                for (let x = -r; x <= r; x++) {
+                    for (let y = -r; y <= r; y++) {
+                        for (let z = -r; z <= r; z++) {
+                            if (x * x + y * y + z * z < d2 && occupied(ix + x, iy + y, iz + z)) d2 = x * x + y * y + z * z;
+                        }
+                    }
+                }
+            }
+            code = 1 + d2;
+            set(ix, iy, iz, s | (code << DIST_SHIFT));
+        }
+        return PROXIMITY_WEIGHT * Math.max(0, PROXIMITY_RANGE - Math.sqrt(code - 1)) / PROXIMITY_RANGE;
+    };
+
     const stepCost = (step: Step, factor: number, ix: number, iy: number, iz: number) => {
-        return factor * step.length + (clear(ix, iy, iz) ? 0 : PROXIMITY_COST);
+        return factor * step.length + proximity(ix, iy, iz);
     };
 
     const walkSets = new Map<number, Set<number>>();
@@ -240,26 +190,31 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         }
     }
     const walkRows = sorted(walkSets);
-    const columns = allowFlying ? nearColumns(occ, bounds) : null;
+    const near8 = allowFlying ? nearIntervals(occ, bounds, NEAR_VOXELS) : null;
+    const occRows = allowFlying ? occupiedRows(occ, bounds) : null;
 
-    const nearGeometry = (ix: number, iy: number, iz: number) => {
-        const intervals = columns.near.get(column(ix, iz));
-        if (!intervals) return false;
-        for (let i = 0; i < intervals.length; i += 2) {
-            if (iy >= intervals[i] && iy <= intervals[i + 1]) return true;
-        }
-        return false;
+    // row of the highest occupied voxel below the node in its column (at
+    // most one row under the box), or null
+    const floorBelow = (ix: number, iy: number, iz: number) => {
+        const rows = occRows.get(column(ix, iz));
+        const i = rows ? lowerBound(rows, iy) - 1 : -1;
+        return i >= 0 && rows[i] >= y0 - 1 ? rows[i] : null;
     };
 
     // Voxels above walking height: from the nearest walk cell at or below in
-    // the same column, else from eye height above the lowest occupied voxel
-    // in the column (or in its dilated column when the column is empty).
-    const aboveWalk = (ix: number, iy: number, iz: number) => {
-        const col = column(ix, iz);
-        const rows = walkRows.get(col);
+    // the same column, else from eye height above the floor below.
+    const aboveWalk = (ix: number, iy: number, iz: number, floor: number) => {
+        const rows = walkRows.get(column(ix, iz));
         const i = rows ? lowerBound(rows, iy + 1) - 1 : -1;
-        const ref = i >= 0 ? rows[i] : (columns.ground.get(col) ?? columns.near.get(col)[0] + NEAR_VOXELS) + 1 + eyeVoxels;
+        const ref = i >= 0 ? rows[i] : floor + 1 + eyeVoxels;
         return Math.min(MAX_PENALTY_VOXELS, Math.max(0, iy - ref));
+    };
+
+    const flyCode = (ix: number, iy: number, iz: number) => {
+        if (!allowFlying || !inIntervals(near8.get(column(ix, iz)), iy)) return 1;
+        const floor = floorBelow(ix, iy, iz);
+        if (floor === null || iy < floor + 1 + eyeVoxels || !clear(ix, iy, iz)) return 1;
+        return 2 + aboveWalk(ix, iy, iz, floor);
     };
 
     // cost factor of a graph cell, BLOCKED when not in the graph
@@ -267,8 +222,7 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         if (!inBox(ix, iy, iz)) return BLOCKED;
         let code = (get(ix, iy, iz) & FACTOR_MASK) >> FACTOR_SHIFT;
         if (code === 0) {
-            const ok = allowFlying && nearGeometry(ix, iy, iz) && passable(ix, iy, iz);
-            code = ok ? 2 + aboveWalk(ix, iy, iz) : 1;
+            code = flyCode(ix, iy, iz);
             set(ix, iy, iz, get(ix, iy, iz) | (code << FACTOR_SHIFT));
         }
         return code === 1 ? BLOCKED : 1 + FLY_PENALTY * (code - 2);

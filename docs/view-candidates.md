@@ -1,0 +1,53 @@
+# Suggest Views
+
+Suggest Views looks at your scene and proposes camera views. No photos needed. You pick the ones you like, and the picks become camera keys.
+
+## Before you start
+
+- Straighten the scene first. The tool uses the current orientation. If the scene looks tilted, the setup shows "The scene looks tilted by about N°. Straighten it first to get level views."
+- Hidden and locked splats are ignored.
+
+## Setup
+
+1. Click **Suggest Views** (next to the timeline controls). The **Suggested Views** panel opens.
+2. Check the **Area** box in the 3D view. It is proposed for you. Views are only suggested inside it.
+   - Use the move and resize buttons next to **Area** to adjust it, then drag the gizmo.
+   - **Reset** goes back to the proposed box.
+3. Check **Eye height**. It is estimated from the scene (camera height above the floor, in scene units). Type a new value if it looks wrong.
+   - **Preview** shows the view from eye height at the centre of the area. Click it again to go back to your view.
+4. Click **Generate**.
+
+## While it generates
+
+- A progress bar shows "done / total".
+- The 3D view goes dark and the editor is locked while the views render. Camera, selection and edits are blocked.
+- Views appear in the panel as they are found.
+- Click **Cancel** or press Escape to stop. You keep the views rendered so far ("Cancelled. Showing the N views rendered so far.").
+- **Close** is disabled until it finishes.
+
+## Pick views
+
+- Hover a view to preview it in the 3D view. Moving away restores your camera.
+- Click a view to pick it. The number on it is the pick order. Click it again to unpick.
+- **Level** filters by floor when the scene has more than one level. It shows once generation is done.
+- **Show 40 More** shows the next views.
+- **Widen** makes the panel wider (click again to go back).
+- **Clear** removes all picks.
+- **New Search** goes back to the setup. Change the area or eye height and click **Generate** again.
+
+## Add as Keys
+
+1. Pick views.
+2. Click **Add as Keys (N)**.
+
+- The picks are added after the existing camera keys, in pick order.
+- Balance then runs over all keys, so the camera moves at an even speed. See the [Balance timing guide](balance-timing.md).
+- Total length stays the **Total Frames** value.
+- One Ctrl+Z undoes it.
+- If Balance can't fit the keys, they are still added and a **Couldn't Balance Timing** box explains why. See [Errors](balance-timing.md#errors).
+
+## Limits
+
+- The camera path between keys is not checked for walls or floors. Play the shot. If it passes through geometry, add or move keys.
+- Small or cramped areas can give few or no suggestions ("No usable views found in the area." or "No floor found in the area. Check the area box and the eye height.").
+- Suggestions are not saved in the project. They stay only in this browser session, until you generate again or reload. A changed scene needs a new setup.

@@ -8,6 +8,7 @@ import { Events } from './.build/src/events.js';
 import { registerFixPathEvents } from './.build/src/fix-path-events.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
+import { fakeSlab } from './candidates.mjs';
 import { bandRoom } from './nav-doors.mjs';
 
 const V = 0.4;
@@ -61,6 +62,9 @@ const pose = (name, frame, x, auto) => ({
     fov: 60,
     ...(auto ? { auto: true } : {})
 });
+
+// keys at eye height above the slab of fakeSlab
+const high = (name, frame, x) => ({ ...pose(name, frame, x), position: new Vec3(x, 2, 1), target: new Vec3(x, 2, 0) });
 
 const parkedOf = events => events.invoke('camera.poses').filter(p => p.parked).sort((a, b) => a.frame - b.frame);
 
@@ -399,6 +403,17 @@ const fixPathEventsChecks = {
         events.fire('scene.clear');
         // the default at eye height 1.6
         assert.equal(events.invoke('path.settings').smallestOpening, 0.8);
+    },
+
+    async 'path: the density rule finds a floor of faint splats that the bodies rule misses'() {
+        const { events } = setup([high('camera_0', 0, 1), high('camera_1', 30, 4)], { deps: {} });
+        registerCandidateEvents(events, { lockedRenderMode: false, camera: { fov: 60, ortho: false }, getElementsByType: () => [fakeSlab()] });
+        const bodies = await events.invoke('path.fix', FIX);
+        assert.deepEqual(bodies.unreachable, ['camera_1'], 'no floor without the density rule');
+        events.fire('candidates.setSolidRule', 'density');
+        const density = await events.invoke('path.fix', FIX);
+        assert.deepEqual(density.unreachable, [], 'the faint slab is a floor');
+        assert.equal(density.balance.ok, true);
     },
 
     async 'path: a cleared scene forgets the last Suggest Views settings'() {

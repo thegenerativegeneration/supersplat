@@ -7,7 +7,6 @@ import type { Vec3Like } from '../candidates/occupancy';
 // into targets (node indices) and costs.
 type Component = { cells: Float64Array, offsets: Int32Array, targets: Int32Array, costs: Float64Array };
 
-
 type KeyRoutes = {
     // world length of the cheapest route from key i to key j, Infinity when
     // they are not connected
@@ -139,7 +138,17 @@ const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
                 const comp = comps[compOf[i]];
                 const parent = tree(i);
                 const points: Vec3Like[] = [];
-                for (let k = nodeOf[j]; k >= 0; k = parent[k]) points.push(grid.centre(comp.cells[k]));
+                let last = -1;
+                for (let k = nodeOf[j]; k >= 0; k = parent[k]) {
+                    points.push(grid.centre(comp.cells[k]));
+                    last = k;
+                }
+                // edges can be one-way, so a key in the same component may
+                // still be out of reach from i: then the chain misses i
+                if (last !== nodeOf[i]) {
+                    paths.set(key, null);
+                    return null;
+                }
                 points.reverse();
                 let length = 0;
                 for (let k = 1; k < points.length; k++) {

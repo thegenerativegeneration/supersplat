@@ -44,7 +44,58 @@ const walkRoute = (points, fy, allowFlying = false) => {
     return findRoute(grid, { x: 3, y: fy + 2, z: 5.4 }, { x: 17, y: fy + 2, z: 5.4 });
 };
 
+// edges reached from start that have no edge back
+const oneWayEdges = (grid, start) => {
+    const seen = new Set([start]), open = [start];
+    let count = 0;
+    while (open.length) {
+        const u = open.pop();
+        for (const { cell } of grid.neighbours(u)) {
+            if (!grid.neighbours(cell).some(n => n.cell === u)) count++;
+            if (!seen.has(cell)) {
+                seen.add(cell);
+                open.push(cell);
+            }
+        }
+    }
+    return { cells: seen.size, count };
+};
+
 const navDoorsChecks = {
+    'path: a key reached only one way has no route back'() {
+        // cells 0..3 on a line; 2 -> 3 has no edge back
+        const edges = [[1], [0, 2], [1, 3], []];
+        const grid = {
+            voxel: 1,
+            cellOf: p => Math.round(p.x),
+            nearestFree: () => null,
+            centre: c => ({ x: c, y: 0, z: 0 }),
+            neighbours: c => edges[c].map(cell => ({ cell, cost: 1 }))
+        };
+        const routes = keyRoutes(grid, [{ x: 0, y: 0, z: 0 }, { x: 3, y: 0, z: 0 }]);
+        assert.equal(routes.length(0, 1), 3);
+        assert.equal(routes.length(1, 0), Infinity);
+        assert.equal(routes.points(1, 0), null);
+    },
+
+    'path: walk steps over uneven ground go both ways'() {
+        // voxel-sized floor tiles at heights of 0, 1 or 2 voxels
+        const v = EYE / 4;
+        const tiles = [];
+        for (let i = 0; i < 20; i++) {
+            for (let j = 0; j < 20; j++) {
+                const y = [0, 1, 2, 1][(i + 2 * j) % 4] * v;
+                tiles.push(...sheet(i * v, (i + 1) * v, j * v, (j + 1) * v, (x, z) => [x, y, z]));
+            }
+        }
+        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 9, y: 6, z: 9 } };
+        const { occ, levels } = buildSceneGrid(new Float32Array(tiles), box, EYE, NAV_HEAD_VOXELS);
+        const grid = buildNavGrid(occ, levels, box, EYE, false);
+        const { cells, count } = oneWayEdges(grid, grid.nearestFree({ x: 4, y: 1.6, z: 4 }, 4));
+        assert.ok(cells > 300, `${cells} cells`);
+        assert.equal(count, 0);
+    },
+
     'path: walking and flying pass a 2 m high door under a ceiling'() {
         for (const [fy, allowFlying] of [[0, false], [0.15, false], [0.3, false], [0, true]]) {
             const route = walkRoute(room(fy, 2.0), fy, allowFlying);

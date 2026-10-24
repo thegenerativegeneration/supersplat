@@ -300,15 +300,21 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
         return null;
     };
 
+    const cornersWalk = (ix: number, iz: number, dx: number, dz: number, iy: number, ny: number) => {
+        return [iy, ny].every(y => walkNear(ix + dx, y, iz) !== null && walkNear(ix, y, iz + dz) !== null);
+    };
+
     const walkNeighbours = (ix: number, iy: number, iz: number) => {
         const out: Neighbour[] = [];
         const mask = passMask(ix, iy, iz);
         for (let dx = -1; dx <= 1; dx++) {
             for (let dz = -1; dz <= 1; dz++) {
                 if (dx === 0 && dz === 0) continue;
-                if (dx !== 0 && dz !== 0 && (walkNear(ix + dx, iy, iz) === null || walkNear(ix, iy, iz + dz) === null)) continue;
                 const ny = walkNear(ix + dx, iy, iz + dz);
                 if (ny === null) continue;
+                // a diagonal needs both corner columns walkable near both rows,
+                // so the step back is allowed too
+                if (dx !== 0 && dz !== 0 && !cornersWalk(ix, iz, dx, dz, iy, ny)) continue;
                 const step = STEPS[stepIndex(dx, ny - iy, dz)];
                 if ((mask & step.walkBlock) === step.walkBlock) {
                     out.push({ cell: pack(ix + dx, ny, iz + dz), cost: stepCost(step, 1, ix + dx, ny, iz + dz) });

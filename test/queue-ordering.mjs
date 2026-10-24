@@ -18,6 +18,7 @@ import { candidatesPanelChecks } from './candidates-panel.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
 import { clearanceChecks } from './clearance.mjs';
 import { densityChecks } from './density.mjs';
+import { detourLookChecks } from './detour-look.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
 import { fixPathEventsChecks } from './fix-path-events.mjs';
@@ -83,6 +84,7 @@ const checks = {
     ...cameraTrackChecks,
     ...clearanceChecks,
     ...densityChecks,
+    ...detourLookChecks,
     ...editorCommandChecks,
     ...fixPathChecks,
     ...fixPathEventsChecks,

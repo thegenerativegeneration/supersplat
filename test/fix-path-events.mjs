@@ -334,9 +334,9 @@ const fixPathEventsChecks = {
 
     async 'path: settings default to reorder and flying'() {
         const { events } = setup([]);
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, keepClear: false, smallestOpening: 0.8 });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, keepClear: false, lookAhead: false, smallestOpening: 0.8 });
         events.fire('path.setSettings', { keepOrder: true });
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, keepClear: false, smallestOpening: 0.8 });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, keepClear: false, lookAhead: false, smallestOpening: 0.8 });
         // missing options come from the settings
         const fixed = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 8), pose('camera_2', 60, 4)]);
         fixed.events.fire('path.setSettings', { keepOrder: true });
@@ -455,4 +455,4 @@ const fixPathEventsChecks = {
     }
 };
 
-export { fixPathEventsChecks };
+export { FIX, fakeGrid, fakeRoute, fixPathEventsChecks, pose, setup };

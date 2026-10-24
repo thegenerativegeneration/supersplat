@@ -13,7 +13,7 @@ const SPINNER_DELAY_MS = 300;
 // how long the status line after a clean run stays up
 const STATUS_MS = 4000;
 
-type Options = { keepOrder: boolean, allowFlying: boolean, keepClear: boolean, smallestOpening: number };
+type Options = { keepOrder: boolean, allowFlying: boolean, keepClear: boolean, lookAhead: boolean, smallestOpening: number };
 
 type EyeHeightInfo = { eyeHeight: number, estimated: boolean, metric: boolean };
 
@@ -52,6 +52,7 @@ class FixPathOptions extends Container {
         const keepOrder = toggle('fix-path.keep-order', 'tooltip.fix-path.keep-order', setting('keepOrder'));
         const allowFlying = toggle('fix-path.allow-flying', 'tooltip.fix-path.allow-flying', setting('allowFlying'));
         const keepClear = toggle('fix-path.keep-clear', 'tooltip.fix-path.keep-clear', setting('keepClear'));
+        const lookAhead = toggle('fix-path.look-ahead', 'tooltip.fix-path.look-ahead', setting('lookAhead'));
         // the rule is shared with Suggest Views
         const solidDensity = toggle('candidates.solid-density', 'tooltip.candidates.solid-density', (value: boolean) => {
             events.fire('candidates.setSolidRule', value ? 'density' : 'bodies');
@@ -124,6 +125,7 @@ class FixPathOptions extends Container {
             keepOrder.value = settings.keepOrder;
             allowFlying.value = settings.allowFlying;
             keepClear.value = settings.keepClear;
+            lookAhead.value = settings.lookAhead;
             solidDensity.value = events.invoke('candidates.solidRule') === 'density';
             syncing = true;
             openingInput.value = Number(settings.smallestOpening.toFixed(2));

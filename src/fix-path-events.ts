@@ -13,8 +13,9 @@ import { buildNavGrid, clampOpening, navHeadVoxels, type NavGrid } from './path/
 import { finiteOr, showBalanceFailure, snapshotOf, timelineSettings } from './timing-events';
 
 // smallestOpening: in scene units, see clampOpening; keepClear: check the
-// camera as a ball of CAMERA_RADIUS_VOXELS
-type FixPathOptions = { keepOrder: boolean, allowFlying: boolean, keepClear: boolean, smallestOpening: number };
+// camera as a ball of CAMERA_RADIUS_VOXELS; lookAhead: detour keys look
+// ahead along the path (see lookOptions)
+type FixPathOptions = { keepOrder: boolean, allowFlying: boolean, keepClear: boolean, lookAhead: boolean, smallestOpening: number };
 
 type FixPathResult = {
     ok: boolean,
@@ -86,7 +87,7 @@ const namer = (poses: readonly Pose[]) => {
 
 const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     const sceneGrid = deps.sceneGrid ?? defaultSceneGrid(events);
-    const settings = { keepOrder: false, allowFlying: true, keepClear: false };
+    const settings = { keepOrder: false, allowFlying: true, keepClear: false, lookAhead: false };
     // the user's smallest opening in scene units, undefined for the default
     let opening: number | undefined;
     let estimate: number | null = null;
@@ -96,6 +97,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     events.on('scene.clear', () => {
         opening = undefined;
         settings.keepClear = false;
+        settings.lookAhead = false;
         estimate = null;
     });
     let markersShown = false;
@@ -112,6 +114,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
         if (typeof changes.keepOrder === 'boolean') settings.keepOrder = changes.keepOrder;
         if (typeof changes.allowFlying === 'boolean') settings.allowFlying = changes.allowFlying;
         if (typeof changes.keepClear === 'boolean') settings.keepClear = changes.keepClear;
+        if (typeof changes.lookAhead === 'boolean') settings.lookAhead = changes.lookAhead;
         if (Number.isFinite(changes.smallestOpening)) opening = changes.smallestOpening;
     });
 
@@ -171,7 +174,8 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             eyeHeight: scene.eyeHeight,
             keepOrder: opts.keepOrder,
             timeline,
-            route: deps.route
+            route: deps.route,
+            look: { enabled: opts.lookAhead }
         });
         // every key needs a frame of its own
         if (plan.poses.length > timeline.frames) return { ok: false, reason: 'tooFewFrames', ...empty };

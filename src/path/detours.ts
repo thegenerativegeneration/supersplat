@@ -5,6 +5,12 @@ import type { Vec3Like } from '../candidates/occupancy';
 
 type PlannedPose = { pose: CurvePose, auto: boolean };
 
+// Look-ahead view rule for detour keys: look at the route point ahead
+// further on, at most maxOffsetDeg off the travel direction; ease from and to
+// the end keys' views over ease of route length; face along travel where
+// narrow(position) holds.
+type LookOptions = { ahead: number, maxOffsetDeg: number, ease: number, narrow?: (p: Vec3Like) => boolean };
+
 type DetourInput = {
     // user keys in tour order
     keys: CurvePose[],
@@ -14,7 +20,8 @@ type DetourInput = {
     grid: NavGrid,
     eyeHeight: number,
     retime: (poses: CurvePose[]) => number[],
-    curveOpts: CurveOptions
+    curveOpts: CurveOptions,
+    look?: LookOptions
 };
 
 type DetourPlan = { poses: PlannedPose[], frames: number[], blocked: number[] };
@@ -111,12 +118,39 @@ const slerp = (a: Vec3Like, b: Vec3Like, t: number): Vec3Like => {
     return { x: a.x * ca + k.x * sa, y: a.y * ca + k.y * sa, z: a.z * ca + k.z * sa };
 };
 
+// Spherical interpolation from unit vector a towards b, turning at most
+// maxRad away from a.
+const clampTowards = (a: Vec3Like, b: Vec3Like, maxRad: number): Vec3Like => {
+    const angle = Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
+    return angle <= maxRad ? b : normalize(slerp(a, b, maxRad / angle)) ?? a;
+};
+
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+// view direction at interior route point i with the look-ahead rule. Where
+// the ease zones overlap on a short route both apply, the ease into to last.
+const lookDirection = (route: Vec3Like[], s: number[], i: number, from: CurvePose, toView: Vec3Like | null, look: LookOptions) => {
+    const pos = route[i];
+    const tangent = normalize(sub(route[i + 1], route[i - 1])) ?? SIDE;
+    if (look.narrow?.(pos)) return tangent;
+    const ahead = normalize(sub(pointAt(route, s, s[i] + look.ahead), pos)) ?? tangent;
+    let dir = clampTowards(tangent, ahead, look.maxOffsetDeg * Math.PI / 180);
+    const ease = look.ease > 0 ? look.ease : 1e-9;
+    const wOut = clamp01(1 - s[i] / ease);
+    const wIn = clamp01(1 - (s[s.length - 1] - s[i]) / ease);
+    const fromView = normalize(sub(from.target, from.position));
+    if (wOut > 0 && fromView) dir = normalize(slerp(dir, fromView, wOut)) ?? dir;
+    if (wIn > 0 && toView) dir = normalize(slerp(dir, toView, wIn)) ?? dir;
+    return dir;
+};
+
 // Poses for the interior points of route (from.position .. to.position).
-// View direction: towards the point eyeHeight further along the route,
-// turned by slerp towards to.target over the last 2 eyeHeight. The target
-// lies along it at a distance blended from eyeHeight to the distance of
-// to.target (at least eyeHeight). Fov is linear in route distance.
-const detourPoses = (route: Vec3Like[], from: CurvePose, to: CurvePose, eyeHeight: number): CurvePose[] => {
+// View direction without look: towards the point eyeHeight further along
+// the route, turned by slerp towards to.target over the last 2 eyeHeight;
+// with look, see LookOptions. The target lies along it at a distance
+// blended from eyeHeight to the distance of to.target (at least eyeHeight)
+// over the last 2 eyeHeight. Fov is linear in route distance.
+const detourPoses = (route: Vec3Like[], from: CurvePose, to: CurvePose, eyeHeight: number, look?: LookOptions): CurvePose[] => {
     const s = arcLengths(route);
     const total = s[s.length - 1];
     const blend = 2 * eyeHeight;
@@ -124,10 +158,15 @@ const detourPoses = (route: Vec3Like[], from: CurvePose, to: CurvePose, eyeHeigh
     for (let i = 1; i < route.length - 1; i++) {
         const pos = route[i];
         const toTarget = sub(to.target, pos);
-        const travel = normalize(sub(pointAt(route, s, s[i] + eyeHeight), pos)) ?? normalize(sub(route[i + 1], route[i - 1])) ?? SIDE;
-        const view = normalize(toTarget) ?? travel;
         const w = Math.min(1, Math.max(0, 1 - (total - s[i]) / blend));
-        const dir = normalize(slerp(travel, view, w)) ?? travel;
+        let dir: Vec3Like;
+        if (look) {
+            dir = lookDirection(route, s, i, from, normalize(toTarget), look);
+        } else {
+            const travel = normalize(sub(pointAt(route, s, s[i] + eyeHeight), pos)) ?? normalize(sub(route[i + 1], route[i - 1])) ?? SIDE;
+            const view = normalize(toTarget) ?? travel;
+            dir = normalize(slerp(travel, view, w)) ?? travel;
+        }
         const reach = eyeHeight + w * (Math.max(eyeHeight, Math.hypot(toTarget.x, toTarget.y, toTarget.z)) - eyeHeight);
         const u = total > 0 ? s[i] / total : 0;
         out.push({
@@ -159,7 +198,7 @@ const initialDetours = (grid: NavGrid, full: Vec3Like[]) => {
 };
 
 // Working poses in curve order, each with the user segment it starts.
-const assemble = (keys: CurvePose[], segments: (Segment | null)[], eyeHeight: number) => {
+const assemble = (keys: CurvePose[], segments: (Segment | null)[], eyeHeight: number, look?: LookOptions) => {
     const poses: PlannedPose[] = [];
     const owner: number[] = [];
     keys.forEach((key, i) => {
@@ -169,7 +208,7 @@ const assemble = (keys: CurvePose[], segments: (Segment | null)[], eyeHeight: nu
         if (!seg) return;
         const next = keys[(i + 1) % keys.length];
         const route = [key.position, ...seg.detours.map(d => seg.full[d]), next.position];
-        for (const pose of detourPoses(route, key, next, eyeHeight)) {
+        for (const pose of detourPoses(route, key, next, eyeHeight, look)) {
             poses.push({ pose, auto: true });
             owner.push(i);
         }
@@ -235,7 +274,7 @@ const pruneSegment = (seg: Segment, voxel: number, accept: () => boolean) => {
 // the user segments). For a loop, routes has one entry per key and the last
 // runs back to the first key.
 const planDetours = (input: DetourInput): DetourPlan => {
-    const { keys, routes, grid, eyeHeight, retime, curveOpts } = input;
+    const { keys, routes, grid, eyeHeight, retime, curveOpts, look } = input;
     const segments = routes.map((r, i): Segment | null => {
         if (!r) return null;
         const full = [keys[i].position, ...r, keys[(i + 1) % keys.length].position];
@@ -244,7 +283,7 @@ const planDetours = (input: DetourInput): DetourPlan => {
     const step = SAMPLE_VOXELS * grid.voxel;
 
     const evaluate = () => {
-        const { poses, owner } = assemble(keys, segments, eyeHeight);
+        const { poses, owner } = assemble(keys, segments, eyeHeight, look);
         const curvePoses = poses.map(p => p.pose);
         const frames = retime(curvePoses);
         const curve = buildCameraCurve(curvePoses, frames, curveOpts);
@@ -289,4 +328,4 @@ const planDetours = (input: DetourInput): DetourPlan => {
 };
 
 export { detourPoses, planDetours, simplifyRoute };
-export type { DetourInput, DetourPlan, PlannedPose };
+export type { DetourInput, DetourPlan, LookOptions, PlannedPose };

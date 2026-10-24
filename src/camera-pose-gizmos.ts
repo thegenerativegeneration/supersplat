@@ -13,7 +13,7 @@ import { buildCameraCurve } from './anim/camera-curve';
 import { Pose } from './camera-poses';
 import { Element, ElementType } from './element';
 import type { PathMarkers } from './fix-path-events';
-import { samplePathLine } from './path-line';
+import { poseColors, samplePathLine } from './path-line';
 import { vertexShader, fragmentShader } from './shaders/debug-shader';
 
 // temp vectors for frustum geometry calculation (module-scope to avoid allocations)
@@ -42,6 +42,7 @@ class CameraPoseGizmos extends Element {
     pathEntity: Entity;
     pathMesh: Mesh;
     blocked: number[] = [];
+    unreachable: string[] = [];
     dirty = true;
 
     constructor() {
@@ -112,6 +113,7 @@ class CameraPoseGizmos extends Element {
         events.on('timeline.frames', markDirty);
         events.on('path.markers', (markers: PathMarkers) => {
             this.blocked = markers.blocked;
+            this.unreachable = markers.unreachable;
             markDirty();
         });
     }
@@ -171,7 +173,7 @@ class CameraPoseGizmos extends Element {
     }
 
     private rebuildMesh() {
-        const poses = this.scene.events.invoke('camera.poses') as { position: Vec3, target: Vec3 }[];
+        const poses = this.scene.events.invoke('camera.poses') as Pose[];
         if (!poses || poses.length === 0) {
             this.mesh.primitive[0].count = 0;
             return;
@@ -232,14 +234,13 @@ class CameraPoseGizmos extends Element {
             pushLine(tmpTR, tmpUpTip);
         }
 
-        // fill vertex colors with cyan (0, 255, 255, 255)
-        for (let i = 0; i < numVerts; i++) {
-            const off = i * 4;
-            colors[off] = 0;
-            colors[off + 1] = 255;
-            colors[off + 2] = 255;
-            colors[off + 3] = 255;
-        }
+        // per camera: unreachable keys red, detour keys in the auto colour
+        poseColors(poses, this.unreachable).forEach((rgb, p) => {
+            for (let i = p * VERTS_PER_CAMERA; i < (p + 1) * VERTS_PER_CAMERA; i++) {
+                for (let c = 0; c < 3; c++) colors[i * 4 + c] = Math.round(rgb[c] * 255);
+                colors[i * 4 + 3] = 255;
+            }
+        });
 
         this.mesh.setPositions(positions);
         this.mesh.setColors32(colors);

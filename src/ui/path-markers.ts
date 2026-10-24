@@ -40,8 +40,7 @@ class TimelinePathMarkers {
 
         // bands go under the keys
         const first = area.querySelector('.key-ring, .time-label.key[data-frame]');
-        const frames = poses.map(p => p.frame);
-        blockedBands(frames, this.markers.blocked, loop, lastFrame).forEach(([from, to]) => {
+        blockedBands(poses, this.markers.blocked, loop, lastFrame).forEach(([from, to]) => {
             const band = document.createElement('div');
             band.classList.add('blocked-band');
             band.style.left = `${offsetFromFrame(from)}px`;

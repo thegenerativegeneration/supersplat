@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Vec3 } from 'playcanvas';
 
 import { buildCameraCurve } from './.build/src/anim/camera-curve.js';
-import { samplePathLine } from './.build/src/path-line.js';
+import { poseColors, samplePathLine } from './.build/src/path-line.js';
 import { AUTO_KEY_COLOR, BLOCKED_COLOR } from './.build/src/path/colors.js';
 
 const keys = [0, 40, 80].map(x => ({ position: new Vec3(x, 1, 0), target: new Vec3(x, 1, -1), fov: 60 }));
@@ -33,10 +33,26 @@ const pathLineChecks = {
     },
 
     'path: segments touching an auto key are auto coloured': async () => {
-        const { colors } = samplePathLine(curve, frames, { ...base, auto: [false, true, false], blocked: [40] });
+        const { colors } = samplePathLine(curve, frames, { ...base, auto: [false, true, false] });
         assert.deepEqual(colorAt(colors, 0), [...AUTO_KEY_COLOR]);
-        // blocked wins over auto
-        assert.deepEqual(colorAt(colors, 16), [...BLOCKED_COLOR]);
+        assert.deepEqual(colorAt(colors, 16), [...AUTO_KEY_COLOR]);
+    },
+
+    'path: a blocked segment stays red through its detour keys': async () => {
+        const { colors } = samplePathLine(curve, frames, { ...base, auto: [false, true, false], blocked: [0] });
+        assert.deepEqual(colorAt(colors, 0), [...BLOCKED_COLOR]);
+        assert.deepEqual(colorAt(colors, 31), [...BLOCKED_COLOR]);
+        // with looping, the closing segment's detours stay red up to the first key
+        const looped = buildCameraCurve(keys, frames, { duration: 120, smoothness: 1, loop: true });
+        const wrap = samplePathLine(looped, frames, { ...base, auto: [false, false, true], blocked: [40], loop: true, duration: 120 });
+        assert.deepEqual(colorAt(wrap.colors, 0), [0, 1, 1]);
+        assert.deepEqual(colorAt(wrap.colors, 16), [...BLOCKED_COLOR]);
+        assert.deepEqual(colorAt(wrap.colors, 47), [...BLOCKED_COLOR]);
+    },
+
+    'path: frustums show unreachable keys red and detour keys in the auto colour': async () => {
+        const colors = poseColors([{ name: 'a' }, { name: 'b', auto: true }, { name: 'c' }], ['c']);
+        assert.deepEqual(colors, [[0, 1, 1], AUTO_KEY_COLOR, BLOCKED_COLOR]);
     },
 
     'path: loop adds the closing segment': async () => {

@@ -16,24 +16,25 @@ type FixOutcome = MarkerSet & { ok: boolean, reason?: string, detours: number };
 // reasons the Fix path event explains itself
 const SELF_REPORTED = new Set(['keysChanged']);
 
-// Frame ranges [from, to] of the blocked segments, each from the key at a
-// blocked frame to the next key, clamped to the timeline. With looping the
-// last key's segment wraps to the first key in two pieces.
-const blockedBands = (keyFrames: readonly number[], blocked: readonly number[], loop: boolean, lastFrame: number) => {
-    const keys = [...new Set(keyFrames)].sort((a, b) => a - b);
+// Frame ranges [from, to] of the blocked segments, each from the user key
+// at a blocked frame through any detour keys to the next user key, clamped
+// to the timeline. With looping the last user key's segment wraps to the
+// first user key in two pieces.
+const blockedBands = (keys: readonly { frame: number, auto?: boolean }[], blocked: readonly number[], loop: boolean, lastFrame: number) => {
+    const user = [...new Set(keys.filter(k => !k.auto).map(k => k.frame))].sort((a, b) => a - b);
     const bands: [number, number][] = [];
     const add = (from: number, to: number) => {
         const a = Math.min(from, lastFrame), b = Math.min(to, lastFrame);
         if (b > a) bands.push([a, b]);
     };
     for (const frame of [...blocked].sort((a, b) => a - b)) {
-        const index = keys.indexOf(frame);
+        const index = user.indexOf(frame);
         if (index === -1) continue;
-        if (index < keys.length - 1) {
-            add(frame, keys[index + 1]);
-        } else if (loop && keys.length > 1) {
+        if (index < user.length - 1) {
+            add(frame, user[index + 1]);
+        } else if (loop && user.length > 1) {
             add(frame, lastFrame);
-            add(0, keys[0]);
+            add(0, user[0]);
         }
     }
     return bands;

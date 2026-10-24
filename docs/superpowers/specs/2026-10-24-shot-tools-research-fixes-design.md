@@ -77,3 +77,12 @@ Two research rounds compared Suggest Views, Fix Path and Balance timing with pub
 - Unit tests short (Node harness): density rule against hand-computed voxels (one opaque splat solid out to ~2.1σ, many faint splats adding up, cap-free large splat); cluster filter drops an isolated blob; EDT against brute force on a small grid; sphere check rejects a curve grazing a wall and passes a 0.9 m door; look-ahead clamp; turn-cap minimum segment time; Hübner peak on a rotated synthetic room.
 - Experiments only on committed code; record commit hashes.
 - Docs: update `docs/view-candidates.md`, `docs/fix-path.md`, `docs/balance-timing.md` (options, limits).
+
+## Addendum (2026-10-25, after the courtyard comparison)
+
+Results and videos: experiment repo `research-fixes/NOTES.md`.
+
+Decided by the user:
+- **Removed:** "Keep clear of walls" (jittery motion, 4 blocked segments, 124 detours), "Look ahead" (no visible difference from the current rule), "Density solid space" (lost 3 indoor keys at eye/4 voxels). Code remains in git history (6e77aca..e07b005).
+- **Turn cap:** stays at 20°/s with the warning. The 150 m courtyard tour needs about 2 min to meet it.
+- **Wall alignment and openness:** decided by a blind pair test (courtyard and hall) before either becomes default.

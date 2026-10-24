@@ -4,6 +4,7 @@ import { estimateEyeHeight, estimateTiltDeg, proposeBox } from './.build/src/can
 import { findLevels } from './.build/src/candidates/levels.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
 import { sampleCandidates } from './.build/src/candidates/sample.js';
+import { diversify, imageMetrics, rejectBeforeRender } from './.build/src/candidates/score.js';
 
 const VOXEL = 0.8;
 
@@ -41,6 +42,18 @@ const syntheticLevel = (ncx, ncz, iy, area) => {
 };
 
 const BIG_BOX = { min: { x: -100, y: -100, z: -100 }, max: { x: 100, y: 100, z: 100 } };
+
+const image = (grey, w = 320, h = 200) => {
+    const px = new Uint8Array(w * h * 4);
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            px[i] = px[i + 1] = px[i + 2] = grey(x, y);
+            px[i + 3] = 255;
+        }
+    }
+    return px;
+};
 
 const candidatesChecks = {
     'candidates: lone splats are not occupied': async () => {
@@ -145,6 +158,34 @@ const candidatesChecks = {
         const levels = findLevels(occ, 3, 20);
         const opts = { eyeHeight: 1.6, box: BIG_BOX, fov: 60, budget: 30, seed: 7 };
         assert.deepEqual(sampleCandidates(levels, occ, opts), sampleCandidates(levels, occ, opts));
+    },
+
+    'candidates: flat grey image is all blur': async () => {
+        const m = imageMetrics(image(() => 128), 320, 200);
+        assert.equal(m.blur, 1);
+        assert.equal(m.dark, 0);
+    },
+
+    'candidates: checkerboard has no blur': async () => {
+        const m = imageMetrics(image((x, y) => ((x >> 3) + (y >> 3)) % 2 ? 255 : 0), 320, 200);
+        assert.equal(m.blur, 0);
+    },
+
+    'candidates: black image is all dark': async () => {
+        assert.equal(imageMetrics(image(() => 0), 320, 200).dark, 1);
+    },
+
+    'candidates: no hit or near wall rejected': async () => {
+        assert.equal(rejectBeforeRender(null, 1.6), true);
+        assert.equal(rejectBeforeRender(1.0, 1.6), true);
+        assert.equal(rejectBeforeRender(5, 1.6), false);
+    },
+
+    'candidates: diversify drops near duplicates': async () => {
+        const at = (id, x, azimuth, score) => ({ id, position: { x, y: 0, z: 0 }, azimuth, score, depth: 3 });
+        assert.equal(diversify([at('a', 0, 0, 1), at('b', 0.1, 0, 0.5)], 0.45).length, 1);
+        assert.equal(diversify([at('a', 0, 0, 1), at('b', 0, 180, 0.5)], 0.45).length, 2);
+        assert.equal(diversify([at('a', 0, 350, 1), at('b', 0, 10, 0.5)], 0.45).length, 1);
     }
 };
 

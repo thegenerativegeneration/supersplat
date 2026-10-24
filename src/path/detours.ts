@@ -68,21 +68,66 @@ const pointAt = (route: Vec3Like[], s: number[], d: number): Vec3Like => {
     return { ...route[route.length - 1] };
 };
 
+const sub = (a: Vec3Like, b: Vec3Like): Vec3Like => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+
+const dot = (a: Vec3Like, b: Vec3Like) => a.x * b.x + a.y * b.y + a.z * b.z;
+
+const cross = (a: Vec3Like, b: Vec3Like): Vec3Like => ({
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x
+});
+
+const scale = (a: Vec3Like, k: number): Vec3Like => ({ x: a.x * k, y: a.y * k, z: a.z * k });
+
+// unit vector along a, or null when a is (nearly) zero
+const normalize = (a: Vec3Like): Vec3Like | null => {
+    const len = Math.hypot(a.x, a.y, a.z);
+    return len > 1e-9 ? scale(a, 1 / len) : null;
+};
+
+const UP = { x: 0, y: 1, z: 0 };
+const SIDE = { x: 1, y: 0, z: 0 };
+
+// Spherical interpolation between unit vectors a and b. Opposite vectors
+// turn about world up (about x when a is vertical), so the swing is level.
+const slerp = (a: Vec3Like, b: Vec3Like, t: number): Vec3Like => {
+    const c = Math.max(-1, Math.min(1, dot(a, b)));
+    const theta = Math.acos(c);
+    const sin = Math.sin(theta);
+    if (sin > 1e-6) {
+        const ka = Math.sin((1 - t) * theta) / sin, kb = Math.sin(t * theta) / sin;
+        return { x: a.x * ka + b.x * kb, y: a.y * ka + b.y * kb, z: a.z * ka + b.z * kb };
+    }
+    if (c > 0) return { ...a };
+    const axis = normalize(sub(UP, scale(a, dot(a, UP)))) ?? normalize(sub(SIDE, scale(a, dot(a, SIDE))));
+    const k = cross(axis, a);
+    const ca = Math.cos(t * Math.PI), sa = Math.sin(t * Math.PI);
+    return { x: a.x * ca + k.x * sa, y: a.y * ca + k.y * sa, z: a.z * ca + k.z * sa };
+};
+
 // Poses for the interior points of route (from.position .. to.position).
-// Target: the point eyeHeight further along the route, blended linearly
-// towards to.target over the last 2 eyeHeight; fov linear in route distance.
+// View direction: towards the point eyeHeight further along the route,
+// turned by slerp towards to.target over the last 2 eyeHeight. The target
+// lies along it at a distance blended from eyeHeight to the distance of
+// to.target (at least eyeHeight). Fov is linear in route distance.
 const detourPoses = (route: Vec3Like[], from: CurvePose, to: CurvePose, eyeHeight: number): CurvePose[] => {
     const s = arcLengths(route);
     const total = s[s.length - 1];
     const blend = 2 * eyeHeight;
     const out: CurvePose[] = [];
     for (let i = 1; i < route.length - 1; i++) {
-        const ahead = pointAt(route, s, s[i] + eyeHeight);
+        const pos = route[i];
+        const toTarget = sub(to.target, pos);
+        const travel = normalize(sub(pointAt(route, s, s[i] + eyeHeight), pos)) ?? normalize(sub(route[i + 1], route[i - 1])) ?? SIDE;
+        const view = normalize(toTarget) ?? travel;
         const w = Math.min(1, Math.max(0, 1 - (total - s[i]) / blend));
+        const dir = normalize(slerp(travel, view, w)) ?? travel;
+        const reach = eyeHeight + w * (Math.max(eyeHeight, Math.hypot(toTarget.x, toTarget.y, toTarget.z)) - eyeHeight);
         const u = total > 0 ? s[i] / total : 0;
         out.push({
-            position: { ...route[i] },
-            target: lerp(ahead, to.target, w),
+            position: { ...pos },
+            target: { x: pos.x + dir.x * reach, y: pos.y + dir.y * reach, z: pos.z + dir.z * reach },
             fov: from.fov + (to.fov - from.fov) * u
         });
     }

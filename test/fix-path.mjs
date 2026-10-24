@@ -249,12 +249,40 @@ const fixPathChecks = {
         assert.deepEqual(poses[10].position, route[11]);
     },
 
+    async 'path: detours never look through their own position'() {
+        // the next key looks back along the approach; for each route length the
+        // look-ahead and the next view are opposite near the end
+        for (const n of [13, 15, 20, 41]) {
+            const route = Array.from({ length: n }, (_, i) => ({ x: i * 0.5, y: 2, z: 0 }));
+            const end = route[n - 1].x;
+            const from = curvePose(0, 2, 0, [1, 2, 0]), to = curvePose(end, 2, 0, [end - 10, 2, 0]);
+            const poses = detourPoses(route, from, to, EYE);
+            for (const p of poses) {
+                const d = sub(p.target, p.position);
+                const len = Math.hypot(d.x, d.y, d.z);
+                assert.ok(Number.isFinite(len) && len >= 0.5 * EYE, `n ${n}: target ${len} from position`);
+                assert.ok(Math.abs(d.y) < 1e-9, `n ${n}: level swing`);
+            }
+            const last = poses[poses.length - 1];
+            assert.ok(angle(sub(last.target, last.position), { x: -1, y: 0, z: 0 }) < Math.PI / 2, `n ${n}: turned`);
+        }
+    },
+
     async 'path: curve check finds a wall crossing'() {
         const parts = [floorAt(0, 0, 20, 0, 10)];
         const keys = [curvePose(8, 2, 5, [8, 2, 4]), curvePose(12, 2, 5, [12, 2, 4])];
         const curve = buildCameraCurve(keys, [0, 30], CURVE_OPTS);
         assert.deepEqual(checkCurve(curve, [0, 30], navOf(parts).grid, [0, 30], 0.25 * V), []);
         const { grid } = navOf([...parts, wallX(10, 0, 10, 4)]);
+        assert.deepEqual(checkCurve(curve, [0, 30], grid, [0, 30], 0.25 * V), [0]);
+    },
+
+    async 'path: curve check sees a crossing next to a free key'() {
+        // the first key is in free space, less than one voxel from the wall
+        const { grid } = navOf([floorAt(0, 0, 20, 0, 10), wallX(10, 0, 10, 4)]);
+        const keys = [curvePose(9.8, 2, 5, [9.8, 2, 4]), curvePose(12, 2, 5, [12, 2, 4])];
+        assert.ok(grid.pointFree(keys[0].position));
+        const curve = buildCameraCurve(keys, [0, 30], CURVE_OPTS);
         assert.deepEqual(checkCurve(curve, [0, 30], grid, [0, 30], 0.25 * V), [0]);
     },
 
@@ -274,6 +302,29 @@ const fixPathChecks = {
         const curve = buildCameraCurve(poses.map(p => p.pose), frames, CURVE_OPTS);
         const userFrames = frames.filter((_, i) => !poses[i].auto);
         assert.deepEqual(checkCurve(curve, frames, grid, userFrames, 0.25 * V), []);
+    },
+
+    async 'path: loop routes and checks the closing segment'() {
+        const wall = wallX(10, 0, 10, 4, [5, 5.9], 0.1);
+        const { grid } = navOf([floorAt(0, 0, 20, 0, 10), wall], { allowFlying: false });
+        // A and B on one side, C behind the door: B -> C and C -> A cross it
+        const keys = [curvePose(8.5, 2, 1, [8.5, 2, 0]), curvePose(8.5, 2, 8, [8.5, 2, 9]), curvePose(11.5, 2, 1, [11.5, 2, 0])];
+        const routes = keys.map((k, i) => findRoute(grid, k.position, keys[(i + 1) % 3].position).points);
+        const opts = { duration: 600, smoothness: 1, loop: true };
+        const retime = poses => poses.map((_, i) => i * opts.duration / poses.length);
+        const plan = planDetours({ keys, routes, grid, eyeHeight: EYE, retime, curveOpts: opts });
+        assert.deepEqual(plan.blocked, []);
+        const lastUser = plan.poses.findIndex(p => p.pose === keys[2]);
+        assert.ok(plan.poses.slice(lastUser + 1).some(p => p.auto), 'closing detours after the last key');
+        const curve = buildCameraCurve(plan.poses.map(p => p.pose), plan.frames, opts);
+        const checked = [...plan.frames, plan.frames[0] + opts.duration];
+        const userFrames = plan.frames.filter((_, i) => !plan.poses[i].auto);
+        assert.deepEqual(checkCurve(curve, checked, grid, userFrames, 0.25 * V), []);
+
+        // without a closing route the straight closing curve hits the wall and
+        // only the closing segment is reported
+        const open = planDetours({ keys, routes: [routes[0], routes[1], null], grid, eyeHeight: EYE, retime, curveOpts: opts });
+        assert.deepEqual(open.blocked, [2]);
     },
 
     async 'path: refinement stops after four rounds'() {

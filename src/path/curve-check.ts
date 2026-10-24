@@ -6,7 +6,7 @@ type CameraCurve = (frame: number, out: CurvePose) => CurvePose;
 
 type Collision = { segment: number, point: Vec3Like };
 
-// samples this close to a user key position (in voxels) are not checked
+// samples this close to a user key inside geometry (in voxels) are not checked
 const KEY_SKIP_VOXELS = 2;
 // subdivision depth per frame interval: 2^-16 frame
 const MAX_DEPTH = 16;
@@ -19,12 +19,12 @@ const dist2 = (a: Vec3Like, b: Vec3Like) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2 
 // Segment i runs from frames[i] to frames[i + 1] (for a looping curve pass
 // frames[0] + duration as the last entry to check the closing segment).
 // Each frame interval is bisected until consecutive samples are at most step
-// apart; samples within KEY_SKIP_VOXELS of the curve at a user frame are
-// skipped.
+// apart; samples within KEY_SKIP_VOXELS of a user key inside geometry (the
+// curve at a user frame lies in an occupied voxel) are skipped.
 const curveCollisions = (curve: CameraCurve, frames: number[], grid: NavGrid, userFrames: number[], step: number): Collision[] => {
     const skip2 = (KEY_SKIP_VOXELS * grid.voxel) ** 2;
     const step2 = step * step;
-    const keys = userFrames.map(f => ({ ...curve(f, newPose()).position }));
+    const keys = userFrames.map(f => ({ ...curve(f, newPose()).position })).filter(k => !grid.pointFree(k));
     const pose = newPose();
     const at = (frame: number): Vec3Like => ({ ...curve(frame, pose).position });
     const bad = (p: Vec3Like) => !grid.pointFree(p) && keys.every(k => dist2(k, p) > skip2);

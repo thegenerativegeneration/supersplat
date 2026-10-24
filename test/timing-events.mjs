@@ -5,6 +5,7 @@ import { Vec3 } from 'playcanvas';
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
 import { Events } from './.build/src/events.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
+import { fallbackAppendFrames, registerViewKeyEvents } from './.build/src/view-keys.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 
 const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) => (i === 1 ? null : 1))) => {
@@ -27,6 +28,7 @@ const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) =>
     registerCameraPosesEvents(events);
     registerTrackManagerEvents(events);
     registerTimingEvents(events);
+    registerViewKeyEvents(events);
 
     const ops = [];
     events.on('edit.add', op => ops.push(op));
@@ -85,6 +87,55 @@ const timingEventsChecks = {
         assert.equal(popups.length, 1);
         assert.equal(ops.length, 1);
         assert.deepEqual(sortedKeys(events), [0, 10, 25]);
+    }
+    ,
+
+    'views: fallback compresses existing and spaces new keys'() {
+        const frames = fallbackAppendFrames([0, 90, 180], 2, 181);
+        assert.equal(frames.length, 5);
+        assert.equal(frames[0], 0);
+        assert.ok(frames[4] <= 180);
+        assert.ok(frames.every((f, i) => i === 0 || f > frames[i - 1]));
+        assert.deepEqual(fallbackAppendFrames([], 3, 181), [0, 90, 180]);
+    },
+
+    async 'views: addKeys balances over all keys'() {
+        const { events, ops, popups } = setup([0, 10], [], async poses => poses.map(() => 1));
+        const result = await events.invoke('views.addKeys', [
+            { position: { x: 5, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 }, fov: 50, depth: 2 },
+            { position: { x: 9, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 }, fov: 50, depth: 2 }
+        ]);
+        assert.equal(result.ok, true);
+        assert.equal(popups.length, 0);
+        assert.equal(ops.length, 1);
+        assert.equal(sortedKeys(events).length, 4);
+        const added = events.invoke('camera.poses').find(p => p.name === 'camera_2');
+        assert.equal(added.target.z, -2);
+    },
+
+    async 'views: addKeys aborts when keys change during sampling'() {
+        const { events, ops, popups } = setup([0, 10], [], async (poses, ev) => {
+            ev.fire('track.moveKey', 10, 25);
+            return poses.map(() => 1);
+        });
+        const result = await events.invoke('views.addKeys', [
+            { position: { x: 5, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 }, fov: 50, depth: 2 }
+        ]);
+        assert.deepEqual(result, { ok: false, reason: 'keysChanged' });
+        assert.equal(popups.length, 1);
+        assert.ok(ops.every(op => op.name !== 'appendPoses'));
+    },
+
+    async 'views: addKeys falls back when balance refuses'() {
+        const { events, ops, popups } = setup([0, 10], [0, 10], async poses => poses.map(() => 1));
+        const result = await events.invoke('views.addKeys', [
+            { position: { x: 5, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 }, fov: 50, depth: 2 }
+        ]);
+        assert.equal(result.ok, false);
+        assert.equal(result.reason, 'lingerTooLong');
+        assert.equal(popups.length, 1);
+        assert.equal(ops.length, 1);
+        assert.equal(sortedKeys(events).length, 3);
     }
 };
 

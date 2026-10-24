@@ -41,6 +41,7 @@ import { BoundDimensionsOverlay } from './ui/bound-dimensions-overlay';
 import { EditorUI } from './ui/editor';
 import { i18n } from './ui/localization';
 import { registerSelectCursor } from './ui/select-cursor';
+import { registerViewKeyEvents } from './view-keys';
 import { registerWebMCP } from './webmcp';
 
 declare global {
@@ -118,6 +119,7 @@ const main = async () => {
     registerCameraPosesEvents(events);
     registerTrackManagerEvents(events);
     registerTimingEvents(events);
+    registerViewKeyEvents(events);
     registerTransformHandlerEvents(events);
     registerPublishEvents(events);
     registerIframeApi(events);

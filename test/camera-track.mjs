@@ -97,6 +97,28 @@ const cameraTrackChecks = {
 
         events.fire('timeline.setRotationWeight', 9);
         assert.equal(events.invoke('timeline.rotationWeight'), 4);
+    },
+
+    'track: appendPoses adds keys and retimes in one undo step'() {
+        const { events, ops } = setup([[0], [30]]);
+        const added = [2, 3].map(i => ({ position: new Vec3(i, 0, 0), target: new Vec3(i, 0, -1), fov: 50 }));
+        events.fire('track.appendPoses', added, [0, 50, 100, 180]);
+        assert.equal(ops.length, 1);
+        assert.deepEqual(sortedKeys(events), [0, 50, 100, 180]);
+        const names = events.invoke('camera.poses').map(p => p.name).sort();
+        assert.deepEqual(names, ['camera_0', 'camera_1', 'camera_2', 'camera_3']);
+        ops[0].undo();
+        assert.deepEqual(sortedKeys(events), [0, 30]);
+        assert.equal(events.invoke('camera.poses').length, 2);
+    },
+
+    'track: appendPoses rejects non-increasing frames'() {
+        const { events, ops } = setup([[0], [30]]);
+        const added = [{ position: new Vec3(), target: new Vec3(0, 0, -1), fov: 50 }];
+        events.fire('track.appendPoses', added, [0, 30, 30]);
+        events.fire('track.appendPoses', added, [0, 30]);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 30]);
     }
 };
 

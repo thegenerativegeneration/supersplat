@@ -67,6 +67,11 @@ const registerTrackManagerEvents = (events: Events) => {
     events.on('track.retime', (frames: number[]) => {
         trackEdit('retime', track => (track as CameraAnimTrack).retime(frames));
     });
+
+    // Append poses as keys and assign all key frames, as one undo step
+    events.on('track.appendPoses', (poses: Parameters<CameraAnimTrack['appendPoses']>[0], frames: number[]) => {
+        trackEdit('appendPoses', track => (track as CameraAnimTrack).appendPoses(poses, frames));
+    });
 };
 
 export { registerTrackManagerEvents };

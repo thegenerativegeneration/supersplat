@@ -3,9 +3,63 @@ import { Pose } from './camera-poses';
 import { Events } from './events';
 import { i18n } from './ui/localization';
 
-type SamplePose = { position: Pose['position'], target: Pose['target'], fov: number };
+type BalanceSource = { position: Pose['position'], target: Pose['target'], fov: number, linger: number };
 
 const finiteOr = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback);
+
+const snapshotOf = (events: Events) => (events.invoke('camera.poses') as Pose[])
+.slice()
+.sort((a, b) => a.frame - b.frame)
+.map(p => `${p.name}@${p.frame}`)
+.join('|');
+
+// samples scene distances for the given poses (in playback order) and balances
+// their timing. changed is true when the track keys moved while sampling, in
+// which case the result is a keysChanged failure.
+const computeBalance = async (events: Events, poses: BalanceSource[]): Promise<{ result: BalanceResult, changed: boolean }> => {
+    const snapshot = snapshotOf(events);
+    const sampleStart = performance.now();
+    // too few keys fails below without needing the scene
+    const distances = (poses.length >= 2 ?
+        await events.invoke('camera.sampleDistances', poses.map(p => ({ position: p.position, target: p.target, fov: p.fov }))) :
+        []) as (number | null)[];
+    const sampleMs = performance.now() - sampleStart;
+
+    // the keys moved while sampling; the computed frames would not match them
+    if (snapshotOf(events) !== snapshot) {
+        return { result: { ok: false, reason: 'keysChanged' }, changed: true };
+    }
+
+    const keys: BalanceKey[] = poses.map((p, i) => ({
+        position: p.position,
+        target: p.target,
+        fov: p.fov,
+        linger: Math.max(0, finiteOr(p.linger, 0)),
+        distance: distances[i] ?? NaN
+    }));
+
+    const rotationWeight = Math.min(4, Math.max(0, finiteOr(events.invoke('timeline.rotationWeight'), 1)));
+
+    const result = balanceTiming({
+        keys,
+        frames: events.invoke('timeline.frames'),
+        frameRate: events.invoke('timeline.frameRate'),
+        smoothness: events.invoke('timeline.smoothness'),
+        loop: events.invoke('timeline.loop'),
+        rotationWeight
+    });
+
+    const outcome = 'reason' in result ? `failed (${result.reason})` : `${result.iterations} iterations`;
+    console.debug(`timing.balance: sampled ${poses.length} keys in ${sampleMs.toFixed(1)} ms, ${outcome}`);
+
+    return { result, changed: false };
+};
+
+const showBalanceFailure = (events: Events, reason: string) => events.invoke('showPopup', {
+    type: 'error',
+    header: i18n.t('popup.balance.failed'),
+    message: i18n.t(`popup.balance.${reason}`)
+});
 
 const registerTimingEvents = (events: Events) => {
     // retime the camera keys so the camera moves at a steady perceived speed,
@@ -13,65 +67,23 @@ const registerTimingEvents = (events: Events) => {
     events.function('timing.balance', async (): Promise<BalanceResult> => {
         const poses = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
         const fallbackFov = events.invoke('camera.fov') as number;
-        const samples: SamplePose[] = poses.map(p => ({
+        const sources: BalanceSource[] = poses.map(p => ({
             position: p.position,
             target: p.target,
-            fov: p.fov ?? fallbackFov
+            fov: p.fov ?? fallbackFov,
+            linger: p.linger ?? 0
         }));
 
-        const snapshot = poses.map(p => `${p.name}@${p.frame}`).join('|');
-        const sampleStart = performance.now();
-        // too few keys fails below without needing the scene
-        const distances = (poses.length >= 2 ?
-            await events.invoke('camera.sampleDistances', samples) :
-            []) as (number | null)[];
-        const sampleMs = performance.now() - sampleStart;
-
-        // the keys moved while sampling; the computed frames would not match them
-        const current = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
-        if (current.map(p => `${p.name}@${p.frame}`).join('|') !== snapshot) {
-            await events.invoke('showPopup', {
-                type: 'error',
-                header: i18n.t('popup.balance.failed'),
-                message: i18n.t('popup.balance.keysChanged')
-            });
-            return { ok: false, reason: 'keysChanged' };
-        }
-
-        const keys: BalanceKey[] = samples.map((s, i) => ({
-            position: s.position,
-            target: s.target,
-            fov: s.fov,
-            linger: Math.max(0, finiteOr(poses[i].linger ?? 0, 0)),
-            distance: distances[i] ?? NaN
-        }));
-
-        const rotationWeight = Math.min(4, Math.max(0, finiteOr(events.invoke('timeline.rotationWeight'), 1)));
-
-        const result = balanceTiming({
-            keys,
-            frames: events.invoke('timeline.frames'),
-            frameRate: events.invoke('timeline.frameRate'),
-            smoothness: events.invoke('timeline.smoothness'),
-            loop: events.invoke('timeline.loop'),
-            rotationWeight
-        });
-
-        const outcome = 'reason' in result ? `failed (${result.reason})` : `${result.iterations} iterations`;
-        console.debug(`timing.balance: sampled ${poses.length} keys in ${sampleMs.toFixed(1)} ms, ${outcome}`);
+        const { result } = await computeBalance(events, sources);
 
         if ('frames' in result) {
             events.fire('track.retime', result.frames);
         } else {
-            await events.invoke('showPopup', {
-                type: 'error',
-                header: i18n.t('popup.balance.failed'),
-                message: i18n.t(`popup.balance.${result.reason}`)
-            });
+            await showBalanceFailure(events, result.reason);
         }
 
         return result;
     });
 };
 
-export { registerTimingEvents };
+export { registerTimingEvents, computeBalance, showBalanceFailure, BalanceSource };

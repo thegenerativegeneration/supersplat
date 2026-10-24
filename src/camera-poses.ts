@@ -175,6 +175,34 @@ class CameraAnimTrack implements AnimTrack {
         return true;
     }
 
+    /**
+     * Append new poses and assign frames to all keys in one step. frames
+     * covers the existing poses ordered by frame, then the new poses.
+     */
+    appendPoses(added: { position: Vec3, target: Vec3, fov: number }[], frames: number[]): boolean {
+        if (frames.length !== this.poses.length + added.length) return false;
+        if (frames.some((f, i) => !Number.isFinite(f) || (i > 0 && f <= frames[i - 1]))) return false;
+
+        let next = 1 + Math.max(-1, ...this.poses.map(p => Number(/^camera_(\d+)$/.exec(p.name)?.[1] ?? -1)));
+        const ordered = this.poses.slice().sort((a, b) => a.frame - b.frame);
+        for (const a of added) {
+            ordered.push({
+                name: `camera_${next++}`,
+                frame: 0,
+                position: a.position.clone(),
+                target: a.target.clone(),
+                fov: a.fov
+            });
+        }
+        ordered.forEach((p, i) => {
+            p.frame = frames[i];
+        });
+        this.poses = ordered;
+        this.rebuildSpline();
+        this.events.fire('track.keysLoaded');
+        return true;
+    }
+
     evaluate(frame: number): void {
         this.onTimelineChange?.(frame);
     }

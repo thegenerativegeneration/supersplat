@@ -7,7 +7,7 @@ import { Events } from './.build/src/events.js';
 import { registerTimelineEvents } from './.build/src/timeline.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 
-const setup = (frames) => {
+export const setup = (frames) => {
     const events = new Events();
     events.function('timeline.frames', () => 181);
     events.function('timeline.frameRate', () => 30);

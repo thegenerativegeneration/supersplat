@@ -1,5 +1,5 @@
 import { AnimTrack } from './anim-track';
-import { CameraAnimTrack } from './camera-poses';
+import { CameraAnimTrack, Pose } from './camera-poses';
 import { AnimTrackEditOp } from './edit-ops';
 import { Events } from './events';
 
@@ -71,6 +71,11 @@ const registerTrackManagerEvents = (events: Events) => {
     // Append poses as keys and assign all key frames, as one undo step
     events.on('track.appendPoses', (poses: Parameters<CameraAnimTrack['appendPoses']>[0], frames: number[]) => {
         trackEdit('appendPoses', track => (track as CameraAnimTrack).appendPoses(poses, frames));
+    });
+
+    // Replace the whole path (user keys and detour keys), as one undo step
+    events.on('track.replacePath', (poses: Pose[]) => {
+        trackEdit('fixPath', track => (track as CameraAnimTrack).replacePath(poses));
     });
 };
 

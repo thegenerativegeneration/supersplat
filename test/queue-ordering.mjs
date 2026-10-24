@@ -17,6 +17,7 @@ import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
+import { fixPathChecks } from './fix-path.mjs';
 import { timingEventsChecks } from './timing-events.mjs';
 import { webmcpChecks } from './webmcp.mjs';
 
@@ -73,6 +74,7 @@ const checks = {
     ...candidatesPanelChecks,
     ...cameraTrackChecks,
     ...editorCommandChecks,
+    ...fixPathChecks,
     ...timingEventsChecks,
     ...webmcpChecks,
 

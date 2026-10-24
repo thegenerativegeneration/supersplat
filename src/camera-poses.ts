@@ -1,6 +1,6 @@
 import { Vec3 } from 'playcanvas';
 
-import { CubicSpline } from './anim/spline';
+import { buildCameraCurve, CurvePose } from './anim/camera-curve';
 import { AnimTrack } from './anim-track';
 import { Events } from './events';
 
@@ -11,7 +11,9 @@ type Pose = {
     target: Vec3,
     fov?: number,
     // seconds to hold at this key; absent or 0 means none
-    linger?: number
+    linger?: number,
+    // detour key inserted by Fix path; cleared when edited by hand
+    auto?: boolean
 };
 
 const MAX_LINGER = 60;
@@ -114,6 +116,7 @@ class CameraAnimTrack implements AnimTrack {
         // Update the frame (re-find index since splice may have shifted it)
         const movedIndex = this.poses.findIndex(p => p.frame === fromFrame);
         this.poses[movedIndex].frame = toFrame;
+        this.poses[movedIndex].auto = undefined;
         this.rebuildSpline();
         this.events.fire('track.keyMoved', fromFrame, toFrame);
         return true;
@@ -137,7 +140,8 @@ class CameraAnimTrack implements AnimTrack {
             position: source.position.clone(),
             target: source.target.clone(),
             fov: source.fov,
-            linger: source.linger
+            linger: source.linger,
+            auto: source.auto
         });
 
         this.rebuildSpline();
@@ -203,6 +207,27 @@ class CameraAnimTrack implements AnimTrack {
         return true;
     }
 
+    /**
+     * Replace all poses with the given ones, ordered by frame, in one step.
+     */
+    replacePath(poses: Pose[]): boolean {
+        if (poses.some(p => !Number.isFinite(p.frame))) return false;
+        if (new Set(poses.map(p => p.frame)).size !== poses.length) return false;
+
+        this.poses = poses.slice().sort((a, b) => a.frame - b.frame).map(p => ({
+            name: p.name,
+            frame: p.frame,
+            position: p.position.clone(),
+            target: p.target.clone(),
+            fov: p.fov,
+            linger: p.linger,
+            auto: p.auto
+        }));
+        this.rebuildSpline();
+        this.events.fire('track.keysLoaded');
+        return true;
+    }
+
     evaluate(frame: number): void {
         this.onTimelineChange?.(frame);
     }
@@ -220,7 +245,8 @@ class CameraAnimTrack implements AnimTrack {
             position: p.position.clone(),
             target: p.target.clone(),
             fov: p.fov,
-            linger: p.linger
+            linger: p.linger,
+            auto: p.auto
         }));
     }
 
@@ -231,7 +257,8 @@ class CameraAnimTrack implements AnimTrack {
             position: p.position.clone(),
             target: p.target.clone(),
             fov: p.fov,
-            linger: p.linger
+            linger: p.linger,
+            auto: p.auto
         }));
         this.rebuildSpline();
         this.events.fire('track.keysLoaded');
@@ -291,30 +318,13 @@ class CameraAnimTrack implements AnimTrack {
         .filter(a => a.frame < duration)
         .sort((a, b) => a.frame - b.frame);
 
-        const times = orderedPoses.map(p => p.frame);
-        const points: number[] = [];
-        for (let i = 0; i < orderedPoses.length; ++i) {
-            const p = orderedPoses[i];
-            points.push(p.position.x, p.position.y, p.position.z);
-            points.push(p.target.x, p.target.y, p.target.z);
-            points.push(p.fov);
-        }
+        const curve = buildCameraCurve(orderedPoses as CurvePose[], orderedPoses.map(p => p.frame), { duration, smoothness, loop });
 
-        if (orderedPoses.length > 1) {
-            // when not looping the spline clamps, holding the first/last pose
-            // beyond the outer keys instead of wrapping the end into the start
-            const spline = loop ?
-                CubicSpline.fromPointsLooping(duration, times, points, smoothness) :
-                CubicSpline.fromPoints(times, points, smoothness);
-            const result: number[] = [];
+        if (curve) {
             const pose = { position: new Vec3(), target: new Vec3(), fov: 0 };
 
             this.onTimelineChange = (frame: number) => {
-                spline.evaluate(frame, result);
-                pose.position.set(result[0], result[1], result[2]);
-                pose.target.set(result[3], result[4], result[5]);
-                pose.fov = result[6];
-                this.events.fire('camera.setPose', pose, 0);
+                this.events.fire('camera.setPose', curve(frame, pose), 0);
             };
         } else if (orderedPoses.length === 1) {
             // a single key can't form a spline; hold its pose at every frame
@@ -380,7 +390,8 @@ const registerCameraPosesEvents = (events: Events) => {
                     position: pack3(pose.position),
                     target: pack3(pose.target),
                     fov: pose.fov,
-                    ...(pose.linger > 0 ? { linger: pose.linger } : {})
+                    ...(pose.linger > 0 ? { linger: pose.linger } : {}),
+                    ...(pose.auto ? { auto: true } : {})
                 };
             })
         }];
@@ -402,7 +413,8 @@ const registerCameraPosesEvents = (events: Events) => {
                 position: new Vec3(docPose.position),
                 target: new Vec3(docPose.target),
                 fov: docPose.fov ?? defaultFov,
-                linger: docPose.linger ?? 0
+                linger: docPose.linger ?? 0,
+                ...(docPose.auto ? { auto: true } : {})
             };
         });
 

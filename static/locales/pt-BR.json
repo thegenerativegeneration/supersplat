@@ -479,5 +479,6 @@
     "fix-path.rejected": "Não foi possível atualizar os quadros-chave da câmera. Tente novamente.",
     "fix-path.unreachable": "Nenhum caminho encontrado até estes quadros-chave: {{names}}. Eles foram movidos para o fim da cena; mova-os ou exclua-os.",
     "fix-path.blocked": "O trajeto está bloqueado após os quadros-chave nos quadros {{frames}} (marcado em vermelho na linha do tempo).",
-    "fix-path.inside-geometry": "Estes quadros-chave estão dentro da geometria ou fora da área: {{names}}. Seus caminhos começam no espaço livre mais próximo."
+    "fix-path.inside-geometry": "Estes quadros-chave estão dentro da geometria ou fora da área: {{names}}. Seus caminhos começam no espaço livre mais próximo.",
+    "fix-path.status": "Trajeto corrigido. Quadros-chave de desvio adicionados: {{count}}"
 }

@@ -8,9 +8,10 @@ type KeyStyle = { auto: boolean, unreachable: boolean };
 
 type ReportLine = { key: string, params?: Record<string, string> };
 
-type FixReport = { type: 'error' | 'info', lines: ReportLine[] };
+// error and info are popups; status is a brief non-modal line
+type FixReport = { type: 'error' | 'info' | 'status', lines: ReportLine[] };
 
-type FixOutcome = MarkerSet & { ok: boolean, reason?: string };
+type FixOutcome = MarkerSet & { ok: boolean, reason?: string, detours: number };
 
 // reasons the Fix path event explains itself
 const SELF_REPORTED = new Set(['keysChanged']);
@@ -49,7 +50,7 @@ const keyStyles = (keys: readonly KeyInfo[], markers: MarkerSet) => {
     return styles;
 };
 
-// what to tell the user after a run: an error, the problems left, or nothing
+// what to tell the user after a run: an error, the problems left, or a status line
 const fixReport = (result: FixOutcome): FixReport | null => {
     if (!result.ok) {
         const reason = result.reason ?? 'rejected';
@@ -66,7 +67,10 @@ const fixReport = (result: FixOutcome): FixReport | null => {
     if (result.insideGeometry.length) {
         lines.push({ key: 'fix-path.inside-geometry', params: { names: result.insideGeometry.join(', ') } });
     }
-    return lines.length ? { type: 'info', lines } : null;
+    return lines.length ? { type: 'info', lines } : {
+        type: 'status',
+        lines: [{ key: 'fix-path.status', params: { count: String(result.detours) } }]
+    };
 };
 
 export { blockedBands, fixReport, keyStyles };

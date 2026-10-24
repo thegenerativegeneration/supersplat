@@ -479,5 +479,6 @@
     "fix-path.rejected": "无法更新相机关键帧。请重试。",
     "fix-path.unreachable": "找不到通往这些关键帧的路线：{{names}}。它们已移到镜头末尾，请移动或删除它们。",
     "fix-path.blocked": "第 {{frames}} 帧的关键帧之后路径受阻（在时间轴上以红色标出）。",
-    "fix-path.inside-geometry": "这些关键帧位于几何体内部或区域之外：{{names}}。其路线从最近的空闲位置开始。"
+    "fix-path.inside-geometry": "这些关键帧位于几何体内部或区域之外：{{names}}。其路线从最近的空闲位置开始。",
+    "fix-path.status": "路径已修正。添加的绕行关键帧：{{count}}"
 }

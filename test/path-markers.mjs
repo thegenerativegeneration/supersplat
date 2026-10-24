@@ -34,8 +34,10 @@ const pathMarkersChecks = {
         ]);
     },
 
-    'path markers: a clean run needs no report': async () => {
-        assert.equal(fixReport({ ok: true, ...NONE, detours: 3 }), null);
+    'path markers: a clean run gets a status line with the detour count': async () => {
+        assert.deepEqual(fixReport({ ok: true, ...NONE, detours: 3 }),
+            { type: 'status', lines: [{ key: 'fix-path.status', params: { count: '3' } }] });
+        assert.deepEqual(fixReport({ ok: true, ...NONE }).lines[0].params, { count: '0' });
     },
 
     'path markers: failed runs report an error, except changed keys': async () => {

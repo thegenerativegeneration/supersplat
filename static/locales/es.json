@@ -479,5 +479,6 @@
     "fix-path.rejected": "No se pudieron actualizar las claves de cámara. Inténtalo de nuevo.",
     "fix-path.unreachable": "No se encontró ruta hasta estas claves: {{names}}. Se movieron al final de la toma; muévelas o elimínalas.",
     "fix-path.blocked": "La ruta está bloqueada después de las claves en los fotogramas {{frames}} (marcada en rojo en la línea de tiempo).",
-    "fix-path.inside-geometry": "Estas claves están dentro de la geometría o fuera del área: {{names}}. Sus rutas parten del espacio libre más cercano."
+    "fix-path.inside-geometry": "Estas claves están dentro de la geometría o fuera del área: {{names}}. Sus rutas parten del espacio libre más cercano.",
+    "fix-path.status": "Ruta corregida. Claves de desvío añadidas: {{count}}"
 }

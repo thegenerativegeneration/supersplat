@@ -337,6 +337,21 @@
     }
 }
 
+// brief status after a clean Fix Path run (see fix-path-controls.ts)
+.fix-path-status {
+    position: fixed;
+    z-index: 100;
+    margin: 0;
+    padding: 4px 8px;
+    white-space: nowrap;
+    color: $clr-active;
+    background-color: $bcg-primary;
+    border: 1px solid $bcg-darker;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
 // options popover of the Fix Path button (see fix-path-controls.ts)
 .fix-path-options {
     position: fixed;

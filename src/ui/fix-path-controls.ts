@@ -10,6 +10,9 @@ const MIN_KEYS = 2;
 // runs shorter than this finish without a spinner
 const SPINNER_DELAY_MS = 300;
 
+// how long the status line after a clean run stays up
+const STATUS_MS = 4000;
+
 type Options = { keepOrder: boolean, allowFlying: boolean };
 
 type Settings = { eyeHeight: number };
@@ -117,6 +120,27 @@ class FixPathControls extends Container {
         this.append(optionsButton);
         this.append(options);
 
+        // non-modal line above the button after a clean run
+        const status = new Label({ class: 'fix-path-status', hidden: true });
+        this.append(status);
+        let statusTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const hideStatus = () => {
+            clearTimeout(statusTimer);
+            status.hidden = true;
+        };
+
+        const showStatus = (text: string) => {
+            hideStatus();
+            status.text = text;
+            status.hidden = false;
+            const rect = button.dom.getBoundingClientRect();
+            const x = Math.max(4, Math.min(rect.left, window.innerWidth - status.dom.offsetWidth - 4));
+            status.dom.style.left = `${x}px`;
+            status.dom.style.top = `${Math.max(4, rect.top - status.dom.offsetHeight - 6)}px`;
+            statusTimer = setTimeout(hideStatus, STATUS_MS);
+        };
+
         let busy = false;
 
         const updateEnabled = () => {
@@ -127,16 +151,22 @@ class FixPathControls extends Container {
         const showReport = async (result: Parameters<typeof fixReport>[0]) => {
             const report = fixReport(result);
             if (!report) return;
+            const text = report.lines.map(line => i18n.t(line.key, line.params)).join('\n');
+            if (report.type === 'status') {
+                showStatus(text);
+                return;
+            }
             await events.invoke('showPopup', {
                 type: report.type,
                 header: i18n.t(report.type === 'error' ? 'fix-path.failed' : 'fix-path.report'),
-                message: report.lines.map(line => i18n.t(line.key, line.params)).join('\n')
+                message: text
             });
         };
 
         button.on('click', async () => {
             if (busy) return;
             busy = true;
+            hideStatus();
             updateEnabled();
             let spinning = false;
             const timer = setTimeout(() => {

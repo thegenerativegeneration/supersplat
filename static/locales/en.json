@@ -479,5 +479,6 @@
     "fix-path.rejected": "The camera keys couldn't be updated. Try again.",
     "fix-path.unreachable": "No route found to these keys: {{names}}. They were moved to the end of the shot; move or delete them.",
     "fix-path.blocked": "The path is blocked after the keys at frames {{frames}} (marked red on the timeline).",
-    "fix-path.inside-geometry": "These keys are inside geometry or outside the area: {{names}}. Their routes start from the nearest free space."
+    "fix-path.inside-geometry": "These keys are inside geometry or outside the area: {{names}}. Their routes start from the nearest free space.",
+    "fix-path.status": "Path fixed. Detour keys added: {{count}}"
 }

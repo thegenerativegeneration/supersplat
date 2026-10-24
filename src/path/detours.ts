@@ -24,6 +24,11 @@ const MAX_ROUNDS = 4;
 const SAMPLE_VOXELS = 0.25;
 // a new detour closer than this many voxels to an existing one is not added
 const DUPLICATE_VOXELS = 1;
+// route cells this close to a segment's end keys never become detours
+const NEAR_KEY_VOXELS = 1.5;
+// detours closer than this to a neighbouring key are dropped when the curve
+// stays as clean without them
+const PRUNE_VOXELS = 2;
 
 const distance = (a: Vec3Like, b: Vec3Like) => Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
 
@@ -138,11 +143,17 @@ const detourPoses = (route: Vec3Like[], from: CurvePose, to: CurvePose, eyeHeigh
 // the detour points, ascending
 type Segment = { full: Vec3Like[], detours: number[] };
 
+// interior route point i is within NEAR_KEY_VOXELS of an end key
+const nearEnd = (full: Vec3Like[], i: number, voxel: number) => {
+    const near = NEAR_KEY_VOXELS * voxel * (1 + 1e-6);
+    return distance(full[i], full[0]) <= near || distance(full[i], full[full.length - 1]) <= near;
+};
+
 const initialDetours = (grid: NavGrid, full: Vec3Like[]) => {
     const kept = new Set(simplifyRoute(grid, full));
     const out: number[] = [];
     for (let i = 1; i < full.length - 1; i++) {
-        if (kept.has(full[i])) out.push(i);
+        if (kept.has(full[i]) && !nearEnd(full, i, grid.voxel)) out.push(i);
     }
     return out;
 };
@@ -168,13 +179,13 @@ const assemble = (keys: CurvePose[], segments: (Segment | null)[], eyeHeight: nu
 
 // Adds the interior route point nearest p as a detour, skipping points
 // closer than DUPLICATE_VOXELS to an existing detour (adjacent route cells
-// stay eligible); false when no point is left.
+// stay eligible) or near the end keys; false when no point is left.
 const insertDetour = (seg: Segment, p: Vec3Like, voxel: number) => {
     const min = DUPLICATE_VOXELS * voxel * (1 - 1e-6);
     let best = -1, bestDist = Infinity;
     for (let i = 1; i < seg.full.length - 1; i++) {
         const d = distance(seg.full[i], p);
-        if (d < bestDist && seg.detours.every(k => distance(seg.full[k], seg.full[i]) >= min)) {
+        if (d < bestDist && !nearEnd(seg.full, i, voxel) && seg.detours.every(k => distance(seg.full[k], seg.full[i]) >= min)) {
             bestDist = d;
             best = i;
         }
@@ -185,12 +196,44 @@ const insertDetour = (seg: Segment, p: Vec3Like, voxel: number) => {
     return true;
 };
 
+// the first index from on into seg.detours of a detour closer than
+// PRUNE_VOXELS to the key or detour before or after it; -1 when none
+const crowdedDetour = (seg: Segment, voxel: number, from: number) => {
+    const pts = [0, ...seg.detours, seg.full.length - 1];
+    for (let d = from; d < seg.detours.length; d++) {
+        const p = seg.full[pts[d + 1]];
+        const gap = Math.min(distance(p, seg.full[pts[d]]), distance(p, seg.full[pts[d + 2]]));
+        if (gap < PRUNE_VOXELS * voxel) return d;
+    }
+    return -1;
+};
+
+// Removes crowded detours one at a time, keeping each removal accept()
+// approves (accept sees the segment without it).
+const pruneSegment = (seg: Segment, voxel: number, accept: () => boolean) => {
+    let d = crowdedDetour(seg, voxel, 0);
+    while (d >= 0) {
+        const saved = seg.detours;
+        seg.detours = saved.slice();
+        seg.detours.splice(d, 1);
+        if (accept()) {
+            // the next detour moved down to index d
+            d = crowdedDetour(seg, voxel, d);
+        } else {
+            seg.detours = saved;
+            d = crowdedDetour(seg, voxel, d + 1);
+        }
+    }
+};
+
 // Detour keys between consecutive user keys so the camera curve stays in
 // free space: start from the simplified routes, retime, check the curve and
 // add the full-route point nearest the first collision of each colliding
-// curve segment, for up to MAX_ROUNDS rounds. Segments without a route, or
-// still colliding, are blocked (indices into the user segments). For a loop,
-// routes has one entry per key and the last runs back to the first key.
+// curve segment, for up to MAX_ROUNDS rounds. Then crowded detours are
+// dropped one at a time where no segment starts colliding without them.
+// Segments without a route, or still colliding, are blocked (indices into
+// the user segments). For a loop, routes has one entry per key and the last
+// runs back to the first key.
 const planDetours = (input: DetourInput): DetourPlan => {
     const { keys, routes, grid, eyeHeight, retime, curveOpts } = input;
     const segments = routes.map((r, i): Segment | null => {
@@ -223,6 +266,19 @@ const planDetours = (input: DetourInput): DetourPlan => {
         if (!added) break;
         result = evaluate();
     }
+
+    // drop crowded detours while no other segment starts colliding
+    const colliding = (r: typeof result) => new Set(r.collisions.map(c => c.segment));
+    const before = colliding(result);
+    const accept = () => {
+        const trial = evaluate();
+        if (![...colliding(trial)].every(s => before.has(s))) return false;
+        result = trial;
+        return true;
+    };
+    segments.forEach((seg, i) => {
+        if (seg && !before.has(i)) pruneSegment(seg, grid.voxel, accept);
+    });
 
     const blocked = new Set<number>();
     segments.forEach((seg, i) => {

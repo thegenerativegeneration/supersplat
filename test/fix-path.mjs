@@ -331,9 +331,9 @@ const fixPathChecks = {
         // the second key sits inside a 4 m thick block; the given route runs straight into it
         const block = [];
         for (let x = 9; x < 13; x += 0.2) block.push(wallX(x, 0, 10, 4));
-        const { grid } = navOf([floorAt(0, 0, 20, 0, 10), ...block], { allowFlying: false });
-        const keys = [curvePose(2, 2, 5, [3, 2, 5]), curvePose(11, 2, 5, [12, 2, 5])];
-        const route = Array.from({ length: 21 }, (_, i) => ({ x: 2.2 + i * 0.4, y: 2, z: 5 }));
+        const { grid } = navOf([floorAt(0, -10, 20, 0, 10), ...block], { allowFlying: false });
+        const keys = [curvePose(-8, 2, 5, [-7, 2, 5]), curvePose(11, 2, 5, [12, 2, 5])];
+        const route = Array.from({ length: 46 }, (_, i) => ({ x: -7.8 + i * 0.4, y: 2, z: 5 }));
         let calls = 0;
         const retime = (poses) => {
             calls++;

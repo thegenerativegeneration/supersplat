@@ -19,6 +19,7 @@ import { cameraTrackChecks } from './camera-track.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
 import { fixPathEventsChecks } from './fix-path-events.mjs';
+import { fixPathQualityChecks } from './fix-path-quality.mjs';
 import { navDoorsChecks } from './nav-doors.mjs';
 import { pathLineChecks } from './path-line.mjs';
 import { pathMarkersChecks } from './path-markers.mjs';
@@ -80,6 +81,7 @@ const checks = {
     ...editorCommandChecks,
     ...fixPathChecks,
     ...fixPathEventsChecks,
+    ...fixPathQualityChecks,
     ...navDoorsChecks,
     ...pathLineChecks,
     ...pathMarkersChecks,

@@ -2,7 +2,9 @@ import { Button, Container, NumericInput } from '@playcanvas/pcui';
 
 import { Events } from '../events';
 import { i18n } from './localization';
+import { sceneIsMetric, createStatusLine, reportText } from './status-line';
 import { Tooltips } from './tooltips';
+import { motionLine } from '../path/markers';
 
 const MIN_KEYS = 2;
 
@@ -31,6 +33,8 @@ class BalanceControls extends Container {
         this.append(button);
         this.append(rotationWeight);
 
+        const { show: showStatus, hide: hideStatus } = createStatusLine(this, button.dom);
+
         let busy = false;
 
         const updateEnabled = () => {
@@ -41,9 +45,18 @@ class BalanceControls extends Container {
         button.on('click', async () => {
             if (busy) return;
             busy = true;
+            hideStatus();
             updateEnabled();
             try {
-                await events.invoke('timing.balance');
+                const result = await events.invoke('timing.balance');
+                if (result?.ok) {
+                    const text = reportText(motionLine(result.stats, result.turnLimited, sceneIsMetric(events)));
+                    if (result.turnLimited === undefined) {
+                        showStatus(text);
+                    } else {
+                        await events.invoke('showPopup', { type: 'info', header: i18n.t('popup.balance.report'), message: text });
+                    }
+                }
             } catch (error) {
                 await events.invoke('showPopup', {
                     type: 'error',

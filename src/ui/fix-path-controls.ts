@@ -2,6 +2,7 @@ import { BooleanInput, Button, Container, Label, NumericInput } from '@playcanva
 
 import { Events } from '../events';
 import { i18n } from './localization';
+import { createStatusLine, reportText, sceneIsMetric } from './status-line';
 import { Tooltips } from './tooltips';
 import { fixReport } from '../path/markers';
 
@@ -9,9 +10,6 @@ const MIN_KEYS = 2;
 
 // runs shorter than this finish without a spinner
 const SPINNER_DELAY_MS = 300;
-
-// how long the status line after a clean run stays up
-const STATUS_MS = 4000;
 
 type Options = { keepOrder: boolean, allowFlying: boolean, keepClear: boolean, lookAhead: boolean, smallestOpening: number };
 
@@ -170,25 +168,7 @@ class FixPathControls extends Container {
         this.append(options);
 
         // non-modal line above the button after a clean run
-        const status = new Label({ class: 'fix-path-status', hidden: true });
-        this.append(status);
-        let statusTimer: ReturnType<typeof setTimeout> | null = null;
-
-        const hideStatus = () => {
-            clearTimeout(statusTimer);
-            status.hidden = true;
-        };
-
-        const showStatus = (text: string) => {
-            hideStatus();
-            status.text = text;
-            status.hidden = false;
-            const rect = button.dom.getBoundingClientRect();
-            const x = Math.max(4, Math.min(rect.left, window.innerWidth - status.dom.offsetWidth - 4));
-            status.dom.style.left = `${x}px`;
-            status.dom.style.top = `${Math.max(4, rect.top - status.dom.offsetHeight - 6)}px`;
-            statusTimer = setTimeout(hideStatus, STATUS_MS);
-        };
+        const { show: showStatus, hide: hideStatus } = createStatusLine(this, button.dom);
 
         let busy = false;
 
@@ -198,9 +178,9 @@ class FixPathControls extends Container {
         };
 
         const showReport = async (result: Parameters<typeof fixReport>[0]) => {
-            const report = fixReport(result);
+            const report = fixReport(result, sceneIsMetric(events));
             if (!report) return;
-            const text = report.lines.map(line => i18n.t(line.key, line.params)).join('\n');
+            const text = reportText(report.lines);
             if (report.type === 'status') {
                 showStatus(text);
                 return;

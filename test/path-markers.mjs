@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 
-import { blockedBands, fixReport, keyStyles } from './.build/src/path/markers.js';
+import { blockedBands, fixReport, keyStyles, motionLine } from './.build/src/path/markers.js';
 
 const at = (...frames) => frames.map(frame => ({ frame }));
 
 const NONE = { detours: 0, unreachable: [], blocked: [], insideGeometry: [] };
+
+const STATS = { pathLength: 12, avgSpeed: 1.234, peakSpeed: 0.0567, peakTurnDegPerSec: 18.4 };
 
 const pathMarkersChecks = {
     'path markers: a blocked segment spans its key to the next key': async () => {
@@ -54,6 +56,24 @@ const pathMarkersChecks = {
         assert.deepEqual(fixReport({ ok: true, ...NONE, detours: 3 }),
             { type: 'status', lines: [{ key: 'fix-path.status', params: { count: '3' } }] });
         assert.deepEqual(fixReport({ ok: true, ...NONE }).lines[0].params, { count: '0' });
+    },
+
+    'path markers: a clean run adds the camera speed to the status line': async () => {
+        const report = fixReport({ ok: true, ...NONE, balance: { ok: true, frames: [], iterations: 1, stats: STATS } }, true);
+        assert.equal(report.type, 'status');
+        assert.deepEqual(report.lines.map(l => l.key), ['fix-path.status', 'timing.speed']);
+        assert.deepEqual(report.lines[1].params, { avg: '1.2', peak: '0.057', turn: '18' });
+        assert.deepEqual(report.lines[1].keyParams, { unit: 'fix-path.unit-metres' });
+        assert.deepEqual(motionLine(STATS, undefined, false)[0].keyParams, { unit: 'fix-path.unit-scene' });
+    },
+
+    'path markers: turns that stay fast turn the report into an info with a warning': async () => {
+        const balance = { ok: true, frames: [], iterations: 1, stats: STATS, turnLimited: 34 };
+        const report = fixReport({ ok: true, ...NONE, balance }, false);
+        assert.equal(report.type, 'info');
+        assert.deepEqual(report.lines.map(l => l.key), ['timing.speed', 'timing.turn-limited']);
+        assert.deepEqual(report.lines[1].params, { cap: '20', turn: '34' });
+        assert.equal(report.lines[0].params.turn, '34');
     },
 
     'path markers: failed runs report an error, except changed keys': async () => {

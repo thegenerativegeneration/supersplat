@@ -24,6 +24,9 @@ type BalanceInput = {
     maxTurnDegPerSec?: number
 };
 
+// highest view turn speed the app asks Balance to keep, in degrees per second
+const MAX_TURN_DEG_PER_SEC = 20;
+
 type MotionStats = {
     // scene units along the sampled camera path
     pathLength: number,
@@ -283,4 +286,4 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
     return result;
 };
 
-export { balanceTiming, BalanceKey, BalanceInput, BalanceResult, MotionStats };
+export { MAX_TURN_DEG_PER_SEC, balanceTiming, BalanceKey, BalanceInput, BalanceResult, MotionStats };

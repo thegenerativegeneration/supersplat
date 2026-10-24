@@ -491,5 +491,8 @@
     "fix-path.unreachable": "Kein Weg zu diesen Keyframes gefunden: {{names}}. Sie wurden hinter das Ende der Einstellung verschoben (werden nicht abgespielt) und rot markiert; verschieben oder löschen Sie sie.",
     "fix-path.blocked": "Der Pfad ist nach den Keyframes bei den Frames {{frames}} blockiert (rot auf der Zeitleiste markiert).",
     "fix-path.inside-geometry": "Diese Keyframes liegen in Geometrie oder außerhalb des Bereichs: {{names}}. Ihre Wege beginnen am nächsten freien Platz.",
-    "fix-path.status": "Pfad korrigiert. Hinzugefügte Umweg-Keyframes: {{count}}"
+    "fix-path.status": "Pfad korrigiert. Hinzugefügte Umweg-Keyframes: {{count}}",
+    "timing.speed": "Tempo: Ø {{avg}} {{unit}}/s, Spitze {{peak}} {{unit}}/s, schnellste Drehung {{turn}}°/s",
+    "timing.turn-limited": "Zu wenige Frames, um Drehungen unter {{cap}}°/s zu halten; schnellste Drehung {{turn}}°/s. Erhöhe die Gesamtzahl der Frames für einen ruhigeren Shot.",
+    "popup.balance.report": "Timing ausbalancieren"
 }

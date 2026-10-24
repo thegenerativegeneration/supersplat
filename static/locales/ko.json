@@ -491,5 +491,8 @@
     "fix-path.unreachable": "다음 키로 가는 경로를 찾지 못했습니다: {{names}}. 샷이 끝난 뒤로 옮기고(재생되지 않음) 빨간색으로 표시했으니 이동하거나 삭제하세요.",
     "fix-path.blocked": "프레임 {{frames}}의 키 다음 경로가 막혀 있습니다(타임라인에 빨간색으로 표시).",
     "fix-path.inside-geometry": "다음 키는 지오메트리 안이나 영역 밖에 있습니다: {{names}}. 경로는 가장 가까운 빈 공간에서 시작합니다.",
-    "fix-path.status": "경로를 수정했습니다. 추가된 우회 키: {{count}}"
+    "fix-path.status": "경로를 수정했습니다. 추가된 우회 키: {{count}}",
+    "timing.speed": "속도: 평균 {{avg}} {{unit}}/초, 최대 {{peak}} {{unit}}/초, 가장 빠른 회전 {{turn}}°/초",
+    "timing.turn-limited": "프레임이 너무 적어 회전을 {{cap}}°/초 이하로 유지할 수 없습니다. 가장 빠른 회전은 {{turn}}°/초입니다. 총 프레임 수를 늘리면 더 차분한 샷이 됩니다.",
+    "popup.balance.report": "타이밍 균형"
 }

@@ -1,4 +1,4 @@
-import { balanceTiming, BalanceInput, BalanceKey, BalanceResult } from './anim/balance-timing';
+import { balanceTiming, BalanceInput, MAX_TURN_DEG_PER_SEC, BalanceKey, BalanceResult } from './anim/balance-timing';
 import { isParked, Pose } from './camera-poses';
 import { Events } from './events';
 import { i18n } from './ui/localization';
@@ -20,7 +20,8 @@ const timelineSettings = (events: Events): Omit<BalanceInput, 'keys'> => ({
     frameRate: events.invoke('timeline.frameRate'),
     smoothness: events.invoke('timeline.smoothness'),
     loop: events.invoke('timeline.loop'),
-    rotationWeight: Math.min(4, Math.max(0, finiteOr(events.invoke('timeline.rotationWeight'), 1)))
+    rotationWeight: Math.min(4, Math.max(0, finiteOr(events.invoke('timeline.rotationWeight'), 1))),
+    maxTurnDegPerSec: MAX_TURN_DEG_PER_SEC
 });
 
 // samples scene distances for the given non-auto poses (in playback order) and balances
@@ -102,4 +103,4 @@ const registerTimingEvents = (events: Events) => {
     });
 };
 
-export { registerTimingEvents, computeBalance, finiteOr, showBalanceFailure, snapshotOf, timelineSettings, withParkedFrames, BalanceSource };
+export { MAX_TURN_DEG_PER_SEC, registerTimingEvents, computeBalance, finiteOr, showBalanceFailure, snapshotOf, timelineSettings, withParkedFrames, BalanceSource };

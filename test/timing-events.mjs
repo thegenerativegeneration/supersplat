@@ -8,9 +8,9 @@ import { registerTimingEvents } from './.build/src/timing-events.js';
 import { fallbackAppendFrames, registerViewKeyEvents } from './.build/src/view-keys.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 
-const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) => (i === 1 ? null : 1))) => {
+const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) => (i === 1 ? null : 1)), poseAt = null, total = 181) => {
     const events = new Events();
-    events.function('timeline.frames', () => 181);
+    events.function('timeline.frames', () => total);
     events.function('timeline.frameRate', () => 30);
     events.function('timeline.smoothness', () => 1);
     events.function('timeline.loop', () => false);
@@ -36,8 +36,7 @@ const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) =>
     events.fire('camera.loadPoses', frames.map((frame, i) => ({
         name: `camera_${i}`,
         frame,
-        position: new Vec3(i, 0, 0),
-        target: new Vec3(i, 0, -1),
+        ...(poseAt ? poseAt(i) : { position: new Vec3(i, 0, 0), target: new Vec3(i, 0, -1) }),
         fov: 60,
         ...(lingers[i] ? { linger: lingers[i] } : {})
     })));
@@ -54,6 +53,22 @@ const timingEventsChecks = {
         assert.equal(ops.length, 1);
         assert.equal(popups.length, 0);
         assert.deepEqual(sortedKeys(events), [0, 90, 180]);
+    },
+
+    async 'timing: balance keeps turns at 20 degrees per second and reports motion stats'() {
+        // a move, then a 120 degree turn in place close to the scene, which uncapped
+        // gets about 47 degrees per second
+        const yaw = deg => new Vec3(Math.sin(deg * Math.PI / 180), 0, -Math.cos(deg * Math.PI / 180));
+        const poseAt = (i) => {
+            const position = new Vec3([0, 10, 10][i], 0, 0);
+            return { position, target: position.clone().add(yaw([0, 0, 120][i])) };
+        };
+        const { events } = setup([0, 100, 200], [], async poses => poses.map((_, i) => [5, 0.3, 0.3][i]), poseAt, 600);
+        const result = await events.invoke('timing.balance');
+        assert.equal(result.ok, true);
+        assert.equal(result.turnLimited, undefined);
+        assert.ok(result.stats.peakTurnDegPerSec <= 21, `peak turn ${result.stats.peakTurnDegPerSec}`);
+        assert.ok(result.stats.avgSpeed > 0);
     },
 
     async 'timing: failure shows a popup and leaves keys'() {

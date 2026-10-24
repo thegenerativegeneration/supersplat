@@ -1,17 +1,20 @@
 // Timeline marker geometry and the report shown after a Fix path run.
 
+import { MAX_TURN_DEG_PER_SEC, type BalanceResult, type MotionStats } from '../anim/balance-timing';
+
 type MarkerSet = { blocked: readonly number[], unreachable: readonly string[], insideGeometry: readonly string[] };
 
 type KeyInfo = { name: string, frame: number, auto?: boolean, parked?: boolean };
 
 type KeyStyle = { auto: boolean, unreachable: boolean };
 
-type ReportLine = { key: string, params?: Record<string, string> };
+// keyParams values are locale keys, translated before they fill the line
+type ReportLine = { key: string, params?: Record<string, string>, keyParams?: Record<string, string> };
 
 // error and info are popups; status is a brief non-modal line
 type FixReport = { type: 'error' | 'info' | 'status', lines: ReportLine[] };
 
-type FixOutcome = MarkerSet & { ok: boolean, reason?: string, detours: number };
+type FixOutcome = MarkerSet & { ok: boolean, reason?: string, detours: number, balance?: BalanceResult };
 
 // reasons the Fix path event explains itself
 const SELF_REPORTED = new Set(['keysChanged']);
@@ -53,8 +56,25 @@ const keyStyles = (keys: readonly KeyInfo[], markers: MarkerSet, duration = Infi
     return styles;
 };
 
+// two significant digits: 0.012, 1.2, 12, 120
+const round2 = (value: number) => String(Number(value.toPrecision(2)));
+
+// the camera speed after a retime, and a warning when the turn cap could not be met
+const motionLine = (stats: MotionStats, turnLimited: number | undefined, metric: boolean): ReportLine[] => {
+    const turn = String(Math.round(turnLimited ?? stats.peakTurnDegPerSec));
+    const lines: ReportLine[] = [{
+        key: 'timing.speed',
+        params: { avg: round2(stats.avgSpeed), peak: round2(stats.peakSpeed), turn },
+        keyParams: { unit: metric ? 'fix-path.unit-metres' : 'fix-path.unit-scene' }
+    }];
+    if (turnLimited !== undefined) {
+        lines.push({ key: 'timing.turn-limited', params: { cap: String(MAX_TURN_DEG_PER_SEC), turn } });
+    }
+    return lines;
+};
+
 // what to tell the user after a run: an error, the problems left, or a status line
-const fixReport = (result: FixOutcome): FixReport | null => {
+const fixReport = (result: FixOutcome, metric = false): FixReport | null => {
     if (!result.ok) {
         const reason = result.reason ?? 'rejected';
         return SELF_REPORTED.has(reason) ? null : { type: 'error', lines: [{ key: `fix-path.${reason}` }] };
@@ -70,11 +90,16 @@ const fixReport = (result: FixOutcome): FixReport | null => {
     if (result.insideGeometry.length) {
         lines.push({ key: 'fix-path.inside-geometry', params: { names: result.insideGeometry.join(', ') } });
     }
-    return lines.length ? { type: 'info', lines } : {
+    const balance = result.balance;
+    const motion = balance?.ok ? motionLine(balance.stats, balance.turnLimited, metric) : [];
+    if (lines.length || (balance?.ok && balance.turnLimited !== undefined)) {
+        return { type: 'info', lines: lines.concat(motion) };
+    }
+    return {
         type: 'status',
-        lines: [{ key: 'fix-path.status', params: { count: String(result.detours) } }]
+        lines: [{ key: 'fix-path.status', params: { count: String(result.detours) } }, ...motion]
     };
 };
 
-export { blockedBands, fixReport, keyStyles };
+export { blockedBands, fixReport, keyStyles, motionLine };
 export type { FixReport, KeyInfo, KeyStyle, MarkerSet, ReportLine };

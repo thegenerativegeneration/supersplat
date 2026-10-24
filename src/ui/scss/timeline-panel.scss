@@ -337,8 +337,8 @@
     }
 }
 
-// brief status after a clean Fix Path run (see fix-path-controls.ts)
-.fix-path-status {
+// brief status after a clean Balance or Fix Path run (see status-line.ts)
+.status-line {
     position: fixed;
     z-index: 100;
     margin: 0;

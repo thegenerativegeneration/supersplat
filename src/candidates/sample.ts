@@ -95,8 +95,15 @@ const directionOf = (azimuth: number, pitch: number): Vec3Like => {
 
 // Places cameras at eye height above each level's surface cells, keeps free
 // positions inside the box, and picks a view direction for each. Every level
-// gets a minimum share of the budget and the rest is split by level area. Azimuth and pitch are in degrees; azimuth 0 looks along -Z.
-const sampleCandidates = (levels: Level[], occ: Occupancy, opts: SampleOptions): Candidate[] => {
+// gets a minimum share of the budget and the rest is split by level area.
+// azimuthsOf gives each level's view azimuths. Azimuth and pitch are in
+// degrees; azimuth 0 looks along -Z.
+const sampleCandidates = (
+    levels: Level[],
+    occ: Occupancy,
+    opts: SampleOptions,
+    azimuthsOf: (level: number) => number[] = () => AZIMUTHS
+): Candidate[] => {
     const { eyeHeight, box, fov, budget, seed } = opts;
     const rand = mulberry32(seed);
     const v = occ.voxel;
@@ -114,8 +121,9 @@ const sampleCandidates = (levels: Level[], occ: Occupancy, opts: SampleOptions):
 
     const out: Candidate[] = [];
     positions.forEach((list, level) => {
+        const azimuths = azimuthsOf(level);
         for (let k = 0; k < counts[level]; k++) {
-            const azimuth = AZIMUTHS[Math.floor(rand() * AZIMUTHS.length)];
+            const azimuth = azimuths[Math.floor(rand() * azimuths.length)];
             const pitch = PITCHES[Math.floor(rand() * PITCHES.length)];
             out.push({
                 id: `c${String(out.length).padStart(3, '0')}`,
@@ -131,5 +139,5 @@ const sampleCandidates = (levels: Level[], occ: Occupancy, opts: SampleOptions):
     return out;
 };
 
-export { mulberry32, sampleCandidates, shuffle };
+export { AZIMUTHS, mulberry32, sampleCandidates, shuffle };
 export type { Candidate, SampleOptions };

@@ -237,7 +237,7 @@ class CandidatesPanel extends Container {
 
         const generate = async () => {
             if (running) return;
-            const { box, eyeHeight } = setup.values();
+            const { box, eyeHeight, alignToWalls } = setup.values();
             endPreview();
             closeSetup();
             events.fire('timeline.setPlaying', false);
@@ -265,7 +265,7 @@ class CandidatesPanel extends Container {
                 reason = r;
             });
             try {
-                items = await events.invoke('candidates.generate', { box, eyeHeight, budget: BUDGET, seed: seed++ }, abort.signal);
+                items = await events.invoke('candidates.generate', { box, eyeHeight, alignToWalls, budget: BUDGET, seed: seed++ }, abort.signal);
                 if (reason === 'noLevels') {
                     setMessage('candidates.noLevels');
                 } else if (reason === 'cancelled') {

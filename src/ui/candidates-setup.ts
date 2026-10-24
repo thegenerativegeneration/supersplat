@@ -21,7 +21,7 @@ class CandidatesSetup extends Container {
     setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => boolean;
     getFocus: () => { position: Vec3, radius: number } | null;
     load: (prepared: Prepared) => void;
-    values: () => { box: Box, eyeHeight: number };
+    values: () => { box: Box, eyeHeight: number, alignToWalls: boolean };
     stopPreview: () => void;
     onGenerate: () => void = null;
 
@@ -59,16 +59,28 @@ class CandidatesSetup extends Container {
         eyeRow.append(eyeInput);
         eyeRow.append(previewButton);
 
+        // a checkbox with a clickable label
+        const toggleRow = (labelKey: string, tooltipKey: string, onChange: (value: boolean) => void) => {
+            const toggle = row();
+            const input = new BooleanInput({ class: 'candidates-toggle-input' });
+            const label = new Label({ class: ['candidates-row-label', 'candidates-toggle-label'] });
+            i18n.bindText(label, labelKey);
+            toggle.append(input);
+            toggle.append(label);
+            input.on('change', onChange);
+            label.dom.addEventListener('click', () => {
+                input.value = !input.value;
+            });
+            tooltips.register(toggle, () => i18n.t(tooltipKey), 'top');
+            return { toggle, input };
+        };
+
         // solid space rule, shared with Fix Path
-        const solidRow = row();
-        const solidInput = new BooleanInput({ class: 'candidates-solid-input' });
-        const solidLabel = new Label({ class: ['candidates-row-label', 'candidates-solid-label'] });
-        i18n.bindText(solidLabel, 'candidates.solid-density');
-        solidRow.append(solidInput);
-        solidRow.append(solidLabel);
-        solidInput.on('change', (value: boolean) => events.fire('candidates.setSolidRule', value ? 'density' : 'bodies'));
-        solidLabel.dom.addEventListener('click', () => {
-            solidInput.value = !solidInput.value;
+        const { toggle: solidRow, input: solidInput } = toggleRow('candidates.solid-density', 'tooltip.candidates.solid-density', (value) => {
+            events.fire('candidates.setSolidRule', value ? 'density' : 'bodies');
+        });
+        const { toggle: alignRow, input: alignInput } = toggleRow('candidates.align-walls', 'tooltip.candidates.align-walls', (value) => {
+            events.fire('candidates.setAlignToWalls', value);
         });
 
         // tilt
@@ -83,6 +95,7 @@ class CandidatesSetup extends Container {
         this.append(areaRow);
         this.append(eyeRow);
         this.append(solidRow);
+        this.append(alignRow);
         this.append(tiltRow);
         this.append(generateButton);
 
@@ -194,12 +207,13 @@ class CandidatesSetup extends Container {
             tiltLabel.text = i18n.t('candidates.tilt-warning', { degrees: Math.round(p.tiltDeg) });
         };
 
-        this.values = () => ({ box: getBox(), eyeHeight: eyeInput.value });
+        this.values = () => ({ box: getBox(), eyeHeight: eyeInput.value, alignToWalls: alignInput.value });
 
         this.activate = () => {
             active = true;
             this.hidden = false;
             solidInput.value = events.invoke('candidates.solidRule') === 'density';
+            alignInput.value = events.invoke('candidates.alignToWalls');
             if (gizmo.mode === 'none') gizmo.setMode('translate');
             showBox(true);
         };
@@ -229,7 +243,6 @@ class CandidatesSetup extends Container {
         tooltips.register(moveButton, () => i18n.t('tooltip.candidates.move-area'), 'top');
         tooltips.register(scaleButton, () => i18n.t('tooltip.candidates.resize-area'), 'top');
         tooltips.register(eyeInput, () => i18n.t('tooltip.candidates.eye-height'), 'top');
-        tooltips.register(solidRow, () => i18n.t('tooltip.candidates.solid-density'), 'top');
         tooltips.register(previewButton, () => i18n.t('tooltip.candidates.preview'), 'top');
 
         this.hidden = true;

@@ -6,14 +6,15 @@ import type { Box } from './candidates/estimate';
 import { buildSceneGrid } from './candidates/generate';
 import { Events } from './events';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
-import { buildNavGrid, type NavGrid } from './path/nav-grid';
+import { buildNavGrid, NAV_HEAD_VOXELS, type NavGrid } from './path/nav-grid';
 import { finiteOr, showBalanceFailure, snapshotOf, timelineSettings } from './timing-events';
 
 type FixPathOptions = { keepOrder: boolean, allowFlying: boolean };
 
 type FixPathResult = {
     ok: boolean,
-    reason?: 'tooFewKeys' | 'noSplats' | 'keysChanged',
+    // rejected: the track refused the new path
+    reason?: 'tooFewKeys' | 'noSplats' | 'keysChanged' | 'rejected',
     detours: number,
     // key names
     unreachable: string[],
@@ -48,7 +49,7 @@ const defaultSceneGrid = (events: Events) => async (allowFlying: boolean): Promi
     if (!points || points.length === 0) return null;
     const settings: { box: Box, eyeHeight: number } = events.invoke('candidates.lastSettings') ?? await events.invoke('candidates.prepare');
     const { box, eyeHeight } = settings;
-    const { occ, levels } = buildSceneGrid(points, box, eyeHeight);
+    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, NAV_HEAD_VOXELS);
     return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying), eyeHeight };
 };
 
@@ -78,7 +79,8 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
 
     // Order the user keys, add detour keys around geometry and balance the
     // timing, as one undo step. Old detour keys are replaced.
-    events.function('path.fix', async (opts: FixPathOptions = settings): Promise<FixPathResult> => {
+    events.function('path.fix', async (options?: Partial<FixPathOptions>): Promise<FixPathResult> => {
+        const opts = { ...settings, ...options };
         const start = performance.now();
         const empty = { detours: 0, unreachable: [] as string[], blocked: [] as number[], insideGeometry: [] as string[] };
         clearMarkers();
@@ -90,10 +92,12 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
 
         const scene = await sceneGrid(opts.allowFlying);
         if (!scene) return { ok: false, reason: 'noSplats', ...empty };
+        const gridMs = performance.now() - start;
 
         const fallbackFov = events.invoke('camera.fov') as number;
         const sources = userPoses.map(p => ({ position: p.position, target: p.target, fov: p.fov ?? fallbackFov }));
         const distances = await events.invoke('camera.sampleDistances', sources) as (number | null)[];
+        const sampleMs = performance.now() - start - gridMs;
 
         if (snapshotOf(events) !== snapshot) {
             await showBalanceFailure(events, 'keysChanged');
@@ -128,11 +132,19 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
                 auto: true
             };
         });
+        const applyStart = performance.now();
         events.fire('track.replacePath', poses);
+        const applied = (events.invoke('camera.poses') as Pose[]).map(p => `${p.name}@${p.frame}`).sort().join('|');
+        if (applied !== poses.map(p => `${p.name}@${p.frame}`).sort().join('|')) {
+            return { ok: false, reason: 'rejected', ...empty };
+        }
 
-        const { blocked, unreachable, insideGeometry, detours, balance } = plan;
+        const { blocked, unreachable, insideGeometry, detours, balance, times } = plan;
         setMarkers({ blocked, unreachable, insideGeometry });
-        console.debug(`path.fix: ${keys.length} keys, ${detours} detours in ${(performance.now() - start).toFixed(0)} ms`);
+        const ms = (t: number) => t.toFixed(0);
+        console.debug(`path.fix: ${keys.length} keys, ${detours} detours in ${ms(performance.now() - start)} ms ` +
+            `(grid ${ms(gridMs)}, distances ${ms(sampleMs)}, routes ${ms(times.routes)}, detours ${ms(times.detours)}, ` +
+            `apply ${ms(performance.now() - applyStart)})`);
 
         if ('reason' in balance) await showBalanceFailure(events, balance.reason);
         return { ok: true, detours, unreachable, blocked, insideGeometry, balance };

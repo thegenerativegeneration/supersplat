@@ -59,7 +59,7 @@ const pose = (name, frame, x, auto) => ({
 
 const setup = (poses, opts = {}) => {
     const events = new Events();
-    events.function('timeline.frames', () => 181);
+    events.function('timeline.frames', () => opts.frames ?? 181);
     events.function('timeline.frameRate', () => 30);
     events.function('timeline.smoothness', () => 1);
     events.function('timeline.loop', () => false);
@@ -201,11 +201,26 @@ const fixPathEventsChecks = {
         assert.equal(events.invoke('camera.poses').find(p => p.name === 'camera_1').linger, 10);
     },
 
+    async 'path: a path the track refuses is reported, not marked'() {
+        // 3 frames cannot hold 3 keys and a detour; the even fallback repeats a frame
+        const { events, ops, markers } = setup([pose('camera_0', 0, 0), pose('camera_1', 1, 4), pose('camera_2', 2, 8)], { frames: 3 });
+        const result = await events.invoke('path.fix', FIX);
+        assert.equal(result.ok, false);
+        assert.equal(result.reason, 'rejected');
+        assert.equal(ops.length, 0);
+        assert.deepEqual(markers, []);
+    },
+
     async 'path: settings default to reorder and flying'() {
         const { events } = setup([]);
         assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true });
         events.fire('path.setSettings', { keepOrder: true });
         assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true });
+        // missing options come from the settings
+        const fixed = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 8), pose('camera_2', 60, 4)]);
+        fixed.events.fire('path.setSettings', { keepOrder: true });
+        await fixed.events.invoke('path.fix', { allowFlying: true });
+        assert.deepEqual(summary(fixed.events).filter(n => !n.endsWith('*')).map(n => n.split('@')[0]), ['camera_0', 'camera_1', 'camera_2']);
     }
 };
 

@@ -119,6 +119,39 @@ const search = (grid: NavGrid, start: Cell, goal: Cell): Cell[] | null => {
     return null;
 };
 
+// the grid cell of p, else the nearest graph cell within SNAP_VOXELS
+const snapCell = (grid: NavGrid, p: Vec3Like) => grid.cellOf(p) ?? grid.nearestFree(p, SNAP_VOXELS);
+
+// Connected components of the graph, labelled by flood fill from the cells
+// asked about; same(a, b) is false when no path joins the cells of a and b,
+// so those pairs need no search.
+const components = (grid: NavGrid) => {
+    const label = new Map<Cell, number>();
+    let count = 0;
+    const of = (c: Cell) => {
+        let l = label.get(c);
+        if (l !== undefined) return l;
+        l = count++;
+        label.set(c, l);
+        const stack = [c];
+        while (stack.length) {
+            for (const { cell } of grid.neighbours(stack.pop())) {
+                if (!label.has(cell)) {
+                    label.set(cell, l);
+                    stack.push(cell);
+                }
+            }
+        }
+        return l;
+    };
+    return {
+        same: (a: Vec3Like, b: Vec3Like) => {
+            const ca = snapCell(grid, a), cb = snapCell(grid, b);
+            return ca !== null && cb !== null && of(ca) === of(cb);
+        }
+    };
+};
+
 // Route between the grid cells of from and to (snapped to the nearest graph
 // cell within SNAP_VOXELS when outside the graph). Points are cell centres
 // from the start cell to the goal cell; length is in world units.
@@ -138,5 +171,5 @@ const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like): Route | null =>
     return { points, length, fromSnapped: fromCell === null, toSnapped: toCell === null };
 };
 
-export { findRoute };
+export { components, findRoute };
 export type { Route };

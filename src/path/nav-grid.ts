@@ -46,30 +46,44 @@ const CLEAR_YES = 1 << 2, CLEAR_NO = 2 << 2, CLEAR_MASK = 3 << 2;
 const FACTOR_SHIFT = 4, FACTOR_MASK = 15 << FACTOR_SHIFT;
 const WALK = 1 << 8;
 const DIST_SHIFT = 9, DIST_MASK = 15 << DIST_SHIFT;
+const DIP = 1 << 13;
+
+// head clearance in voxels of the surfaces walk cells stand on (Suggest
+// Views levels need more)
+const NAV_HEAD_VOXELS = 3;
+// extra cost of a step into a dip walk cell (one voxel lower, under a lintel)
+const DIP_COST = 2;
 
 const BLOCKED = 0;
 
-type Step = { dx: number, dy: number, dz: number, length: number, block: number };
+type Step = { dx: number, dy: number, dz: number, length: number, block: number, walkBlock: number };
 
 const stepIndex = (dx: number, dy: number, dz: number) => (dx + 1) + 3 * (dy + 1) + 9 * (dz + 1);
 
 // The 26 unit steps by stepIndex (the centre is empty). block has the
 // passMask bits of every node of the step's 2x2x2 block except the start:
 // all must be unoccupied so the straight segment stays out of occupied voxels.
+// A segment between nodes one row apart runs through the lower row only (a
+// node owns the voxel above it), so walkBlock has the block's nodes in the
+// lower row plus the target.
 const STEPS: Step[] = [];
 for (let dz = -1; dz <= 1; dz++) {
     for (let dy = -1; dy <= 1; dy++) {
         for (let dx = -1; dx <= 1; dx++) {
             if (dx === 0 && dy === 0 && dz === 0) continue;
-            let block = 0;
+            let block = 0, walkBlock = 1 << stepIndex(dx, dy, dz);
+            const low = Math.min(0, dy);
             for (let sz = 0; sz <= Math.abs(dz); sz++) {
                 for (let sy = 0; sy <= Math.abs(dy); sy++) {
                     for (let sx = 0; sx <= Math.abs(dx); sx++) {
-                        if (sx + sy + sz > 0) block |= 1 << stepIndex(sx * dx, sy * dy, sz * dz);
+                        if (sx + sy + sz === 0) continue;
+                        const bit = 1 << stepIndex(sx * dx, sy * dy, sz * dz);
+                        block |= bit;
+                        if (sy * dy === low) walkBlock |= bit;
                     }
                 }
             }
-            STEPS[stepIndex(dx, dy, dz)] = { dx, dy, dz, length: Math.sqrt(dx * dx + dy * dy + dz * dz), block };
+            STEPS[stepIndex(dx, dy, dz)] = { dx, dy, dz, length: Math.sqrt(dx * dx + dy * dy + dz * dz), block, walkBlock };
         }
     }
 }
@@ -89,11 +103,13 @@ const latticeBounds = (box: Box, v: number): Bounds => {
     return { x0, y0, z0, nx: Math.max(0, x1 - x0 + 1), ny: Math.max(0, y1 - y0 + 1), nz: Math.max(0, z1 - z0 + 1) };
 };
 
-// A node is passable when its own voxel is unoccupied. Walk cells: nodes eye
-// height above level surface voxels whose voxels one below and one above
-// are unoccupied too (vertical headroom), connected horizontally (8
-// neighbours, |dy| <= 1, diagonals only between walk orthogonals), so doors
-// route. Fly cells (allowFlying): nodes in the box with 1-voxel clearance
+// A node is passable when its own voxel is unoccupied. Walk cells stand on
+// level surface voxels (levels found with NAV_HEAD_VOXELS): eye height above
+// the surface when the voxels from the second row above it up to that node
+// are unoccupied, else one voxel lower (a dip, e.g. under a door lintel)
+// when those up to the lower node are; connected horizontally (8
+// neighbours, |dy| <= 1, diagonals only between walk orthogonals, walkBlock),
+// so doors route. Fly cells (allowFlying): nodes in the box with 1-voxel clearance
 // (occ.isFree), within NEAR_VOXELS of an occupied voxel and at least eye
 // height above the occupied voxel below them; 26 neighbours, cost per step
 // scaled by height above walking. Every step adds the proximity cost of the
@@ -177,15 +193,18 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
     };
 
     const stepCost = (step: Step, factor: number, ix: number, iy: number, iz: number) => {
-        return factor * step.length + proximity(ix, iy, iz);
+        return factor * step.length + proximity(ix, iy, iz) + ((get(ix, iy, iz) & DIP) ? DIP_COST : 0);
     };
 
     const walkSets = new Map<number, Set<number>>();
     for (const level of levels) {
         for (const [ix, iy, iz] of level.cells) {
-            const cy = iy + 1 + eyeVoxels;
-            if (inBox(ix, cy, iz) && passable(ix, cy - 1, iz) && passable(ix, cy, iz) && passable(ix, cy + 1, iz)) {
-                set(ix, cy, iz, get(ix, cy, iz) | WALK | (2 << FACTOR_SHIFT));
+            // free rows iy + 2 .. top
+            let top = iy + 1;
+            while (top < iy + 1 + eyeVoxels && passable(ix, top + 1, iz)) top++;
+            const cy = top === iy + 1 + eyeVoxels ? top : iy + eyeVoxels;
+            if (top >= iy + eyeVoxels && inBox(ix, cy, iz)) {
+                set(ix, cy, iz, get(ix, cy, iz) | WALK | (2 << FACTOR_SHIFT) | (cy < iy + 1 + eyeVoxels ? DIP : 0));
                 addTo(walkSets, column(ix, iz), [cy]);
             }
         }
@@ -291,7 +310,7 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
                 const ny = walkNear(ix + dx, iy, iz + dz);
                 if (ny === null) continue;
                 const step = STEPS[stepIndex(dx, ny - iy, dz)];
-                if ((mask & step.block) === step.block) {
+                if ((mask & step.walkBlock) === step.walkBlock) {
                     out.push({ cell: pack(ix + dx, ny, iz + dz), cost: stepCost(step, 1, ix + dx, ny, iz + dz) });
                 }
             }
@@ -340,5 +359,5 @@ const buildNavGrid = (occ: Occupancy, levels: Level[], box: Box, eyeHeight: numb
     return { voxel: v, cellOf, nearestFree, centre, neighbours, lineFree, pointFree };
 };
 
-export { buildNavGrid };
+export { buildNavGrid, NAV_HEAD_VOXELS };
 export type { Cell, NavGrid, Neighbour };

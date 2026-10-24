@@ -8,7 +8,7 @@ import { findLevels } from './.build/src/candidates/levels.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
 import { checkCurve } from './.build/src/path/curve-check.js';
 import { detourPoses, planDetours, simplifyRoute } from './.build/src/path/detours.js';
-import { buildNavGrid } from './.build/src/path/nav-grid.js';
+import { buildNavGrid, NAV_HEAD_VOXELS } from './.build/src/path/nav-grid.js';
 import { orderKeys } from './.build/src/path/order.js';
 import { findRoute } from './.build/src/path/route.js';
 import { setup } from './camera-track.mjs';
@@ -68,7 +68,7 @@ const navOf = (parts, { box = BIG_BOX, allowFlying = true } = {}) => {
         if (insideBox(flat[i], flat[i + 1], flat[i + 2], box)) inBox.push(flat[i], flat[i + 1], flat[i + 2]);
     }
     const occ = buildOccupancy(new Float32Array(inBox), V);
-    const levels = findLevels(occ, Math.ceil(1.25 * 4), 8 * (EYE / 1.6) ** 2);
+    const levels = findLevels(occ, NAV_HEAD_VOXELS, 8 * (EYE / 1.6) ** 2);
     return { occ, grid: buildNavGrid(occ, levels, box, EYE, allowFlying) };
 };
 

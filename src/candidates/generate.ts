@@ -41,11 +41,12 @@ const pointsInBox = (points: Float32Array, box: Box) => {
 };
 
 // Occupancy of the points inside the box at eyeHeight / VOXELS_PER_EYE and
-// the standable levels in it, shared by Suggest Views and Fix path.
-const buildSceneGrid = (points: Float32Array, box: Box, eyeHeight: number): { occ: Occupancy, levels: Level[] } => {
+// the levels in it whose surfaces have headVoxels free voxels above, shared
+// by Suggest Views and Fix path.
+const buildSceneGrid = (points: Float32Array, box: Box, eyeHeight: number, headVoxels = HEAD_VOXELS): { occ: Occupancy, levels: Level[] } => {
     const occ = buildOccupancy(pointsInBox(points, box), eyeHeight / VOXELS_PER_EYE);
     const minArea = 8 * (eyeHeight / 1.6) ** 2;
-    return { occ, levels: findLevels(occ, HEAD_VOXELS, minArea) };
+    return { occ, levels: findLevels(occ, headVoxels, minArea) };
 };
 
 // Finds levels in the points inside the box, samples candidate views, drops

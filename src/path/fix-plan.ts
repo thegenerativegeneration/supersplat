@@ -1,7 +1,7 @@
 import { planDetours } from './detours';
 import type { NavGrid } from './nav-grid';
 import { orderKeys } from './order';
-import { findRoute, type Route } from './route';
+import { components, findRoute, type Route } from './route';
 import { balanceTiming, type BalanceInput, type BalanceResult } from '../anim/balance-timing';
 import type { CurvePose } from '../anim/camera-curve';
 import type { Vec3Like } from '../candidates/occupancy';
@@ -18,6 +18,8 @@ type FixPlanInput = {
     eyeHeight: number,
     keepOrder: boolean,
     timeline: Omit<BalanceInput, 'keys'>,
+    // defaults to findRoute, with pairs in different graph components
+    // rejected up front
     route?: RouteFn
 };
 
@@ -30,7 +32,9 @@ type FixPlan = {
     unreachable: string[],
     insideGeometry: string[],
     // the timing of the final poses; on failure they are evenly spaced
-    balance: BalanceResult
+    balance: BalanceResult,
+    // milliseconds spent routing and planning detours
+    times: { routes: number, detours: number }
 };
 
 // n strictly ascending frames spread evenly over the timeline
@@ -41,13 +45,18 @@ const evenFrames = (n: number, frames: number, loop: boolean) => {
 };
 
 // symmetric route lookup between keys i and j, routed once per pair
-const routeCache = (keys: FixKey[], grid: NavGrid, route: RouteFn) => {
+const routeCache = (keys: FixKey[], grid: NavGrid, route: RouteFn | undefined) => {
+    const connected = route ? null : components(grid);
+    const find = route ?? findRoute;
     const cache = new Map<number, Route | null>();
     const n = keys.length;
     const get = (i: number, j: number) => {
         const a = Math.min(i, j), b = Math.max(i, j);
         const k = a * n + b;
-        if (!cache.has(k)) cache.set(k, route(grid, keys[a].position, keys[b].position));
+        if (!cache.has(k)) {
+            const pa = keys[a].position, pb = keys[b].position;
+            cache.set(k, !connected || connected.same(pa, pb) ? find(grid, pa, pb) : null);
+        }
         return cache.get(k);
     };
     return {
@@ -84,7 +93,8 @@ const distanceMatrix = (n: number, length: (i: number, j: number) => number, kee
 // time by their target distance.
 const planFixPath = (input: FixPlanInput): FixPlan => {
     const { keys, grid, eyeHeight, keepOrder, timeline } = input;
-    const routes = routeCache(keys, grid, input.route ?? findRoute);
+    const start = performance.now();
+    const routes = routeCache(keys, grid, input.route);
     const n = keys.length;
     const { order, unreachable } = orderKeys(distanceMatrix(n, routes.length, keepOrder), { loop: timeline.loop, keepOrder });
     const cut = new Set(unreachable);
@@ -109,6 +119,7 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
     };
 
     const ordered = order.map(i => keys[i]);
+    const routed = performance.now();
     const plan = planDetours({
         keys: ordered,
         routes: segmentRoutes,
@@ -126,7 +137,8 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
         blocked: plan.blocked.map(s => frameOf.get(ordered[s])),
         unreachable: unreachable.map(i => keys[i].name),
         insideGeometry: keys.filter(k => !grid.pointFree(k.position)).map(k => k.name),
-        balance
+        balance,
+        times: { routes: routed - start, detours: performance.now() - routed }
     };
 };
 

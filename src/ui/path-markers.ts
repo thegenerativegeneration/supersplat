@@ -5,8 +5,8 @@ import { blockedBands, keyStyles, type KeyInfo, type MarkerSet } from '../path/m
 const NO_MARKERS: MarkerSet = { blocked: [], unreachable: [], insideGeometry: [] };
 
 // Fix path marks on the timeline: detour keys in their own colour, blocked
-// segments as red bands, unreachable and parked keys ringed in red. Keeps the markers of
-// the last run; the timeline redraws on path.markers.
+// segments as red bands, unreachable and parked keys ringed in red. Keeps the
+// markers of the last run; the timeline redraws on path.markers.
 class TimelinePathMarkers {
     private markers = NO_MARKERS;
 

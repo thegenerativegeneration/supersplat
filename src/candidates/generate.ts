@@ -1,5 +1,5 @@
 import { insideBox, type Box } from './estimate';
-import { EXTENT_STRIDE, type SplatExtents } from './extent';
+import { EXTENT_STRIDE, MAX_RADIUS, type SplatExtents } from './extent';
 import { findLevels, type Level } from './levels';
 import { buildOccupancy, type Occupancy } from './occupancy';
 import { mulberry32, sampleCandidates, shuffle, type Candidate } from './sample';
@@ -27,26 +27,44 @@ const VOXELS_PER_EYE = 4;
 // a level needs 1.25 eye heights of free space above it, in whole voxels
 const HEAD_VOXELS = Math.ceil(1.25 * VOXELS_PER_EYE);
 
-// the points with centres inside the box, and their extents if given
-const pointsInBox = (points: Float32Array, box: Box, extents?: SplatExtents) => {
+// the points with centres inside the box, plus the extents (with their
+// centres) of splats centred inside the box grown by MAX_RADIUS, since a
+// large splat just outside a face still reaches into the box
+const pointsInBox = (points: Float32Array, box: Box, extents?: SplatExtents): {
+    points: Float32Array, extentPoints?: Float32Array, extents?: SplatExtents
+} => {
     const out = new Float32Array(points.length);
-    const outExtents = extents && new Float32Array(extents.length);
     let n = 0;
     for (let i = 0; i + 2 < points.length; i += 3) {
-        const x = points[i], y = points[i + 1], z = points[i + 2];
-        if (insideBox(x, y, z, box)) {
-            if (outExtents) {
-                const from = (i / 3) * EXTENT_STRIDE;
-                outExtents.set(extents.subarray(from, from + EXTENT_STRIDE), (n / 3) * EXTENT_STRIDE);
-            }
-            out[n++] = x;
-            out[n++] = y;
-            out[n++] = z;
+        if (insideBox(points[i], points[i + 1], points[i + 2], box)) {
+            out[n++] = points[i];
+            out[n++] = points[i + 1];
+            out[n++] = points[i + 2];
+        }
+    }
+    const inside = out.subarray(0, n);
+    if (!extents) return { points: inside };
+
+    const grown = {
+        min: { x: box.min.x - MAX_RADIUS, y: box.min.y - MAX_RADIUS, z: box.min.z - MAX_RADIUS },
+        max: { x: box.max.x + MAX_RADIUS, y: box.max.y + MAX_RADIUS, z: box.max.z + MAX_RADIUS }
+    };
+    const outPoints = new Float32Array(points.length);
+    const outExtents = new Float32Array(extents.length);
+    let m = 0;
+    for (let i = 0; i + 2 < points.length; i += 3) {
+        if (insideBox(points[i], points[i + 1], points[i + 2], grown)) {
+            const from = (i / 3) * EXTENT_STRIDE;
+            outExtents.set(extents.subarray(from, from + EXTENT_STRIDE), (m / 3) * EXTENT_STRIDE);
+            outPoints[m++] = points[i];
+            outPoints[m++] = points[i + 1];
+            outPoints[m++] = points[i + 2];
         }
     }
     return {
-        points: out.subarray(0, n),
-        extents: outExtents?.subarray(0, (n / 3) * EXTENT_STRIDE)
+        points: inside,
+        extentPoints: outPoints.subarray(0, m),
+        extents: outExtents.subarray(0, (m / 3) * EXTENT_STRIDE)
     };
 };
 
@@ -61,7 +79,7 @@ const buildSceneGrid = (
     extents?: SplatExtents
 ): { occ: Occupancy, levels: Level[] } => {
     const inBox = pointsInBox(points, box, extents);
-    const occ = buildOccupancy(inBox.points, eyeHeight / VOXELS_PER_EYE, 2, inBox.extents);
+    const occ = buildOccupancy(inBox.points, eyeHeight / VOXELS_PER_EYE, 2, inBox.extents, inBox.extentPoints);
     const minArea = 8 * (eyeHeight / 1.6) ** 2;
     return { occ, levels: findLevels(occ, headVoxels, minArea) };
 };

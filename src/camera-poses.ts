@@ -208,8 +208,8 @@ class CameraAnimTrack implements AnimTrack {
 
     /**
      * Append new poses and assign frames to all keys in one step. frames
-     * covers the existing poses ordered by frame, then the new poses; each
-     * key needs a frame of its own.
+     * covers the existing poses ordered by frame, then the new poses. Frames
+     * must be unique but need not be ascending.
      */
     appendPoses(added: { position: Vec3, target: Vec3, fov: number }[], frames: number[]): boolean {
         if (frames.length !== this.poses.length + added.length) return false;

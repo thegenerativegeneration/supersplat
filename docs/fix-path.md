@@ -56,7 +56,7 @@ Click outside the box or press Escape to close it.
 - Detour keys have a light blue colour. Your keys keep theirs.
 - A red band marks a blocked segment, from the key through its detour keys to your next key.
 - A red ring marks a key that could not be reached. Parked keys sit at the right edge of the timeline.
-- The marks vanish after the next edit of keys, **Smoothness**, loop or **Total Frames**, and are replaced by the next run.
+- Detour colours and red bands vanish after the next edit of keys, **Smoothness**, loop or **Total Frames**, and are replaced by the next run. Red rings on parked keys stay until a run reaches them.
 
 ## 3D view
 

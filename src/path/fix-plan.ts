@@ -84,6 +84,7 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
     const start = performance.now();
     const positions = keys.map(k => k.position);
     const routes = input.route ? pairRoutes(grid, positions, input.route) : keyRoutes(grid, positions);
+    // mainGroup assumes symmetric edges: keys reach each other when routes run both ways
     const main = mainGroup(keys.length, routes.length);
     const tour = orderKeys(distanceMatrix(main, routes.length, keepOrder), { loop: timeline.loop, keepOrder }).order.map(a => main[a]);
     const inMain = new Set(main);

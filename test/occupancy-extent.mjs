@@ -99,6 +99,32 @@ const occupancyExtentChecks = {
         assert.ok(route(doorScene(false), box, false), 'centre rule leaks through the big splats');
     },
 
+    'occupancy: large splats whose ellipsoids end exactly at the door edges still route'() {
+        // splats centred at z 4.4 / 6.3 reach exactly z 5.0 / 5.9 (door edges)
+        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 6, z: 11 } };
+        const big = lattice([0.5, 1.5, 2.5], [0.8, 2.0, 3.2, 4.4, 6.5, 7.7, 8.9, 10.1], 0.71, 0.6);
+        const band = sheet(0, 2.8, 3.4, 7.4, (y, z) => [10.2, y, z], (y, z) => z >= 5 && z < 5.9 && y < 2.0);
+        const scene = cloud(big, [...floor(), ...sheet(0, 20, 0, 10, (x, z) => [x, 2.8, z]), ...band]);
+        assert.ok(route(scene, box), 'routes through the door');
+    },
+
+    'occupancy: large splats centred just outside the box still block inside it'() {
+        // x = 10 is the box face; wall of big splats centred 0.5 m outside reaches 0.5 m in
+        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 10, y: 6, z: 11 } };
+        const wall = [];
+        for (const y of [0.5, 1.5, 2.5]) {
+            for (const z of steps(0.45, 9.45, 0.9)) wall.push([10.5, y, z, 1, 0.71, 0.64]);
+        }
+        const scene = cloud(wall, [...floor(), ...sheet(0, 20, 0, 10, (x, z) => [x, 2.8, z])]);
+        const to = { x: 9.7, y: 2, z: 4.95 };
+        const { occ, levels } = buildSceneGrid(scene.points, box, EYE, NAV_HEAD_VOXELS, scene.extents);
+        assert.equal(occ.isFree(to, 0), false, 'extent reaches into the box');
+        const reach = (g) => Math.max(...findRoute(buildNavGrid(g.occ, g.levels, box, EYE, true), FROM, to).points.map(p => p.x));
+        const bare = buildSceneGrid(scene.points, box, EYE, NAV_HEAD_VOXELS);
+        assert.ok(reach(bare) > 9.7, 'centre rule reaches the face');
+        assert.ok(reach({ occ, levels }) < 9.6, 'the wall keeps the route off the face');
+    },
+
     'occupancy: a huge floater marks at most a 1 m radius'() {
         const { points, extents } = cloud([[0.1, 0.1, 0.1, 3, 3, 3]], []);
         const occ = buildOccupancy(points, V, 2, extents);

@@ -16,6 +16,7 @@ import { balanceTimingChecks } from './balance-timing.mjs';
 import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
+import { densityChecks } from './density.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
 import { fixPathEventsChecks } from './fix-path-events.mjs';
@@ -79,6 +80,7 @@ const checks = {
     ...candidatesChecks,
     ...candidatesPanelChecks,
     ...cameraTrackChecks,
+    ...densityChecks,
     ...editorCommandChecks,
     ...fixPathChecks,
     ...fixPathEventsChecks,

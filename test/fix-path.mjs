@@ -7,6 +7,7 @@ import { insideBox } from './.build/src/candidates/estimate.js';
 import { findLevels } from './.build/src/candidates/levels.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
 import { buildNavGrid } from './.build/src/path/nav-grid.js';
+import { orderKeys } from './.build/src/path/order.js';
 import { findRoute } from './.build/src/path/route.js';
 import { setup } from './camera-track.mjs';
 
@@ -20,6 +21,13 @@ const pathPose = (name, frame, x, auto) => ({
 });
 
 const autoFlags = events => events.invoke('camera.poses').map(p => !!p.auto);
+
+const distOf = pts => pts.map(a => pts.map(b => Math.hypot(a[0] - b[0], a[1] - b[1])));
+const tourLength = (d, order, loop) => {
+    let sum = 0;
+    for (let i = 1; i < order.length; i++) sum += d[order[i - 1]][order[i]];
+    return loop ? sum + d[order[order.length - 1]][order[0]] : sum;
+};
 
 const EYE = 1.6;
 const V = EYE / 4;
@@ -254,6 +262,52 @@ const fixPathChecks = {
         assert.deepEqual([...events.invoke('track.keys')], [0, 30, 60]);
         assert.deepEqual(names(), ['camera_0', 'camera_1', 'camera_2']);
         assert.deepEqual(events.invoke('camera.keyLingers'), [{ frame: 30, linger: 1.5 }]);
+    },
+
+    async 'path: order is the shortest open tour from the first key'() {
+        const xs = [0, 30, 10, 40, 20];
+        const { order, unreachable } = orderKeys(distOf(xs.map(x => [x, 0])), { loop: false, keepOrder: false });
+        assert.deepEqual(order, [0, 2, 4, 1, 3]);
+        assert.deepEqual(unreachable, []);
+    },
+
+    async 'path: loop order minimises the closed tour'() {
+        const pts = [[0, 0], [1, 1], [1, 0], [0, 1]];
+        const { order } = orderKeys(distOf(pts), { loop: true, keepOrder: false });
+        assert.equal(order[0], 0);
+        assert.equal(tourLength(distOf(pts), order, true), 4);
+    },
+
+    async 'path: unreachable keys go to the end'() {
+        const d = distOf([[0, 0], [5, 0], [1, 0], [3, 0]]);
+        for (let i = 0; i < 4; i++) {
+            if (i !== 2) d[i][2] = d[2][i] = Infinity;
+        }
+        const { order, unreachable } = orderKeys(d, { loop: false, keepOrder: false });
+        assert.deepEqual(order, [0, 3, 1, 2]);
+        assert.deepEqual(unreachable, [2]);
+    },
+
+    async 'path: keep my order keeps the order'() {
+        const d = distOf([[0, 0], [5, 0], [1, 0], [3, 0]]);
+        d[0][3] = d[3][0] = Infinity;
+        const { order, unreachable } = orderKeys(d, { loop: false, keepOrder: true });
+        assert.deepEqual(order, [0, 1, 2, 3]);
+        assert.deepEqual(unreachable, [3]);
+    },
+
+    async 'path: large sets use the heuristic'() {
+        const n = 20;
+        const pts = Array.from({ length: n }, (_, i) => {
+            const a = (i * 7 % n) / n * 2 * Math.PI;
+            return [Math.cos(a), Math.sin(a)];
+        });
+        const d = distOf(pts);
+        const { order } = orderKeys(d, { loop: true, keepOrder: false });
+        assert.equal(order.length, n);
+        assert.equal(new Set(order).size, n);
+        assert.equal(order[0], 0);
+        assert.ok(tourLength(d, order, true) < 2 * Math.PI * 1.05);
     }
 };
 

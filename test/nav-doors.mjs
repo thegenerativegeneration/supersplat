@@ -219,4 +219,4 @@ const navDoorsChecks = {
     }
 };
 
-export { navDoorsChecks };
+export { bandRoom, navDoorsChecks };

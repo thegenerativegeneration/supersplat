@@ -8,6 +8,7 @@ import { Events } from './.build/src/events.js';
 import { registerFixPathEvents } from './.build/src/fix-path-events.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
+import { bandRoom } from './nav-doors.mjs';
 
 const V = 0.4;
 
@@ -364,6 +365,27 @@ const fixPathEventsChecks = {
         assert.equal(openingAt(3.2), 0.8);
         events.function('candidates.lastSettings', () => ({ box: null, eyeHeight: 3.2 }));
         assert.equal(opening(), 0.8);
+    },
+
+    async 'path: the smallest opening reaches the scene grid at the eye height in use'() {
+        // the band room of nav-doors at twice the size: a 1.6 high band, eye height 3.2
+        const at = (x, z) => ({ position: new Vec3(x, 4, z), target: new Vec3(x, 4, z - 1), fov: 60 });
+        const { events } = setup([{ name: 'a', frame: 0, ...at(6, 10.8) }, { name: 'b', frame: 30, ...at(34, 10.8) }], { deps: {} });
+        const points = bandRoom(1.6, 2.4).map(v => v * 2);
+        const box = { min: { x: -2, y: -2, z: -2 }, max: { x: 42, y: 12, z: 22 } };
+        events.function('candidates.cloud', async () => ({ points }));
+        events.function('candidates.lastSettings', () => ({ box, eyeHeight: 3.2 }));
+        const opening = () => events.invoke('path.settings').smallestOpening;
+        assert.equal(opening(), 1.6, 'default at eye height 3.2');
+        events.fire('path.setSettings', { smallestOpening: 0.1 });
+        assert.equal(opening(), 0.8, 'clamped at eye height 3.2');
+
+        events.fire('path.setSettings', { smallestOpening: 2.4 });
+        assert.deepEqual((await events.invoke('path.fix', FIX)).unreachable, ['b'], 'band too low');
+        events.fire('path.setSettings', { smallestOpening: 1.6 });
+        const result = await events.invoke('path.fix', FIX);
+        assert.equal(result.ok, true);
+        assert.deepEqual(result.unreachable, [], 'band passes');
     },
 
     async 'path: a cleared scene drops the opening and the eye height estimate'() {

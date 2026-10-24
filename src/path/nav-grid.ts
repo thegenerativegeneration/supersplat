@@ -22,7 +22,8 @@ type NavGrid = {
     neighbours(c: Cell): Neighbour[],
     lineFree(a: Vec3Like, b: Vec3Like): boolean,
     pointFree(p: Vec3Like): boolean,
-    // distance to the nearest occupied voxel, Infinity beyond one voxel
+    // distance to the nearest occupied voxel, exact up to one voxel, Infinity
+    // when the 3x3x3 neighbourhood is empty
     clearance(p: Vec3Like): number,
     // p lies between occupied space on opposite sides, as in a door
     inPassage(p: Vec3Like): boolean,
@@ -397,6 +398,7 @@ const buildNavGrid = (
         return !occ.occupied(Math.floor(p.x / v), Math.floor(p.y / v + LIFT), Math.floor(p.z / v));
     };
 
+    // no LIFT: a point on a voxel face is 0 from both voxels, so the distance needs no tie-break
     const clearance = (p: Vec3Like) => pointClearance((x, y, z) => occ.occupied(x, y, z), v, p);
     const passage = (p: Vec3Like) => inPassage((x, y, z) => occ.occupied(x, y, z), v, p);
 

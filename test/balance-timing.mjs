@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import { balanceTiming } from './.build/src/anim/balance-timing.js';
 import { loopModeMatchesTimeline } from './.build/src/anim/loop-mode.js';
+import { CubicSpline } from './.build/src/anim/spline.js';
 
 const key = (px, py, pz, tx, ty, tz, { fov = 60, linger = 0, distance = 1 } = {}) => ({
     position: { x: px, y: py, z: pz },
@@ -36,6 +37,50 @@ const strictlyIncreasing = (frames) => {
         assert.ok(frames[i] > frames[i - 1], `not increasing: ${frames}`);
     }
 };
+
+// a key at the origin-relative position looking along the given yaw (0 = -z, 90 = +x)
+const yawKey = (x, z, yawDeg) => {
+    const a = yawDeg * Math.PI / 180;
+    return key(x, 0, z, x + Math.sin(a), 0, z - Math.cos(a));
+};
+
+// peak view turn rate in deg/s of each segment, sampled independently of balanceTiming
+const segmentTurnPeaks = (keys, frames, { frames: total, frameRate, smoothness, loop }) => {
+    const points = keys.flatMap(k => [k.position.x, k.position.y, k.position.z, k.target.x, k.target.y, k.target.z, k.fov]);
+    const spline = loop ?
+        CubicSpline.fromPointsLooping(total, frames, points, smoothness) :
+        CubicSpline.fromPoints(frames, points, smoothness);
+    const bounds = loop ? [...frames, total] : frames;
+    const samples = 200;
+    const dir = (p) => {
+        const v = [p[3] - p[0], p[4] - p[1], p[5] - p[2]];
+        const l = Math.hypot(...v);
+        return v.map(c => c / l);
+    };
+    const peaks = [];
+    for (let s = 0; s + 1 < bounds.length; s++) {
+        const t0 = bounds[s];
+        const t1 = bounds[s + 1];
+        const dt = (t1 - t0) / samples / frameRate;
+        let prev = [];
+        spline.evaluate(t0, prev);
+        let peak = 0;
+        for (let i = 1; i <= samples; i++) {
+            const cur = [];
+            spline.evaluate(t0 + (t1 - t0) * i / samples, cur);
+            const a = dir(prev);
+            const b = dir(cur);
+            const dot = Math.min(1, Math.max(-1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+            peak = Math.max(peak, Math.acos(dot) * 180 / Math.PI / dt);
+            prev = cur;
+        }
+        peaks.push(peak);
+    }
+    return peaks;
+};
+
+// a 180 degree view turn over two short moves, then a long straight move
+const turnKeys = () => [yawKey(0, 0, 0), yawKey(1, 0, 90), yawKey(2, 0, 180), yawKey(12, 0, 180)];
 
 const balanceTimingChecks = {
     async 'balance: straight evenly spaced path is uniform'() {
@@ -162,6 +207,53 @@ const balanceTimingChecks = {
         assert.deepEqual(a, b);
         assert.equal(a.ok, true);
         strictlyIncreasing(a.frames);
+    },
+
+    async 'balance: turn cap is met when the shot is long enough'() {
+        const settings = { frames: 600, frameRate: 30, smoothness: 1, loop: false };
+        const keys = turnKeys();
+        const result = run(keys, { ...settings, maxTurnDegPerSec: 20 });
+        assert.equal(result.ok, true);
+        assert.equal(result.turnLimited, undefined);
+        const peak = Math.max(...segmentTurnPeaks(keys, result.frames, settings));
+        assert.ok(peak <= 20 * 1.05, `peak ${peak}`);
+        assert.ok(result.stats.peakTurnDegPerSec <= 20 * 1.05, `stats peak ${result.stats.peakTurnDegPerSec}`);
+    },
+
+    async 'balance: turn cap relaxes and reports the peak when the shot is too short'() {
+        const result = run(turnKeys(), { frames: 30, maxTurnDegPerSec: 20 });
+        assert.equal(result.ok, true);
+        strictlyIncreasing(result.frames);
+        assert.ok(result.turnLimited > 20, `turnLimited ${result.turnLimited}`);
+        assert.equal(result.turnLimited, result.stats.peakTurnDegPerSec);
+    },
+
+    async 'balance: turn cap applies to the closing segment of a loop'() {
+        // the view turns 30 degrees per segment and swings 90 degrees back on the closing segment
+        const keys = [yawKey(0, 0, 0), yawKey(4, 0, 30), yawKey(4, 4, 60), yawKey(0, 4, 90)];
+        const settings = { frames: 600, frameRate: 30, smoothness: 1, loop: true };
+        const result = run(keys, { ...settings, maxTurnDegPerSec: 20 });
+        assert.equal(result.ok, true);
+        assert.equal(result.turnLimited, undefined);
+        const peaks = segmentTurnPeaks(keys, result.frames, settings);
+        assert.equal(peaks.length, 4);
+        assert.ok(peaks[3] <= 21, `closing peak ${peaks[3]}: ${peaks}`);
+    },
+
+    async 'balance: no turn cap leaves turnLimited unset'() {
+        const result = run(turnKeys(), { frames: 30 });
+        assert.equal(result.ok, true);
+        assert.equal(result.turnLimited, undefined);
+    },
+
+    async 'balance: stats of a straight move'() {
+        const result = run([at(0), at(10)], { frames: 301 });
+        assert.equal(result.ok, true);
+        const { pathLength, avgSpeed, peakSpeed, peakTurnDegPerSec } = result.stats;
+        assert.ok(Math.abs(pathLength - 10) <= 0.1, `pathLength ${pathLength}`);
+        assert.ok(Math.abs(avgSpeed - 1) <= 0.01, `avgSpeed ${avgSpeed}`);
+        assert.ok(peakSpeed >= avgSpeed, `peakSpeed ${peakSpeed}`);
+        assert.equal(peakTurnDegPerSec, 0);
     },
 
     async 'loop: mode matching'() {

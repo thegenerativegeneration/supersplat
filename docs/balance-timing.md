@@ -12,7 +12,9 @@ Balance spreads your camera keys in time so the camera moves at an even speed th
 - With loop off, Balance always puts the first key at frame 0 and the last key at the final frame. A pre-roll or post-roll you set by hand is replaced; use linger on the end keys instead.
 - Keys beyond **Total Frames** are pulled back into range. Keys parked by [Fix Path](fix-path.md#parked-keys) stay where they are.
 - One Ctrl+Z undoes the whole Balance.
-- Balance keeps the view from turning faster than 20°/s and then shows the average and peak speed and the fastest turn. If Total Frames is too low for that, a box says so; increase Total Frames. [Fix Path](fix-path.md) does the same.
+- Turn cap (on by default): the view turns at most 20°/s where Total Frames allows. [Fix Path](fix-path.md) does the same.
+- Speed readout after a run: "Speed: avg … , peak … , fastest turn …°/s".
+- Warning when Total Frames is too low for the cap: "Too few frames to keep turns below 20°/s; fastest turn …°/s. Increase Total Frames for a calmer shot." The shot is still balanced.
 - Balance counts moving, turning, zoom and closeness to the scene. Close passes get more time.
 
 ## Rotation weight

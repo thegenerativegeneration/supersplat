@@ -15,9 +15,11 @@ Suggest Views looks at your scene and proposes camera views. No photos needed. Y
    - **Reset** goes back to the proposed box.
 3. Check **Eye height**. It is estimated from the scene (camera height above the floor, in scene units). Type a new value if it looks wrong.
    - **Preview** shows the view from eye height at the centre of the area. Click it again to go back to your view.
-4. Optional: tick **Align views to walls (new)** to point views along and across the walls instead of fixed compass directions. Rooms without clear walls keep the fixed directions.
-5. Optional: tick **Prefer open views (new)** to rank views that see more of the space higher.
-6. Click **Generate**.
+4. Optional, all off by default and being compared with the standard behaviour:
+   - **Align views to walls (new)**: points views along and across the walls instead of fixed compass directions. Rooms without clear walls keep the fixed directions.
+   - **Prefer open views (new)**: ranks views that see more of the space higher.
+   - **Density solid space (new)**: decides what is solid the way the published viewer's walk collision does: faint splats add up and small floating clumps are ignored. Default off, being compared with the standard rule. Reads every splat, so it is slower on large scans. The setting is shared with [Fix Path](fix-path.md).
+5. Click **Generate**.
 
 ## While it generates
 
@@ -53,6 +55,8 @@ Suggest Views looks at your scene and proposes camera views. No photos needed. Y
 
 ## Limits
 
+- **Density solid space** reads every splat and is slower on large scans.
+- **Align views to walls** needs clear walls. Holes in the scan can still look like doors or openings.
 - Suggest Views does not check the camera path between keys for walls or floors. Use [Fix Path](fix-path.md) to route the camera around geometry, then play the shot to check.
 - Small or cramped areas can give few or no suggestions ("No usable views found in the area." or "No floor found in the area. Check the area box and the eye height.").
 - Suggestions are not saved in the project. They stay only in this browser session, until you generate again or reload. A changed scene needs a new setup.

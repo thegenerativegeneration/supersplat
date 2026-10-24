@@ -395,6 +395,16 @@ const fixPathEventsChecks = {
         assert.deepEqual(result.unreachable, [], 'band passes');
     },
 
+    async 'path: the result says whether the box of its grid looks metric'() {
+        for (const [size, metric] of [[10, true], [1, false]]) {
+            const box = { min: { x: -size, y: -size, z: -size }, max: { x: size, y: size, z: size } };
+            const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], {
+                deps: { sceneGrid: async () => ({ grid: fakeGrid, eyeHeight: 1.6, box }), route: fakeRoute }
+            });
+            assert.equal((await events.invoke('path.fix', FIX)).metric, metric, `box ${size}`);
+        }
+    },
+
     async 'path: a cleared scene drops the opening and the eye height estimate'() {
         const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], {
             deps: { sceneGrid: async () => ({ grid: fakeGrid, eyeHeight: 2 }), route: fakeRoute }

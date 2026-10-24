@@ -177,8 +177,8 @@ class FixPathControls extends Container {
             button.enabled = !busy && poses.filter(p => !p.auto).length >= MIN_KEYS;
         };
 
-        const showReport = async (result: Parameters<typeof fixReport>[0]) => {
-            const report = fixReport(result, sceneIsMetric(events));
+        const showReport = async (result: Parameters<typeof fixReport>[0] & { metric?: boolean }) => {
+            const report = fixReport(result, result.metric ?? sceneIsMetric(events));
             if (!report) return;
             const text = reportText(report.lines);
             if (report.type === 'status') {

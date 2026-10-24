@@ -28,7 +28,9 @@ type FixPathResult = {
     // frames of the keys that start a blocked segment
     blocked: number[],
     insideGeometry: string[],
-    balance?: BalanceResult
+    balance?: BalanceResult,
+    // the box of the grid looks like metres (false without a box)
+    metric?: boolean
 };
 
 type PathMarkers = { blocked: number[], unreachable: string[], insideGeometry: string[] };
@@ -215,7 +217,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
 
         // a lone key left in the shot needs no balancing
         if ('reason' in balance && balance.reason !== 'tooFewKeys') await showBalanceFailure(events, balance.reason);
-        return { ok: true, detours, unreachable, blocked, insideGeometry, balance };
+        return { ok: true, detours, unreachable, blocked, insideGeometry, balance, metric: box ? looksMetric(box) : false };
     });
 };
 

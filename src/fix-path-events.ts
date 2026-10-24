@@ -139,12 +139,12 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             return { ok: false, reason: 'rejected', ...empty };
         }
 
-        const { blocked, unreachable, insideGeometry, detours, balance, times } = plan;
+        const { blocked, unreachable, insideGeometry, detours, balance, times, graph } = plan;
         setMarkers({ blocked, unreachable, insideGeometry });
         const ms = (t: number) => t.toFixed(0);
         console.debug(`path.fix: ${keys.length} keys, ${detours} detours in ${ms(performance.now() - start)} ms ` +
             `(grid ${ms(gridMs)}, distances ${ms(sampleMs)}, routes ${ms(times.routes)}, detours ${ms(times.detours)}, ` +
-            `apply ${ms(performance.now() - applyStart)})`);
+            `apply ${ms(performance.now() - applyStart)})${graph ? `, graph ${graph.nodes} nodes, ${graph.edges} edges` : ''}`);
 
         if ('reason' in balance) await showBalanceFailure(events, balance.reason);
         return { ok: true, detours, unreachable, blocked, insideGeometry, balance };

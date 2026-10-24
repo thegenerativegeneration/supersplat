@@ -1,7 +1,8 @@
 import { planDetours } from './detours';
+import { keyRoutes, type KeyRoutes } from './key-graph';
 import type { NavGrid } from './nav-grid';
 import { orderKeys } from './order';
-import { components, findRoute, type Route } from './route';
+import type { Route } from './route';
 import { balanceTiming, type BalanceInput, type BalanceResult } from '../anim/balance-timing';
 import type { CurvePose } from '../anim/camera-curve';
 import type { Vec3Like } from '../candidates/occupancy';
@@ -9,7 +10,7 @@ import type { Vec3Like } from '../candidates/occupancy';
 // a user key; distance is the sampled scene distance (non-finite: unknown)
 type FixKey = CurvePose & { name: string, linger: number, distance: number };
 
-type RouteFn = (grid: NavGrid, from: Vec3Like, to: Vec3Like, weight?: number) => Route | null;
+type RouteFn = (grid: NavGrid, from: Vec3Like, to: Vec3Like) => Route | null;
 
 type FixPlanInput = {
     // user keys by frame; the first stays first
@@ -18,8 +19,7 @@ type FixPlanInput = {
     eyeHeight: number,
     keepOrder: boolean,
     timeline: Omit<BalanceInput, 'keys'>,
-    // defaults to findRoute, with pairs in different graph components
-    // rejected up front
+    // routes each pair on its own instead of keyRoutes (for checks)
     route?: RouteFn
 };
 
@@ -34,7 +34,9 @@ type FixPlan = {
     // the timing of the final poses; on failure they are evenly spaced
     balance: BalanceResult,
     // milliseconds spent routing and planning detours
-    times: { routes: number, detours: number }
+    times: { routes: number, detours: number },
+    // nodes and edges of the key components (keyRoutes only)
+    graph?: KeyRoutes['size']
 };
 
 // n strictly ascending frames spread evenly over the timeline
@@ -44,53 +46,37 @@ const evenFrames = (n: number, frames: number, loop: boolean) => {
     return Array.from({ length: n }, (_, i) => Math.round(i * span));
 };
 
-// weight of the A* heuristic for the ordering distances; routes taken by
-// the camera use plain A*
-const ORDER_WEIGHT = 2;
-
-// Symmetric route lookup between keys i and j, routed once per pair and
-// weight: length() estimates with weighted A* for ordering, points() is the
-// plain A* route.
-const routeCache = (keys: FixKey[], grid: NavGrid, route: RouteFn | undefined) => {
-    const connected = route ? null : components(grid);
-    const find = route ?? findRoute;
-    const caches = new Map<number, Map<number, Route | null>>();
-    const n = keys.length;
-    const get = (i: number, j: number, weight: number) => {
+// symmetric route lookup between keys i and j, routed once per pair
+const pairRoutes = (grid: NavGrid, positions: Vec3Like[], route: RouteFn): KeyRoutes => {
+    const cache = new Map<number, Route | null>();
+    const n = positions.length;
+    const get = (i: number, j: number) => {
         const a = Math.min(i, j), b = Math.max(i, j);
         const k = a * n + b;
-        if (!caches.has(weight)) caches.set(weight, new Map());
-        const cache = caches.get(weight);
-        if (!cache.has(k)) {
-            const pa = keys[a].position, pb = keys[b].position;
-            cache.set(k, !connected || connected.same(pa, pb) ? find(grid, pa, pb, weight) : null);
-        }
+        if (!cache.has(k)) cache.set(k, route(grid, positions[a], positions[b]));
         return cache.get(k);
     };
     return {
-        length: (i: number, j: number) => get(i, j, ORDER_WEIGHT)?.length ?? Infinity,
-        points: (i: number, j: number) => {
-            // the estimate's route when plain A* hits its expansion cap
-            const r = get(i, j, 1) ?? get(i, j, ORDER_WEIGHT);
+        length: (i, j) => get(i, j)?.length ?? Infinity,
+        points: (i, j) => {
+            const r = get(i, j);
             if (!r) return null;
             return i < j ? r.points : r.points.slice().reverse();
-        }
+        },
+        size: undefined
     };
 };
 
-// Route distance estimates between keys. With keepOrder only the distances
-// from the first key are needed (they decide reachability); pairs with an
-// unreachable key are not routed.
+// Route distances between keys, dist[i][j] from i to j. With keepOrder only
+// the distances from the first key are needed (they decide reachability);
+// pairs with an unreachable key are not routed.
 const distanceMatrix = (n: number, length: (i: number, j: number) => number, keepOrder: boolean) => {
     const dist = Array.from({ length: n }, () => new Array<number>(n).fill(0));
-    for (let k = 1; k < n; k++) {
-        dist[0][k] = dist[k][0] = length(0, k);
-    }
+    for (let k = 1; k < n; k++) dist[0][k] = length(0, k);
     if (keepOrder) return dist;
     for (let i = 1; i < n; i++) {
-        for (let j = i + 1; j < n; j++) {
-            const d = dist[0][i] === Infinity || dist[0][j] === Infinity ? Infinity : length(i, j);
-            dist[i][j] = dist[j][i] = d;
+        for (let j = 0; j < n; j++) {
+            if (i !== j) dist[i][j] = dist[0][i] === Infinity || dist[0][j] === Infinity ? Infinity : length(i, j);
         }
     }
     return dist;
@@ -103,7 +89,8 @@ const distanceMatrix = (n: number, length: (i: number, j: number) => number, kee
 const planFixPath = (input: FixPlanInput): FixPlan => {
     const { keys, grid, eyeHeight, keepOrder, timeline } = input;
     const start = performance.now();
-    const routes = routeCache(keys, grid, input.route);
+    const positions = keys.map(k => k.position);
+    const routes = input.route ? pairRoutes(grid, positions, input.route) : keyRoutes(grid, positions);
     const n = keys.length;
     const { order, unreachable } = orderKeys(distanceMatrix(n, routes.length, keepOrder), { loop: timeline.loop, keepOrder });
     const cut = new Set(unreachable);
@@ -147,7 +134,8 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
         unreachable: unreachable.map(i => keys[i].name),
         insideGeometry: keys.filter(k => !grid.pointFree(k.position)).map(k => k.name),
         balance,
-        times: { routes: routed - start, detours: performance.now() - routed }
+        times: { routes: routed - start, detours: performance.now() - routed },
+        graph: routes.size
     };
 };
 

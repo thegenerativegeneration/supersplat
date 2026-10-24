@@ -79,13 +79,11 @@ class SearchState {
     }
 }
 
-// A* from start to goal with a Euclidean heuristic in voxels, scaled by
-// weight (above 1: weighted A*, fewer expansions, path cost at most weight
-// times the optimum); the cells from start to goal, or null when
-// unreachable or the expansion cap is hit.
-const search = (grid: NavGrid, start: Cell, goal: Cell, weight: number): Cell[] | null => {
+// A* from start to goal with a Euclidean heuristic in voxels; the cells from
+// start to goal, or null when unreachable or the expansion cap is hit.
+const search = (grid: NavGrid, start: Cell, goal: Cell): Cell[] | null => {
     const goalPos = grid.centre(goal);
-    const h = (c: Cell) => weight * distance(grid.centre(c), goalPos) / grid.voxel;
+    const h = (c: Cell) => distance(grid.centre(c), goalPos) / grid.voxel;
     const state = new SearchState();
     const at = (c: Cell) => c % CHUNK;
     state.chunk(start).g[at(start)] = 0;
@@ -124,48 +122,17 @@ const search = (grid: NavGrid, start: Cell, goal: Cell, weight: number): Cell[] 
 // the grid cell of p, else the nearest graph cell within SNAP_VOXELS
 const snapCell = (grid: NavGrid, p: Vec3Like) => grid.cellOf(p) ?? grid.nearestFree(p, SNAP_VOXELS);
 
-// Connected components of the graph, labelled by flood fill from the cells
-// asked about; same(a, b) is false when no path joins the cells of a and b,
-// so those pairs need no search.
-const components = (grid: NavGrid) => {
-    const label = new Map<Cell, number>();
-    let count = 0;
-    const of = (c: Cell) => {
-        let l = label.get(c);
-        if (l !== undefined) return l;
-        l = count++;
-        label.set(c, l);
-        const stack = [c];
-        while (stack.length) {
-            for (const { cell } of grid.neighbours(stack.pop())) {
-                if (!label.has(cell)) {
-                    label.set(cell, l);
-                    stack.push(cell);
-                }
-            }
-        }
-        return l;
-    };
-    return {
-        same: (a: Vec3Like, b: Vec3Like) => {
-            const ca = snapCell(grid, a), cb = snapCell(grid, b);
-            return ca !== null && cb !== null && of(ca) === of(cb);
-        }
-    };
-};
-
 // Route between the grid cells of from and to (snapped to the nearest graph
 // cell within SNAP_VOXELS when outside the graph). Points are cell centres
-// from the start cell to the goal cell; length is in world units. weight
-// scales the A* heuristic (see search).
-const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like, weight = 1): Route | null => {
+// from the start cell to the goal cell; length is in world units.
+const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like): Route | null => {
     const fromCell = grid.cellOf(from);
     const toCell = grid.cellOf(to);
     const start = fromCell ?? grid.nearestFree(from, SNAP_VOXELS);
     const goal = toCell ?? grid.nearestFree(to, SNAP_VOXELS);
     if (start === null || goal === null) return null;
 
-    const cells = search(grid, start, goal, weight);
+    const cells = search(grid, start, goal);
     if (!cells) return null;
 
     const points = cells.map(c => grid.centre(c));
@@ -174,5 +141,5 @@ const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like, weight = 1): Rou
     return { points, length, fromSnapped: fromCell === null, toSnapped: toCell === null };
 };
 
-export { components, findRoute };
+export { CellHeap, findRoute, snapCell };
 export type { Route };

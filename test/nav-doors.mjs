@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 
 import { buildSceneGrid } from './.build/src/candidates/generate.js';
 import { buildNavGrid, NAV_HEAD_VOXELS } from './.build/src/path/nav-grid.js';
-import { components, findRoute } from './.build/src/path/route.js';
+import { keyRoutes } from './.build/src/path/key-graph.js';
+import { findRoute } from './.build/src/path/route.js';
 
 const EYE = 1.6;
 const BOX = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 6, z: 11 } };
@@ -27,6 +28,16 @@ const room = (fy, height, width = 0.9) => new Float32Array([
     ...sheet(fy, fy + 2.8, 0, 10, (y, z) => [10, y, z], (y, z) => z >= 5 && z < 5 + width && y < fy + height)
 ]);
 
+// summed step costs along a route of cell centres
+const costOf = (grid, points) => {
+    let cost = 0;
+    for (let k = 1; k < points.length; k++) {
+        const to = grid.cellOf(points[k]);
+        cost += grid.neighbours(grid.cellOf(points[k - 1])).find(n => n.cell === to).cost;
+    }
+    return cost;
+};
+
 const walkRoute = (points, fy, allowFlying = false) => {
     const { occ, levels } = buildSceneGrid(points, BOX, EYE, NAV_HEAD_VOXELS);
     const grid = buildNavGrid(occ, levels, BOX, EYE, allowFlying);
@@ -50,29 +61,33 @@ const navDoorsChecks = {
         assert.equal(walkRoute(room(0, 1.0), 0, true), null);
     },
 
-    'path: weighted routes estimate within twice the plain length'() {
+    'path: one search per key matches A* for every pair'() {
         const { occ, levels } = buildSceneGrid(room(0, 2.0), BOX, EYE, NAV_HEAD_VOXELS);
-        const pairs = [[[3, 5.4], [17, 5.4]], [[1, 1], [19, 9]], [[2, 9], [18, 1]], [[4, 3], [8, 8]]];
+        const keys = [[3, 5.4], [17, 5.4], [1, 1], [19, 9], [2, 9], [18, 1], [8, 8]].map(([x, z]) => ({ x, y: 2, z }));
         for (const allowFlying of [false, true]) {
             const grid = buildNavGrid(occ, levels, BOX, EYE, allowFlying);
-            for (const [[ax, az], [bx, bz]] of pairs) {
-                const a = { x: ax, y: 2, z: az }, b = { x: bx, y: 2, z: bz };
-                const plain = findRoute(grid, a, b).length;
-                const weighted = findRoute(grid, a, b, 2).length;
-                assert.ok(weighted >= plain - 1e-9 && weighted <= 2 * plain, `${allowFlying} ${ax},${az}: ${weighted} vs ${plain}`);
+            const routes = keyRoutes(grid, keys);
+            for (let i = 0; i < keys.length; i++) {
+                for (let j = 0; j < keys.length; j++) {
+                    if (i === j) continue;
+                    const plain = findRoute(grid, keys[i], keys[j]);
+                    const tag = `${allowFlying} ${i}->${j}`;
+                    assert.ok(Math.abs(costOf(grid, routes.points(i, j)) - costOf(grid, plain.points)) < 1e-6, `cost ${tag}`);
+                    assert.ok(Math.abs(routes.length(i, j) - plain.length) < 1e-6, `length ${tag}: ${routes.length(i, j)} vs ${plain.length}`);
+                }
             }
         }
     },
 
-    'path: components separate rooms behind a closed wall'() {
+    'path: keys behind a closed wall have no route'() {
+        const keys = [{ x: 3, y: 2, z: 5 }, { x: 8, y: 2, z: 2 }, { x: 17, y: 2, z: 5 }];
         for (const allowFlying of [false, true]) {
             const { occ, levels } = buildSceneGrid(room(0, 0), BOX, EYE, NAV_HEAD_VOXELS);
-            const { same } = components(buildNavGrid(occ, levels, BOX, EYE, allowFlying));
-            assert.equal(same({ x: 3, y: 2, z: 5 }, { x: 8, y: 2, z: 2 }), true);
-            assert.equal(same({ x: 3, y: 2, z: 5 }, { x: 17, y: 2, z: 5 }), false);
+            const routes = keyRoutes(buildNavGrid(occ, levels, BOX, EYE, allowFlying), keys);
+            assert.ok(Number.isFinite(routes.length(0, 1)));
+            assert.equal(routes.length(0, 2), Infinity);
+            assert.equal(routes.points(2, 0), null);
         }
-        const { occ, levels } = buildSceneGrid(room(0, 2.0), BOX, EYE, NAV_HEAD_VOXELS);
-        assert.equal(components(buildNavGrid(occ, levels, BOX, EYE, false)).same({ x: 3, y: 2, z: 5 }, { x: 17, y: 2, z: 5 }), true);
     }
 };
 

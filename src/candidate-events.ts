@@ -31,8 +31,6 @@ const thumbnailOf = (rgba: Uint8Array) => {
 
 const registerCandidateEvents = (events: Events, scene: Scene) => {
     let points: Promise<OpaquePoints> | null = null;
-    let alignToWalls = false;
-    let preferOpen = false;
     let running = false;
     // box and eye height of the last Suggest Views run in this session
     let lastSettings: { box: Box, eyeHeight: number } | null = null;
@@ -43,8 +41,6 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     // a new or loaded project starts without the last run's settings
     events.on('scene.clear', () => {
         lastSettings = null;
-        alignToWalls = false;
-        preferOpen = false;
     });
     // only splats matter: the area box joins and leaves the scene as well
     for (const name of ['scene.elementAdded', 'scene.elementRemoved']) {
@@ -64,18 +60,6 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         }
         return points;
     };
-
-    // whether Suggest Views turns its views to the walls; each run gets it in its options
-    events.function('candidates.alignToWalls', () => alignToWalls);
-    events.on('candidates.setAlignToWalls', (value: boolean) => {
-        alignToWalls = value === true;
-    });
-
-    // whether Suggest Views ranks open views higher; each run gets it in its options
-    events.function('candidates.preferOpen', () => preferOpen);
-    events.on('candidates.setPreferOpen', (value: boolean) => {
-        preferOpen = value === true;
-    });
 
     // the cached opaque splat centres (x, y, z triples) and extents of the visible layers
     events.function('candidates.cloud', () => scenePoints());

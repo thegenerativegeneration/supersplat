@@ -1,4 +1,4 @@
-import { BooleanInput, Button, Container, Label, NumericInput } from '@playcanvas/pcui';
+import { Button, Container, Label, NumericInput } from '@playcanvas/pcui';
 import { Vec3 } from 'playcanvas';
 
 import { BoxShape } from '../box-shape';
@@ -21,7 +21,7 @@ class CandidatesSetup extends Container {
     setTransformMode: (mode: 'translate' | 'rotate' | 'scale') => boolean;
     getFocus: () => { position: Vec3, radius: number } | null;
     load: (prepared: Prepared) => void;
-    values: () => { box: Box, eyeHeight: number, alignToWalls: boolean, preferOpen: boolean };
+    values: () => { box: Box, eyeHeight: number };
     stopPreview: () => void;
     onGenerate: () => void = null;
 
@@ -59,29 +59,6 @@ class CandidatesSetup extends Container {
         eyeRow.append(eyeInput);
         eyeRow.append(previewButton);
 
-        // a checkbox with a clickable label
-        const toggleRow = (labelKey: string, tooltipKey: string, onChange: (value: boolean) => void) => {
-            const toggle = row();
-            const input = new BooleanInput({ class: 'candidates-toggle-input' });
-            const label = new Label({ class: ['candidates-row-label', 'candidates-toggle-label'] });
-            i18n.bindText(label, labelKey);
-            toggle.append(input);
-            toggle.append(label);
-            input.on('change', onChange);
-            label.dom.addEventListener('click', () => {
-                input.value = !input.value;
-            });
-            tooltips.register(toggle, () => i18n.t(tooltipKey), 'top');
-            return { toggle, input };
-        };
-
-        const { toggle: alignRow, input: alignInput } = toggleRow('candidates.align-walls', 'tooltip.candidates.align-walls', (value) => {
-            events.fire('candidates.setAlignToWalls', value);
-        });
-        const { toggle: openRow, input: openInput } = toggleRow('candidates.prefer-open', 'tooltip.candidates.prefer-open', (value) => {
-            events.fire('candidates.setPreferOpen', value);
-        });
-
         // tilt
         const tiltRow = row('candidates-warning');
         const tiltLabel = new Label({ class: 'candidates-warning-text' });
@@ -93,8 +70,6 @@ class CandidatesSetup extends Container {
 
         this.append(areaRow);
         this.append(eyeRow);
-        this.append(alignRow);
-        this.append(openRow);
         this.append(tiltRow);
         this.append(generateButton);
 
@@ -206,13 +181,11 @@ class CandidatesSetup extends Container {
             tiltLabel.text = i18n.t('candidates.tilt-warning', { degrees: Math.round(p.tiltDeg) });
         };
 
-        this.values = () => ({ box: getBox(), eyeHeight: eyeInput.value, alignToWalls: alignInput.value, preferOpen: openInput.value });
+        this.values = () => ({ box: getBox(), eyeHeight: eyeInput.value });
 
         this.activate = () => {
             active = true;
             this.hidden = false;
-            alignInput.value = events.invoke('candidates.alignToWalls');
-            openInput.value = events.invoke('candidates.preferOpen');
             if (gizmo.mode === 'none') gizmo.setMode('translate');
             showBox(true);
         };

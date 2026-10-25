@@ -3,11 +3,10 @@ import { EXTENT_STRIDE, maxRadiusAt, type SplatExtents } from './extent';
 import { isovist, opennessOf } from './isovist';
 import { findLevels, type Level } from './levels';
 import { buildOccupancy, type Occupancy } from './occupancy';
-import { AZIMUTHS, mulberry32, sampleCandidates, shuffle, type Candidate } from './sample';
+import { mulberry32, sampleCandidates, shuffle, type Candidate } from './sample';
 import { candidateScore, diversify, imageMetrics, rejectBeforeRender, type Scored } from './score';
-import { wallAngle } from './walls';
 
-type GenerateOptions = { box: Box, eyeHeight: number, budget: number, seed: number, fov?: number, alignToWalls?: boolean, preferOpen?: boolean };
+type GenerateOptions = { box: Box, eyeHeight: number, budget: number, seed: number, fov?: number };
 
 type LevelInfo = { index: number, height: number, area: number };
 
@@ -87,36 +86,10 @@ const buildSceneGrid = (
     return { occ, levels: findLevels(occ, headVoxels, minArea) };
 };
 
-// Per level: the eight azimuths 45° apart starting at the dominant wall
-// direction of the opaque splats from the level's surface up to two eye
-// heights above it, within its xz bounds grown by one voxel (a wall's splats
-// sit at the edge of the floor next to it). The fixed azimuths when no wall
-// direction is found.
-const wallAzimuths = (
-    levels: Level[],
-    voxel: number,
-    eyeHeight: number,
-    points: Float32Array,
-    extents?: SplatExtents
-): number[][] => levels.map((level) => {
-    if (!extents) return AZIMUTHS;
-    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
-    for (const [ix, , iz] of level.cells) {
-        x0 = Math.min(x0, ix);
-        x1 = Math.max(x1, ix);
-        z0 = Math.min(z0, iz);
-        z1 = Math.max(z1, iz);
-    }
-    const lo = { x: (x0 - 1) * voxel, z: (z0 - 1) * voxel };
-    const hi = { x: (x1 + 2) * voxel, z: (z1 + 2) * voxel };
-    const y0 = level.height, y1 = level.height + 2 * eyeHeight;
-    const theta = wallAngle(points, extents, (x, y, z) => y >= y0 && y <= y1 && x >= lo.x && x <= hi.x && z >= lo.z && z <= hi.z);
-    return theta === null ? AZIMUTHS : AZIMUTHS.map(a => theta + a);
-});
-
 // Finds levels in the points inside the box, samples candidate views, drops
-// those that see nothing or face a wall, then renders and scores the rest in
-// a seeded order that mixes levels. The result is score-sorted with near
+// those that see nothing or face a wall, then renders the rest in a seeded
+// order that mixes levels and scores each by its image, pitch and openness
+// (how much of the space it sees). The result is score-sorted with near
 // duplicates removed. restore runs once after any rendering, also on cancel
 // or error.
 const runGeneration = async <T>(
@@ -132,8 +105,7 @@ const runGeneration = async <T>(
     if (levels.length === 0) return { scored: [], reason: 'noLevels' };
 
     const fov = opts.fov ?? DEFAULT_FOV;
-    const azimuths = opts.alignToWalls ? wallAzimuths(levels, occ.voxel, eyeHeight, points, extents) : null;
-    const sampled = sampleCandidates(levels, occ, { eyeHeight, box, fov, budget, seed }, azimuths ? level => azimuths[level] : undefined);
+    const sampled = sampleCandidates(levels, occ, { eyeHeight, box, fov, budget, seed });
     const order = shuffle(sampled, mulberry32(seed ^ 0x9E3779B9));
     if (signal.aborted) return { scored: [], reason: 'cancelled' };
 
@@ -156,7 +128,7 @@ const runGeneration = async <T>(
         }
         return opennessOf(rays, maxDist, cand.azimuth, cand.fov);
     };
-    const openness = opts.preferOpen ? kept.map(k => opennessAt(k.cand)) : null;
+    const openness = kept.map(k => opennessAt(k.cand));
 
     const scored: Scored[] = [];
     let rendered = false;
@@ -171,7 +143,7 @@ const runGeneration = async <T>(
             rendered = true;
             const { rgba, thumbnail } = await deps.renderAt(cand);
             const metrics = imageMetrics(rgba, THUMB_WIDTH, THUMB_HEIGHT);
-            const s: Scored = { ...cand, score: candidateScore(metrics, cand.pitch, openness?.[i]), depth };
+            const s: Scored = { ...cand, score: candidateScore(metrics, cand.pitch, openness[i]), depth };
             scored.push(s);
             deps.onAdded(s, thumbnail);
             deps.onProgress(scored.length, kept.length);

@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 
-import { registerCandidateEvents } from './.build/src/candidate-events.js';
-import { Events } from './.build/src/events.js';
+import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH } from './.build/src/candidates/generate.js';
 import { isovist, opennessOf } from './.build/src/candidates/isovist.js';
 import { buildOccupancy } from './.build/src/candidates/occupancy.js';
-import { candidateScore, PREFER_OPEN_WEIGHT } from './.build/src/candidates/score.js';
+import { candidateScore, imageMetrics, PREFER_OPEN_WEIGHT } from './.build/src/candidates/score.js';
 
 const VOXEL = 0.4;
 const Y = 0.8;
@@ -33,6 +32,43 @@ const room = (door = 0) => {
 };
 
 const centre = { x: 0, y: Y, z: 0 };
+
+// the room's floor at y = 0 and its walls up to 3 m, two points per sample,
+// with a doorway of width `door` in the wall at z = -2.1
+const walledRoom = (door) => {
+    const pts = [];
+    const at = (x, y, z) => pts.push(x, y, z, x, y, z);
+    for (let x = -2; x <= 2; x += 0.1) {
+        for (let z = -2; z <= 2; z += 0.1) at(x, 0, z);
+    }
+    for (let y = 0; y <= 3; y += 0.1) {
+        for (let t = -2.1; t <= 2.1; t += 0.1) {
+            at(t, y, 2.1);
+            at(-2.1, y, t);
+            at(2.1, y, t);
+            if (Math.abs(t) > door / 2) at(t, y, -2.1);
+        }
+    }
+    return new Float32Array(pts);
+};
+
+const ROOM_BOX = { min: { x: -2.3, y: -0.5, z: -2.3 }, max: { x: 2.3, y: 3.5, z: 2.3 } };
+
+// every render is the same grey image, so only pitch and openness tell views apart
+const GREY = new Uint8Array(THUMB_WIDTH * THUMB_HEIGHT * 4).fill(128);
+
+const constantDeps = () => {
+    const added = [];
+    const deps = {
+        sampleDistances: async cands => cands.map(() => 5),
+        renderAt: async cand => ({ rgba: GREY, thumbnail: cand.id }),
+        restore: () => {},
+        onProgress: () => {},
+        onAdded: scored => added.push(scored),
+        onLevels: () => {}
+    };
+    return { deps, added };
+};
 
 const isovistChecks = {
     'isovist: rays in a closed 4 x 4 m room': () => {
@@ -69,14 +105,18 @@ const isovistChecks = {
         assert.ok(Math.abs(candidateScore(m, 0, 0.5) - (0.55 + PREFER_OPEN_WEIGHT * 0.5)) < 1e-12);
     },
 
-    'isovist: the prefer-open setting defaults off and resets on scene.clear': () => {
-        const events = new Events();
-        registerCandidateEvents(events, { getElementsByType: () => [] });
-        assert.equal(events.invoke('candidates.preferOpen'), false);
-        events.fire('candidates.setPreferOpen', true);
-        assert.equal(events.invoke('candidates.preferOpen'), true);
-        events.fire('scene.clear');
-        assert.equal(events.invoke('candidates.preferOpen'), false);
+    'isovist: generation ranks a view out of a doorway above one facing the near wall': async () => {
+        const { deps, added } = constantDeps();
+        await runGeneration(deps, walledRoom(1.6), { box: ROOM_BOX, eyeHeight: 1.6, budget: 40, seed: 1, fov: 60 }, new AbortController().signal);
+        const m = imageMetrics(GREY, THUMB_WIDTH, THUMB_HEIGHT);
+        const bonus = s => s.score - candidateScore(m, s.pitch);
+        const meanBonus = az => {
+            const list = added.filter(s => s.azimuth === az);
+            assert.ok(list.length > 0, `no view at azimuth ${az}`);
+            return list.reduce((sum, s) => sum + bonus(s), 0) / list.length;
+        };
+        for (const s of added) assert.ok(bonus(s) >= 0 && bonus(s) <= PREFER_OPEN_WEIGHT + 1e-9);
+        assert.ok(meanBonus(0) > meanBonus(180) + 0.05, `${meanBonus(0)} vs ${meanBonus(180)}`);
     }
 };
 

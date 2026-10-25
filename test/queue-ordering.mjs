@@ -27,7 +27,6 @@ import { occupancyExtentChecks } from './occupancy-extent.mjs';
 import { pathLineChecks } from './path-line.mjs';
 import { pathMarkersChecks } from './path-markers.mjs';
 import { timingEventsChecks } from './timing-events.mjs';
-import { wallsChecks } from './walls.mjs';
 import { webmcpChecks } from './webmcp.mjs';
 
 const barrier = () => {
@@ -93,7 +92,6 @@ const checks = {
     ...pathLineChecks,
     ...pathMarkersChecks,
     ...timingEventsChecks,
-    ...wallsChecks,
     ...webmcpChecks,
 
     async 'enqueue is strictly FIFO'() {

@@ -85,4 +85,5 @@ Results and videos: experiment repo `research-fixes/NOTES.md`.
 Decided by the user:
 - **Removed:** "Keep clear of walls" (jittery motion, 4 blocked segments, 124 detours), "Look ahead" (no visible difference from the current rule), "Density solid space" (lost 3 indoor keys at eye/4 voxels). Code remains in git history (6e77aca..e07b005).
 - **Turn cap:** stays at 20°/s with the warning. The 150 m courtyard tour needs about 2 min to meet it.
-- **Wall alignment and openness:** decided by a blind pair test (courtyard and hall) before either becomes default.
+- **Openness:** won the blind pair test (courtyard and hall) 6–0 among decided pairs, 7 same. Always on now, no option; weight stays 0.3 (not tuned).
+- **Wall alignment:** no gain in the same test (1–2, 10 same). Removed; code remains in git history (f8586cb).

@@ -24,6 +24,7 @@ import { fixPathEventsChecks } from './fix-path-events.mjs';
 import { fixPathQualityChecks } from './fix-path-quality.mjs';
 import { navDoorsChecks } from './nav-doors.mjs';
 import { occupancyExtentChecks } from './occupancy-extent.mjs';
+import { orbitEventsChecks } from './orbit-events.mjs';
 import { orbitKeyChecks } from './orbit-keys.mjs';
 import { orbitPathChecks } from './orbit-path.mjs';
 import { pathLineChecks } from './path-line.mjs';
@@ -84,6 +85,7 @@ const checks = {
     ...candidatesPanelChecks,
     ...isovistChecks,
     ...cameraTrackChecks,
+    ...orbitEventsChecks,
     ...orbitKeyChecks,
     ...orbitPathChecks,
     ...fixPlanBalanceChecks,

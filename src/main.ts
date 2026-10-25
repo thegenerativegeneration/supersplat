@@ -12,6 +12,7 @@ import { Events } from './events';
 import { initFileHandler } from './file-handler';
 import { registerFixPathEvents } from './fix-path-events';
 import { registerIframeApi } from './iframe-api';
+import { registerOrbitEvents } from './orbit-events';
 import { registerPreferences } from './preferences';
 import { registerPublishEvents } from './publish';
 import { registerRenderEvents } from './render';
@@ -124,6 +125,7 @@ const main = async () => {
     registerTimingEvents(events);
     registerViewKeyEvents(events);
     registerFixPathEvents(events);
+    registerOrbitEvents(events);
     registerTransformHandlerEvents(events);
     registerPublishEvents(events);
     registerIframeApi(events);

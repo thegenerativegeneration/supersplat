@@ -49,7 +49,7 @@ Orbit adds camera keys on a circle around a point in one click: a fountain, a st
 - [Fix Path](fix-path.md) keeps each orbit's keys together and in order, with no detour keys between them.
 - It routes the way into and out of the orbit.
 - An orbit that can't be reached is parked as a whole.
-- Changing an orbit key's position or view by hand (in 3D, or updating it with the current view) makes it a normal key. The orbit splits there; each part stays together. Dragging keys in time keeps them in the orbit.
+- Updating an orbit key on the timeline with a different view makes it a normal key. The orbit splits there; each part stays together. Dragging keys in time keeps them in the orbit.
 
 ## Limits
 

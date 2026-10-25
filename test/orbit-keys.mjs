@@ -6,9 +6,10 @@ import { setup } from './camera-track.mjs';
 
 const orbitOf = events => events.invoke('camera.poses').map(p => `${p.frame}:${p.orbit ?? '-'}`);
 
-const withOrbit = () => {
+// view: the current camera view track.addKey stores
+const withOrbit = (view = { position: new Vec3(1, 0, 0), target: new Vec3(1, 0, -1), fov: 60 }) => {
     const ctx = setup([[0], [60]]);
-    ctx.events.function('camera.getPose', () => ({ position: new Vec3(1, 0, 0), target: new Vec3(1, 0, -1), fov: 60 }));
+    ctx.events.function('camera.getPose', () => view);
     ctx.events.fire('track.appendPoses', [
         { position: new Vec3(5, 0, 0), target: new Vec3(0, 0, 0), fov: 50, orbit: 'o1' },
         { position: new Vec3(6, 0, 0), target: new Vec3(0, 0, 0), fov: 50, orbit: 'o1' }
@@ -50,6 +51,12 @@ const orbitKeyChecks = {
         const { events } = withOrbit();
         events.fire('track.addKey', 90);
         assert.deepEqual(orbitOf(events), ['0:-', '60:-', '90:-', '120:o1']);
+    },
+
+    'orbit: updating a key with an identical view keeps the id'() {
+        const { events } = withOrbit({ position: new Vec3(5, 0, 0), target: new Vec3(0, 0, 0), fov: 50 });
+        events.fire('track.addKey', 90);
+        assert.deepEqual(orbitOf(events), ['0:-', '60:-', '90:o1', '120:o1']);
     }
 };
 

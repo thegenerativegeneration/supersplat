@@ -63,6 +63,10 @@ Client shots often circle a subject: a fountain in a courtyard, a staircase, a f
 - Orbit keys appended after existing keys, then Balance (not inserted at the playhead).
 - Orbit keys timed by Balance like other keys; no separate orbit duration field.
 - Fix Path treats orbit groups as blocks.
+- **Short shots:** the popover shows "full turn needs ≥ N s at the turn cap, shot is M s". Add orbit still adds; Balance warns as usual. No automatic timeline change.
+- **Blocks:** a block is a maximal run of keys, in frame order, with the same `orbit` id. Only changing a key's position or target clears its `orbit` flag; frame changes (drag, Balance, Fix Path) keep it. Two runs of one id are two blocks.
+- **Fix Path and blocks:** each block is collapsed to one node before routing: entered at its first key, left at its last (asymmetric distances). Its inner keys are not routed. The block is kept when its first and last key are in the main group, else the whole block is parked.
+- **Collision check:** the radius search tests the ideal circle (pure, fast). After the orbit is placed, the existing curve check runs on the orbit's own segments (first to last key); a failure is reported as blocked. The joins to neighbouring keys are left to Fix Path; the result line says "run Fix Path to connect" when a join is blocked.
 
 ## Constraints (from the code)
 

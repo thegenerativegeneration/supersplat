@@ -22,6 +22,7 @@ import { DataProcessor } from './data-processor';
 import { Element, ElementType, ElementTypeList } from './element';
 import { Events } from './events';
 import { InfiniteGrid as Grid } from './infinite-grid';
+import { OrbitPreviewLine } from './orbit-preview';
 import { Outline } from './outline';
 import { PCApp } from './pc-app';
 import { ProjectedSplatRenderer } from './projected-splat-renderer';
@@ -186,6 +187,7 @@ class Scene {
     assetLoader: AssetLoader;
     camera: Camera;
     cameraPoseGizmos: CameraPoseGizmos;
+    orbitPreview: OrbitPreviewLine;
     grid: Grid;
     outline: Outline;
     underlay: Underlay;
@@ -405,6 +407,9 @@ class Scene {
 
         this.cameraPoseGizmos = new CameraPoseGizmos();
         this.add(this.cameraPoseGizmos);
+
+        this.orbitPreview = new OrbitPreviewLine();
+        this.add(this.orbitPreview);
 
         this.grid = new Grid();
         this.add(this.grid);

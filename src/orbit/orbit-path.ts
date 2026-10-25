@@ -23,9 +23,9 @@ const RAD = Math.PI / 180;
 // Azimuth is atan2(z, x) of the offset from the centre. Seen from +y with x to
 // the right, z points down the screen, so a counter-clockwise (left, dir 1) turn
 // decreases the azimuth.
-const azimuthAt = (spec: OrbitSpec, travelledDeg: number) => spec.startDeg - spec.dir * travelledDeg;
+const azimuthAt = (spec: Pick<OrbitSpec, 'startDeg' | 'dir'>, travelledDeg: number) => spec.startDeg - spec.dir * travelledDeg;
 
-const positionAt = (spec: OrbitSpec, radius: number, azimuthDeg: number): Vec3Like => ({
+const positionAt = (spec: Pick<OrbitSpec, 'centre' | 'height'>, radius: number, azimuthDeg: number): Vec3Like => ({
     x: spec.centre.x + radius * Math.cos(azimuthDeg * RAD),
     y: spec.centre.y + spec.height,
     z: spec.centre.z + radius * Math.sin(azimuthDeg * RAD)
@@ -117,5 +117,5 @@ const fitRadius = (occupied: Occupied, voxel: number, spec: OrbitSpec) => {
     return null;
 };
 
-export { orbitKeys, orbitDefaults, clampSpan, arcBlocked, fitRadius, MIN_RADIUS, DEG_PER_KEY };
+export { orbitKeys, orbitDefaults, clampSpan, arcBlocked, fitRadius, azimuthAt, positionAt, MIN_RADIUS, DEG_PER_KEY };
 export type { OrbitSpec };

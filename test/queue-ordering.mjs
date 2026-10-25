@@ -28,6 +28,7 @@ import { occupancyExtentChecks } from './occupancy-extent.mjs';
 import { orbitEventsChecks } from './orbit-events.mjs';
 import { orbitKeyChecks } from './orbit-keys.mjs';
 import { orbitPathChecks } from './orbit-path.mjs';
+import { orbitPreviewChecks, orbitReadoutChecks } from './orbit-readout.mjs';
 import { pathLineChecks } from './path-line.mjs';
 import { pathMarkersChecks } from './path-markers.mjs';
 import { timingEventsChecks } from './timing-events.mjs';
@@ -89,6 +90,8 @@ const checks = {
     ...orbitEventsChecks,
     ...orbitKeyChecks,
     ...orbitPathChecks,
+    ...orbitReadoutChecks,
+    ...orbitPreviewChecks,
     ...fixPlanBalanceChecks,
     ...editorCommandChecks,
     ...fixPathChecks,

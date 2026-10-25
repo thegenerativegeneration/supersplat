@@ -6,6 +6,7 @@ import { BalanceControls } from './balance-controls';
 import { FixPathControls } from './fix-path-controls';
 import { KeyLingerPopover } from './key-linger-popover';
 import { i18n } from './localization';
+import { OrbitControls } from './orbit-controls';
 import { TimelinePathMarkers } from './path-markers';
 import { SuggestViewsButton } from './suggest-views-button';
 import { Tooltips } from './tooltips';
@@ -496,6 +497,7 @@ class TimelinePanel extends Container {
         settingsControls.append(loop);
         settingsControls.append(new BalanceControls(events, tooltips));
         settingsControls.append(new FixPathControls(events, tooltips));
+        settingsControls.append(new OrbitControls(events, tooltips));
         settingsControls.append(new SuggestViewsButton(events, tooltips));
 
         // append control groups

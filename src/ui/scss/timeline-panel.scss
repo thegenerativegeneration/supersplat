@@ -101,6 +101,28 @@
                     }
                 }
 
+                > #orbit-controls {
+                    display: flex;
+                    align-items: center;
+                    margin-left: 4px;
+
+                    > #orbit {
+                        height: 24px;
+                        margin: 0;
+                        padding: 0 8px;
+                        flex-shrink: 0;
+                        border-radius: 4px;
+                        line-height: 24px;
+
+                        &:not(.pcui-disabled):hover {
+                            color: #ff9900;
+                            cursor: pointer;
+                            box-shadow: none;
+                            border-color: #ff990088;
+                        }
+                    }
+                }
+
                 > #fix-path-controls {
                     display: flex;
                     align-items: center;
@@ -419,5 +441,71 @@
         margin: 0;
         font-size: 11px;
         color: $clr-disabled;
+    }
+}
+
+// popover of the Orbit button (see orbit-controls.ts)
+.orbit-options {
+    position: fixed;
+    z-index: 100;
+    min-width: 220px;
+    padding: 8px;
+    flex-direction: column;
+    gap: 4px;
+    background-color: $bcg-primary;
+    border: 1px solid $bcg-darker;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+
+    &:not(.pcui-hidden) {
+        display: flex;
+    }
+
+    > .orbit-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+
+        > .orbit-row-label {
+            margin: 0;
+            flex-grow: 1;
+        }
+
+        > .orbit-row-input {
+            width: 70px;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        // as wide as an input and its unit
+        > .orbit-row-select {
+            width: 108px;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        > .orbit-row-unit {
+            width: 32px;
+            margin: 0;
+            color: $clr-disabled;
+        }
+    }
+
+    > .orbit-keys {
+        margin: 6px 0 0 0;
+        color: $clr-active;
+    }
+
+    > .orbit-hint {
+        margin: 0;
+        max-width: 220px;
+        font-size: 11px;
+        white-space: normal;
+        color: $clr-disabled;
+    }
+
+    > .orbit-add {
+        margin: 6px 0 0 0;
     }
 }

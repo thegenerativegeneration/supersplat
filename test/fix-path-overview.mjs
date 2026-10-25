@@ -98,6 +98,29 @@ const fixPathOverviewChecks = {
         assert.deepEqual(plan.blocked, []);
     },
 
+    'path: a key above the yard moves straight down, not into a slot of a side building'() {
+        // a wing west of the yard: first floor at 3.2, roof at 6 up to a 0.8 m
+        // slot along the yard, parapet up to 4
+        const points = join(yard(), new Float32Array([
+            ...sheet(-8, 0, 0, 10, (x, z) => [x, 3.2, z]),
+            ...sheet(-8, -0.8, 0, 10, (x, z) => [x, 6, z]),
+            ...sheet(3.2, 4, 0, 10, (y, z) => [0, y, z])
+        ]));
+        const area = { min: { x: -9, y: -1, z: -1 }, max: { x: 21, y: 6.5, z: 11 } };
+        const high = { x: 13.6, y: 25, z: 5 }, wing = { x: -1.6, y: 4.8, z: 5 }, inner = { x: -5, y: 4.8, z: 8 };
+        const grid = gridOf(points, area, [inner, high, wing]);
+        // the nearest straight hit lies in the slot
+        const nearest = grid.centre(attachCell(grid, high, [inner, wing]).cell);
+        assert.ok(nearest.x > -0.8 && nearest.x < 0.4 && nearest.y > 5, `slot at ${nearest.x}, ${nearest.y}`);
+
+        const routes = keyRoutes(grid, [inner, high, wing]);
+        const at = routes.points(1, 2).find(p => grid.cellOf(p) !== null);
+        assert.ok(Math.abs(at.x - high.x) <= grid.voxel && Math.abs(at.z - high.z) <= grid.voxel, `attaches at ${at.x}, ${at.y}, ${at.z}`);
+        const plan = planFixPath({ keys: [fixKey('w', wing), fixKey('o', high), fixKey('f', inner)], grid, eyeHeight: EYE, keepOrder: true, timeline: TIMELINE });
+        assert.deepEqual(plan.unreachable, []);
+        assert.deepEqual(plan.blocked, []);
+    },
+
     'path: a straight move into geometry does not link'() {
         // graph cells from x = 5 on, but every line is blocked
         const grid = {

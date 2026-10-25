@@ -19,6 +19,9 @@ type KeyRoutes = {
     size: { nodes: number, edges: number }
 };
 
+// a straight move down runs this many voxels past the lowest key
+const DOWN_VOXELS = 10;
+
 // typed array that doubles when full
 class Grow<T extends Int32Array | Float64Array> {
     data: T;
@@ -102,9 +105,10 @@ const dijkstra = (c: Component, source: number, goals: number[]): Int32Array => 
 // Cheapest routes between the given key positions (snapped like findRoute;
 // lengths include the straight moves): the components holding the keys are
 // built once, then one Dijkstra per source key settles all keys of its
-// component. A key that does not snap tries its straight hits towards the
-// other keys, nearest first, and takes the first whose component holds
-// another key's cell, else the nearest.
+// component. A key that does not snap moves straight down when that hit's
+// component holds another key's cell (a crane move); else it tries its
+// straight hits towards the other keys, nearest first, and takes the first
+// whose component holds another key's cell, else the nearest.
 const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
     const comps: Component[] = [];
     // cell -> node of each component, dropped once the keys are placed
@@ -124,11 +128,19 @@ const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
     });
     positions.forEach((p, i) => {
         if (attached[i]) return;
-        const hits = straightHits(grid, p, positions.filter((_, j) => j !== i));
+        const others = positions.filter((_, j) => j !== i);
         const joins = (hit: Attach) => {
             const index = indexes[componentOf(hit.cell)];
             return attached.some((a, j) => j !== i && a && index.has(a.cell));
         };
+        // straight down, past the lowest key
+        const floor = Math.min(p.y, ...others.map(q => q.y)) - DOWN_VOXELS * grid.voxel;
+        const [down] = straightHits(grid, p, [{ x: p.x, y: floor, z: p.z }]);
+        if (down && joins(down)) {
+            attached[i] = down;
+            return;
+        }
+        const hits = straightHits(grid, p, others);
         attached[i] = hits.find(joins) ?? hits[0] ?? null;
     });
 

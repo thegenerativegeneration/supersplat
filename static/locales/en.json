@@ -484,7 +484,7 @@
     "fix-path.tooFewFrames": "There are too few frames for your keys and the detour keys. Increase Total Frames and try again.",
     "fix-path.unreachable": "No route found to these keys: {{names}}. They were moved after the end of the shot (not played) and marked red; move or delete them.",
     "fix-path.blocked": "The path is blocked after the keys at frames {{frames}} (marked red on the timeline).",
-    "fix-path.inside-geometry": "These keys are inside geometry or outside the area: {{names}}. Their routes start from the nearest free space.",
+    "fix-path.inside-geometry": "These keys are inside geometry: {{names}}. Their routes start from the nearest free space.",
     "fix-path.status": "Path fixed. Detour keys added: {{count}}",
     "timing.speed": "Speed: avg {{avg}} {{unit}}/s, peak {{peak}} {{unit}}/s, fastest turn {{turn}}°/s",
     "timing.turn-limited": "Too few frames to keep turns below {{cap}}°/s; fastest turn {{turn}}°/s. Increase Total Frames for a calmer shot.",

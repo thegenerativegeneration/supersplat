@@ -1,5 +1,5 @@
 import type { Cell, NavGrid } from './nav-grid';
-import { attachCell, CellHeap } from './route';
+import { CellHeap, snapCell, straightHits, type Attach } from './route';
 import type { Vec3Like } from '../candidates/occupancy';
 
 // One connected component of the nav graph as a compressed adjacency:
@@ -97,29 +97,48 @@ const dijkstra = (c: Component, source: number, goals: number[]): Int32Array => 
     return parent;
 };
 
-// Cheapest routes between the given key positions (attached like findRoute,
-// a far key moving towards the others; lengths include the straight moves):
-// the components holding the keys are built once, then one Dijkstra per
-// source key settles all keys of its component.
+// Cheapest routes between the given key positions (snapped like findRoute;
+// lengths include the straight moves): the components holding the keys are
+// built once, then one Dijkstra per source key settles all keys of its
+// component. A key that does not snap tries its straight hits towards the
+// other keys, nearest first, and takes the first whose component holds
+// another key's cell, else the nearest.
 const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
     const comps: Component[] = [];
+    // cell -> node of each component, dropped once the keys are placed
+    const indexes: Map<Cell, number>[] = [];
+    const componentOf = (cell: Cell) => {
+        const k = indexes.findIndex(index => index.has(cell));
+        if (k >= 0) return k;
+        const { component, index } = buildComponent(grid, cell);
+        comps.push(component);
+        indexes.push(index);
+        return comps.length - 1;
+    };
+
+    const attached: (Attach | null)[] = positions.map((p) => {
+        const cell = snapCell(grid, p);
+        return cell === null ? null : { cell, straight: 0 };
+    });
+    positions.forEach((p, i) => {
+        if (attached[i]) return;
+        const hits = straightHits(grid, p, positions.filter((_, j) => j !== i));
+        const joins = (hit: Attach) => {
+            const index = indexes[componentOf(hit.cell)];
+            return attached.some((a, j) => j !== i && a && index.has(a.cell));
+        };
+        attached[i] = hits.find(joins) ?? hits[0] ?? null;
+    });
+
     // component and node of each key, -1 when it has no graph cell
     const compOf = new Int32Array(positions.length).fill(-1);
     const nodeOf = new Int32Array(positions.length).fill(-1);
-    const attached = positions.map((p, i) => attachCell(grid, p, positions.filter((_, j) => j !== i)));
-    const startCells = attached.map(a => a?.cell ?? null);
-    startCells.forEach((cell, i) => {
-        if (cell === null || compOf[i] >= 0) return;
-        const { component, index } = buildComponent(grid, cell);
-        startCells.forEach((other, j) => {
-            const k = other === null ? undefined : index.get(other);
-            if (k !== undefined && compOf[j] < 0) {
-                compOf[j] = comps.length;
-                nodeOf[j] = k;
-            }
-        });
-        comps.push(component);
+    attached.forEach((a, i) => {
+        if (!a) return;
+        compOf[i] = componentOf(a.cell);
+        nodeOf[i] = indexes[compOf[i]].get(a.cell);
     });
+    indexes.length = 0;
 
     const trees = new Map<number, Int32Array>();
     const tree = (i: number) => {

@@ -30,21 +30,29 @@ const yard = () => new Float32Array([
     ...sheet(0, 2.8, 0, 10, (y, z) => [10, y, z], (y, z) => z >= 5 && z < 5.9 && y < 2)
 ]);
 
-const gridOf = (points, box) => {
-    const { occ, levels } = buildSceneGrid(points, box, EYE, NAV_HEAD_VOXELS);
-    return buildNavGrid(occ, levels, box, EYE, true);
+// the grid Fix Path builds: the graph inside area, the occupancy also
+// around the positions outside it
+const gridOf = (points, area, positions = []) => {
+    const { occ, levels } = buildSceneGrid(points, boxAroundKeys(area, positions, EYE), EYE, NAV_HEAD_VOXELS);
+    return buildNavGrid(occ, levels, area, EYE, true);
 };
+
+// a 0.4 m floater 9 m above the yard at x 3, z 5
+const floater = () => new Float32Array(sheet(2.8, 3.2, 4.8, 5.2, (x, z) => [x, 9, z]));
+
+const join = (...parts) => new Float32Array(parts.flatMap(p => [...p]));
 
 const fixKey = (name, p) => ({ name, position: p, target: { x: p.x, y: p.y - 1, z: p.z + 1 }, fov: 60, linger: 0, distance: 5 });
 
 const pose = (name, frame, p) => ({ name, frame, position: new Vec3(p.x, p.y, p.z), target: new Vec3(p.x, p.y - 1, p.z + 1), fov: 60 });
 
 // Fix Path with the default scene grid over points and the Suggest Views box
-const fixOver = async (points, box, keys) => {
-    const { events } = setup(keys.map(([name, p], i) => pose(name, i * 30, p)), { deps: {} });
+const fixOver = async (points, box, keys, deps = {}) => {
+    const { events } = setup(keys.map(([name, p], i) => pose(name, i * 30, p)), { deps });
     events.function('candidates.cloud', async () => ({ points }));
     events.function('candidates.lastSettings', () => ({ box, eyeHeight: EYE }));
-    return events.invoke('path.fix', FIX);
+    const result = await events.invoke('path.fix', FIX);
+    return { result, poses: events.invoke('camera.poses').map(p => `${p.name}@${p.frame}:${p.position.x},${p.position.y},${p.position.z}`).sort() };
 };
 
 const IN_A = { x: 3, y: 1.6, z: 5.4 };
@@ -54,9 +62,8 @@ const HIGH = { x: 5, y: 14.8, z: 5 };
 
 const fixPathOverviewChecks = {
     'path: a key high above the yard is reached by a straight move'() {
-        const box = boxAroundKeys({ min: { x: -3, y: -1, z: -3 }, max: { x: 23, y: 6, z: 13 } }, [IN_A, HIGH], EYE);
-        assert.ok(box.max.y >= HIGH.y + EYE - 1e-9, `box top ${box.max.y}`);
-        const grid = gridOf(yard(), box);
+        const area = { min: { x: -3, y: -1, z: -3 }, max: { x: 23, y: 6, z: 13 } };
+        const grid = gridOf(yard(), area, [IN_A, HIGH]);
         assert.equal(snapCell(grid, HIGH), null, 'too far to snap');
 
         const attach = attachCell(grid, HIGH, [IN_A]);
@@ -95,21 +102,51 @@ const fixPathOverviewChecks = {
         assert.equal(attach.cell, Math.floor(5 / 0.4));
     },
 
-    async 'path: a key above a roof the area box cut off stays out of the house'() {
-        // the box ends below the roof, as a box at the 97th height percentile can
-        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 2.4, z: 11 } };
-        const grown = boxAroundKeys(box, [IN_A, HIGH], EYE);
-        assert.equal(gridOf(closedHouse(), grown).lineFree(HIGH, IN_A), false, 'the roof is in the grid');
-
-        const result = await fixOver(closedHouse(), box, [['a', IN_A], ['o', HIGH]]);
-        assert.equal(result.ok, true);
-        assert.ok(result.unreachable.includes('o') || result.blocked.length > 0, JSON.stringify(result));
-        assert.deepEqual(result.insideGeometry, [], 'not outside the grown box');
+    'path: the occupancy box grows only around keys outside the area'() {
+        // box top near the ceiling, keys at eye height inside it
+        const area = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 2.8, z: 11 } };
+        assert.deepEqual(boxAroundKeys(area, [IN_A, IN_B], EYE), area);
+        const grown = boxAroundKeys(area, [IN_A, HIGH, { x: 25, y: 1, z: 5 }], EYE);
+        assert.deepEqual(grown, { min: { x: -1, y: -1, z: -1 }, max: { x: 25 + EYE, y: HIGH.y + EYE, z: 11 } });
     },
 
-    async 'path: a key outside the area box next to the scan is reached once the box grows'() {
-        const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 15, y: 6, z: 11 } };
-        const result = await fixOver(room(0, 2.0), box, [['a', IN_A], ['b', IN_B]]);
+    'path: a floater under a far key does not capture it'() {
+        const area = { min: { x: -3, y: -1, z: -3 }, max: { x: 23, y: 13, z: 13 } };
+        const high = { x: 3, y: 24.8, z: 5 };
+        const grid = gridOf(join(yard(), floater()), area, [IN_A, IN_B, high]);
+        // straight down the first graph cells are the floater's
+        const nearest = attachCell(grid, high, [IN_A, IN_B]);
+        assert.ok(grid.centre(nearest.cell).y > 9, `nearest hit at ${grid.centre(nearest.cell).y}`);
+        assert.equal(findRoute(grid, high, IN_A), null, 'the floater does not reach the yard');
+
+        const routes = keyRoutes(grid, [IN_A, IN_B, high]);
+        for (const [i, j] of [[2, 0], [0, 2], [2, 1]]) assert.ok(Number.isFinite(routes.length(i, j)), `${i} -> ${j}`);
+        const plan = planFixPath({ keys: [fixKey('a', IN_A), fixKey('b', IN_B), fixKey('o', high)], grid, eyeHeight: EYE, keepOrder: false, timeline: TIMELINE });
+        assert.deepEqual(plan.unreachable, []);
+    },
+
+    async 'path: a key above a roof the area box cut off stays out of the house'() {
+        // the box ends below the roof, as a box at the 97th height percentile can
+        const area = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 2.4, z: 11 } };
+        const grid = gridOf(closedHouse(), area, [IN_A, HIGH]);
+        assert.equal(grid.lineFree(HIGH, IN_A), false, 'the roof is in the occupancy');
+
+        // no route point above the roof inside the house footprint
+        const overRoof = p => p.y > 2.8 && p.x > 0 && p.x < 20 && p.z > 0 && p.z < 10;
+        const routes = keyRoutes(grid, [IN_A, HIGH]);
+        for (const [i, j] of [[0, 1], [1, 0]]) assert.ok(!(routes.points(i, j) ?? []).some(overRoof), `${i} -> ${j}`);
+        const plan = planFixPath({ keys: [fixKey('a', IN_A), fixKey('o', HIGH)], grid, eyeHeight: EYE, keepOrder: false, timeline: TIMELINE });
+        assert.ok(!plan.poses.filter(p => p.key?.name !== 'o').some(p => overRoof(p.pose.position)));
+
+        const { result } = await fixOver(closedHouse(), area, [['a', IN_A], ['o', HIGH]]);
+        assert.equal(result.ok, true);
+        assert.deepEqual(result.unreachable, ['o']);
+        assert.deepEqual(result.insideGeometry, []);
+    },
+
+    async 'path: a key outside the area box next to the scan is reached by a straight move'() {
+        const area = { min: { x: -1, y: -1, z: -1 }, max: { x: 15, y: 6, z: 11 } };
+        const { result } = await fixOver(room(0, 2.0), area, [['a', IN_A], ['b', IN_B]]);
         assert.equal(result.ok, true);
         assert.deepEqual(result.unreachable, []);
         assert.deepEqual(result.insideGeometry, []);
@@ -129,9 +166,24 @@ const fixPathOverviewChecks = {
         assert.deepEqual(positions.map(p => [p.x, p.y, p.z]), [[3, 1.6, 5.4], [17, 1.6, 5.4]]);
     },
 
+    async 'path: keys inside the area plan as with the area box alone'() {
+        const area = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 2.8, z: 11 } };
+        const keys = [['a', IN_A], ['b', IN_B], ['c', { x: 8, y: 1.6, z: 2 }]];
+        const old = {
+            sceneGrid: async () => {
+                const { occ, levels } = buildSceneGrid(room(0, 2.0), area, EYE, NAV_HEAD_VOXELS);
+                return { grid: buildNavGrid(occ, levels, area, EYE, true), eyeHeight: EYE, box: area };
+            }
+        };
+        const now = await fixOver(room(0, 2.0), area, keys);
+        const before = await fixOver(room(0, 2.0), area, keys, old);
+        assert.equal(now.result.ok, true);
+        assert.deepEqual(now.result, before.result);
+        assert.deepEqual(now.poses, before.poses);
+    },
+
     'path: keys that snap attach and route as before'() {
         const box = { min: { x: -1, y: -1, z: -1 }, max: { x: 21, y: 6, z: 11 } };
-        assert.deepEqual(boxAroundKeys(box, [IN_A, IN_B], EYE), box, 'keys well inside keep the box');
         const grid = gridOf(room(0, 2.0), box);
         const keys = [IN_A, IN_B, { x: 8, y: 1.9, z: 2 }];
         keys.forEach((p, i) => {

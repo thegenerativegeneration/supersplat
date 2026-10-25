@@ -484,7 +484,7 @@
     "fix-path.tooFewFrames": "Hay muy pocos fotogramas para tus claves y las claves de desvío. Aumenta los fotogramas totales e inténtalo de nuevo.",
     "fix-path.unreachable": "No se encontró ruta hasta estas claves: {{names}}. Se movieron después del final de la toma (no se reproducen) y se marcaron en rojo; muévelas o elimínalas.",
     "fix-path.blocked": "La ruta está bloqueada después de las claves en los fotogramas {{frames}} (marcada en rojo en la línea de tiempo).",
-    "fix-path.inside-geometry": "Estas claves están dentro de la geometría o fuera del área: {{names}}. Sus rutas parten del espacio libre más cercano.",
+    "fix-path.inside-geometry": "Estas claves están dentro de la geometría: {{names}}. Sus rutas parten del espacio libre más cercano.",
     "fix-path.status": "Ruta corregida. Claves de desvío añadidas: {{count}}",
     "timing.speed": "Velocidad: media {{avg}} {{unit}}/s, pico {{peak}} {{unit}}/s, giro más rápido {{turn}}°/s",
     "timing.turn-limited": "Hay muy pocos fotogramas para mantener los giros por debajo de {{cap}}°/s; giro más rápido {{turn}}°/s. Aumenta el total de fotogramas para un plano más tranquilo.",

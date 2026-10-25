@@ -126,20 +126,17 @@ const snapCell = (grid: Pick<NavGrid, 'cellOf' | 'nearestFree'>, p: Vec3Like) =>
 
 type Attach = { cell: Cell, straight: number };
 
-// The graph cell a key at p starts from: its snapped cell (straight 0), else
-// the cell reached by a straight move towards one of toward. Each move marches
-// from p towards that point and stops at the first graph cell; it counts when
-// the line from p to the cell centre is free. The nearest such cell wins;
-// straight is its distance from p. Null when nothing links.
-const attachCell = (grid: Pick<NavGrid, 'voxel' | 'cellOf' | 'nearestFree' | 'centre' | 'lineFree'>, p: Vec3Like, toward: Vec3Like[]): Attach | null => {
-    const snapped = snapCell(grid, p);
-    if (snapped !== null) return { cell: snapped, straight: 0 };
+type AttachGrid = Pick<NavGrid, 'voxel' | 'cellOf' | 'nearestFree' | 'centre' | 'lineFree'>;
 
-    let best: Attach | null = null;
+// Straight moves from p towards each point of toward: a move marches from p
+// and stops at the first graph cell; it counts when the line from p to the
+// cell centre is free. One hit per cell, nearest first; straight is the
+// distance from p.
+const straightHits = (grid: AttachGrid, p: Vec3Like, toward: Vec3Like[]): Attach[] => {
+    const hits = new Map<Cell, number>();
     const q = { x: 0, y: 0, z: 0 };
     for (const t of toward) {
-        const span = distance(p, t);
-        const n = Math.ceil(span / (STRAIGHT_STEP * grid.voxel));
+        const n = Math.ceil(distance(p, t) / (STRAIGHT_STEP * grid.voxel));
         for (let i = 1; i <= n; i++) {
             const s = i / n;
             q.x = p.x + (t.x - p.x) * s;
@@ -148,12 +145,19 @@ const attachCell = (grid: Pick<NavGrid, 'voxel' | 'cellOf' | 'nearestFree' | 'ce
             const cell = grid.cellOf(q);
             if (cell === null) continue;
             const at = grid.centre(cell);
-            const straight = distance(p, at);
-            if ((!best || straight < best.straight) && grid.lineFree(p, at)) best = { cell, straight };
+            if (!hits.has(cell) && grid.lineFree(p, at)) hits.set(cell, distance(p, at));
             break;
         }
     }
-    return best;
+    return [...hits].map(([cell, straight]) => ({ cell, straight })).sort((a, b) => a.straight - b.straight);
+};
+
+// The graph cell a key at p starts from: its snapped cell (straight 0), else
+// the nearest straight hit towards toward, else null.
+const attachCell = (grid: AttachGrid, p: Vec3Like, toward: Vec3Like[]): Attach | null => {
+    const snapped = snapCell(grid, p);
+    if (snapped !== null) return { cell: snapped, straight: 0 };
+    return straightHits(grid, p, toward)[0] ?? null;
 };
 
 // Route between the start cells of from and to (see attachCell, each moving
@@ -173,5 +177,5 @@ const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like): Route | null =>
     return { points, length, fromSnapped: grid.cellOf(from) === null, toSnapped: grid.cellOf(to) === null };
 };
 
-export { attachCell, CellHeap, findRoute, snapCell };
+export { attachCell, CellHeap, findRoute, snapCell, straightHits };
 export type { Attach, Route };

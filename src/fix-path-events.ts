@@ -32,7 +32,7 @@ type FixPathResult = {
 
 type PathMarkers = { blocked: number[], unreachable: string[], insideGeometry: string[] };
 
-// box: the area the grid covers; keys outside it are reported
+// box: the area the graph covers
 type SceneGrid = { grid: NavGrid, eyeHeight: number, box?: Box };
 
 // the smallest opening for an eye height
@@ -53,10 +53,12 @@ const STALE_EVENTS = [
     'timeline.smoothness', 'timeline.loop', 'timeline.frames'
 ];
 
-// box grown to hold every position with margin on each side
+// box grown to hold each position outside it with margin on each side;
+// positions inside leave it as it is
 const boxAroundKeys = (box: Box, positions: Vec3Like[], margin: number): Box => {
     const min = { ...box.min }, max = { ...box.max };
     for (const p of positions) {
+        if (insideBox(p.x, p.y, p.z, box)) continue;
         for (const axis of ['x', 'y', 'z'] as const) {
             min[axis] = Math.min(min[axis], p[axis] - margin);
             max[axis] = Math.max(max[axis], p[axis] + margin);
@@ -65,18 +67,17 @@ const boxAroundKeys = (box: Box, positions: Vec3Like[], margin: number): Box => 
     return { min, max };
 };
 
-// Grid from the cached scene points and splat extents, with the eye height of
-// the last Suggest Views run, else fresh estimates. Its box is that run's box
-// (else an estimate) grown to the keys plus one eye height, so the geometry
-// between far keys and the scene is in the grid.
+// Grid from the cached scene points and splat extents, with the box and eye
+// height of the last Suggest Views run, else fresh estimates. The graph stays
+// inside the box; its occupancy also covers the keys outside it plus one eye
+// height, so straight moves from far keys see the geometry on their way.
 const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt, positions: Vec3Like[] = []): Promise<SceneGrid | null> => {
     const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
     if (!points || points.length === 0) return null;
     const settings: { box: Box, eyeHeight: number } = events.invoke('candidates.lastSettings') ?? await events.invoke('candidates.prepare');
-    const { eyeHeight } = settings;
-    const box = boxAroundKeys(settings.box, positions, eyeHeight);
+    const { box, eyeHeight } = settings;
     const opening = openingAt(eyeHeight);
-    const { occ, levels } = buildSceneGrid(points, box, eyeHeight, navHeadVoxels(eyeHeight, opening), extents);
+    const { occ, levels } = buildSceneGrid(points, boxAroundKeys(box, positions, eyeHeight), eyeHeight, navHeadVoxels(eyeHeight, opening), extents);
     return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying, opening), eyeHeight, box };
 };
 
@@ -211,8 +212,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
 
         const { blocked, unreachable, detours, balance, times, graph } = plan;
         const { box } = scene;
-        const outside = new Set(box ? keys.filter(k => !insideBox(k.position.x, k.position.y, k.position.z, box)).map(k => k.name) : []);
-        const insideGeometry = keys.map(k => k.name).filter(n => outside.has(n) || plan.insideGeometry.includes(n));
+        const { insideGeometry } = plan;
         setMarkers({ blocked, unreachable, insideGeometry });
         const ms = (t: number) => t.toFixed(0);
         console.debug(`path.fix: ${keys.length} keys, ${detours} detours in ${ms(performance.now() - start)} ms ` +

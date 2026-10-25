@@ -484,7 +484,7 @@
     "fix-path.tooFewFrames": "Il y a trop peu de frames pour vos clés et les clés de détour. Augmentez le nombre total de frames et réessayez.",
     "fix-path.unreachable": "Aucun chemin trouvé vers ces clés : {{names}}. Elles ont été placées après la fin du plan (non jouées) et marquées en rouge ; déplacez-les ou supprimez-les.",
     "fix-path.blocked": "Le trajet est bloqué après les clés aux images {{frames}} (en rouge sur la timeline).",
-    "fix-path.inside-geometry": "Ces clés sont dans la géométrie ou hors de la zone : {{names}}. Leurs chemins partent de l’espace libre le plus proche.",
+    "fix-path.inside-geometry": "Ces clés sont dans la géométrie : {{names}}. Leurs chemins partent de l’espace libre le plus proche.",
     "fix-path.status": "Trajet corrigé. Clés de détour ajoutées : {{count}}",
     "timing.speed": "Vitesse : moy. {{avg}} {{unit}}/s, pic {{peak}} {{unit}}/s, rotation la plus rapide {{turn}}°/s",
     "timing.turn-limited": "Trop peu d'images pour garder les rotations sous {{cap}}°/s ; rotation la plus rapide {{turn}}°/s. Augmentez le nombre total d'images pour un plan plus calme.",

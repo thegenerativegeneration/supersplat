@@ -7,7 +7,7 @@ Fix Path repairs a camera shot in one click. It puts the keys in a good order, r
 - Orders the keys. The first key stays first. The tool picks the rest for the shortest way through the scene.
 - Keys that can't be reached are **parked**: moved after the end of the shot, so they don't play. See [Parked keys](#parked-keys).
 - Routes the camera between keys through free space, like a person walking.
-- Keys far from the scan (e.g. a high overview) are reached by a straight move to the nearest part of the route. The area box grows to include all keys.
+- Keys far from the scan or outside the **Area** box (e.g. a high overview) are reached by a straight move to the nearest part of the route. The straight move is checked against the scan, also outside the box.
 - Adds **detour keys** where the camera would hit walls, floors or objects. They get their own colour.
 - Balances the timing, like [Balance](balance-timing.md).
 - Your own keys keep their position and view. Only their order and time change.
@@ -48,7 +48,7 @@ Click outside the box or press Escape to close it.
 - **Problems left**: a box titled **Path Needs Attention** lists them.
   - "No route found to these keys: ... They were moved after the end of the shot (not played) and marked red; move or delete them."
   - "The path is blocked after the keys at frames ... (marked red on the timeline)."
-  - "These keys are inside geometry or outside the area: ... Their routes start from the nearest free space." Outside the area means outside the **Area** box.
+  - "These keys are inside geometry: ... Their routes start from the nearest free space."
 - **Errors**: a box titled **Couldn't Fix Path**.
   - "Add at least two camera keys to fix the path."
   - "There are no visible splats to route the camera through."
@@ -103,5 +103,5 @@ With camera poses shown, the camera path is drawn as a line.
 - Rooms reachable only through bands lower than **Smallest opening**, or through stairs the scan missed, stay unreachable. Lower **Smallest opening** to reach them, then play the shot: the scan may show a gap where there is glass or a lost ceiling.
 - The path check uses the scan's splats, including the size of large ones. Sparse walls with gaps may still leak, so the camera can pass through them. Play the shot to check.
 - Very large scans (over 500,000 solid splats) are thinned to 500,000 for the check. Thin roofs and walls can then leak again.
-- The route stays inside the **Area** box, grown to include all keys.
+- The route stays inside the **Area** box. Only the straight moves to keys outside it leave the box.
 - Fix Path does not check while you drag keys by hand.

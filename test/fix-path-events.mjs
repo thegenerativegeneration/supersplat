@@ -316,14 +316,14 @@ const fixPathEventsChecks = {
         assert.deepEqual(summary(events), before);
     },
 
-    async 'path: keys outside the area are listed'() {
+    async 'path: keys outside the area are not listed as inside geometry'() {
         const box = { min: { x: -1, y: 0, z: -1 }, max: { x: 9, y: 3, z: 5 } };
         const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), { ...pose('camera_2', 60, 8), position: new Vec3(8, 5, 0) }], {
             deps: { sceneGrid: async () => ({ grid: fakeGrid, eyeHeight: 1.6, box }), route: fakeRoute }
         });
         const result = await events.invoke('path.fix', FIX);
         assert.equal(result.ok, true);
-        assert.deepEqual(result.insideGeometry, ['camera_2']);
+        assert.deepEqual(result.insideGeometry, []);
     },
 
     async 'path: settings default to reorder and flying'() {

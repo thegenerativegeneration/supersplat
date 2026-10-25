@@ -484,7 +484,7 @@
     "fix-path.tooFewFrames": "帧数太少，无法容纳你的关键帧和绕行关键帧。请增加总帧数后重试。",
     "fix-path.unreachable": "找不到通往这些关键帧的路线：{{names}}。它们已移到镜头结束之后（不会播放）并标为红色，请移动或删除它们。",
     "fix-path.blocked": "第 {{frames}} 帧的关键帧之后路径受阻（在时间轴上以红色标出）。",
-    "fix-path.inside-geometry": "这些关键帧位于几何体内部或区域之外：{{names}}。其路线从最近的空闲位置开始。",
+    "fix-path.inside-geometry": "这些关键帧位于几何体内部：{{names}}。其路线从最近的空闲位置开始。",
     "fix-path.status": "路径已修正。添加的绕行关键帧：{{count}}",
     "timing.speed": "速度：平均 {{avg}} {{unit}}/秒，峰值 {{peak}} {{unit}}/秒，最快转向 {{turn}}°/秒",
     "timing.turn-limited": "帧数太少，无法将转向保持在 {{cap}}°/秒以下；最快转向为 {{turn}}°/秒。增加总帧数可获得更平稳的镜头。",

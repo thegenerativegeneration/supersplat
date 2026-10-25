@@ -64,41 +64,54 @@ const orbitKeys = (spec: OrbitSpec): CurvePose[] => {
 
 // Samples the circle at the camera height every voxel/4 of arc. Ranges are
 // maximal blocked runs as [from, to] azimuths in degrees, from <= to, unwrapped
-// along the travel (they can lie outside -180..180).
+// along the travel (they can lie outside -180..180). On a full turn a run
+// crossing the start azimuth is one range.
 const arcBlocked = (occupied: Occupied, voxel: number, spec: OrbitSpec) => {
     const span = clampSpan(spec.spanDeg);
     const steps = Math.max(1, Math.ceil(span * RAD * spec.radius / (voxel / 4)));
-    const ranges: [number, number][] = [];
+    const runs: [number, number][] = [];
     let open: [number, number] | null = null;
 
     for (let i = 0; i <= steps; i++) {
-        const az = azimuthAt(spec, span * i / steps);
-        const p = positionAt(spec, spec.radius, az);
-        const hit = occupied(Math.floor(p.x / voxel), Math.floor(p.y / voxel), Math.floor(p.z / voxel));
-        if (hit) {
+        const travelled = span * i / steps;
+        const p = positionAt(spec, spec.radius, azimuthAt(spec, travelled));
+        if (occupied(Math.floor(p.x / voxel), Math.floor(p.y / voxel), Math.floor(p.z / voxel))) {
             if (open) {
-                open[0] = Math.min(open[0], az);
-                open[1] = Math.max(open[1], az);
+                open[1] = travelled;
             } else {
-                open = [az, az];
-                ranges.push(open);
+                open = [travelled, travelled];
+                runs.push(open);
             }
         } else {
             open = null;
         }
     }
 
+    const last = runs[runs.length - 1];
+    if (span === MAX_SPAN && runs.length > 1 && runs[0][0] === 0 && last[1] === span) {
+        last[1] = span + runs[0][1];
+        runs.shift();
+    }
+
+    const ranges = runs.map(([t0, t1]): [number, number] => {
+        const a = azimuthAt(spec, t0);
+        const b = azimuthAt(spec, t1);
+        return [Math.min(a, b), Math.max(a, b)];
+    });
     return { blocked: ranges.length > 0, ranges };
 };
 
-// The largest radius at most spec.radius, in voxel/2 steps, whose arc is free.
+// The largest radius at most spec.radius, in voxel/2 steps and never below
+// MIN_RADIUS, whose arc is free.
 const fitRadius = (occupied: Occupied, voxel: number, spec: OrbitSpec) => {
     const min = MIN_RADIUS * voxel;
     const start = Math.max(spec.radius, min);
-    for (let radius = start; radius >= min - 1e-9; radius -= voxel / 2) {
-        const r = Math.max(radius, min);
-        if (!arcBlocked(occupied, voxel, { ...spec, radius: r }).blocked) {
-            return { radius: r, reduced: r < spec.radius };
+    const steps = Math.floor((start - min) / (voxel / 2) + 1e-9);
+    const candidates = Array.from({ length: steps + 1 }, (_, k) => start - k * voxel / 2);
+    if (candidates[steps] > min + 1e-9) candidates.push(min);
+    for (const radius of candidates) {
+        if (!arcBlocked(occupied, voxel, { ...spec, radius }).blocked) {
+            return { radius, reduced: radius < spec.radius };
         }
     }
     return null;

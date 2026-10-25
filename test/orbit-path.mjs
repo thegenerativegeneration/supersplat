@@ -92,14 +92,27 @@ const orbitPathChecks = {
         assert.ok(ranges[0][1] - ranges[0][0] < 40);
     },
 
+    'orbit path: a blocked run across the start azimuth of a full turn is one range'() {
+        const occupied = sceneOf([[C.x + 4, C.y + 1, C.z]]);
+        const { ranges } = arcBlocked(occupied, 1, spec({ startDeg: 0 }));
+        assert.equal(ranges.length, 1);
+        assert.ok(ranges[0][1] - ranges[0][0] > 0 && ranges[0][1] - ranges[0][0] < 40);
+    },
+
     'orbit path: fitRadius shrinks in front of a wall and returns null in a tiny closed box'() {
         const wall = sceneOf(ring(3, 3.5, C.y + 1));
         const s = spec({ radius: 3.2 });
         assert.equal(arcBlocked(wall, 1, s).blocked, true);
         const fit = fitRadius(wall, 1, s);
-        assert.ok(fit.reduced && fit.radius < 3.2 && fit.radius >= MIN_RADIUS);
+        assert.ok(fit.reduced && fit.radius < 3.2 && fit.radius >= MIN_RADIUS * 1);
         assert.equal(arcBlocked(wall, 1, { ...s, radius: fit.radius }).blocked, false);
         assert.deepEqual(fitRadius(sceneOf([]), 1, s), { radius: 3.2, reduced: false });
+
+        // the step sequence 1.4, 0.9 skips 1.0, which must still be tried
+        const edge = spec({ radius: 1.4, startDeg: 0, centre: { ...C, x: 10.9 } });
+        const near = sceneOf([[12.3, C.y + 1, C.z]]);
+        assert.equal(arcBlocked(near, 1, edge).blocked, true);
+        assert.deepEqual(fitRadius(near, 1, edge), { radius: 1, reduced: true });
 
         const cell = [Math.floor(C.x), Math.floor(C.y + 1), Math.floor(C.z)];
         const shell = [];

@@ -37,10 +37,10 @@ Two research rounds compared Suggest Views, Fix Path and Balance timing with pub
    - Ease out of the previous user key's view and into the next one's over the same distance near each key; the 35° clamp applies only between those zones. The turn cap (goal 4) keeps the ease from becoming a fast turn.
 4. **Turn cap** (Balance timing, default on, no toggle — user decision): peak turn speed of the sampled camera curve ≤ 20°/s (peak, not segment average, because the readout shows the peak). Balance lengthens segments that exceed it inside its iteration. If Total Frames can't fit the cap: balance anyway with the cap relaxed where needed and show a warning with the fastest turn in °/s (new non-error result and i18n string). Fix Path's retiming uses the same rule and shows the same warning in its status.
 5. **Speed readout** (Balance and Fix Path status): average and peak camera speed (m/s when the scene looks metric, else scene units/s) and peak turn speed (°/s) of the result.
-6. **Suggest Views: wall-aligned directions**, option "Align views to walls".
+6. **Suggest Views: wall-aligned directions**, option "Align views to walls". *(Removed after the blind test, see the addenda.)*
    - Dominant wall direction per level (or per room-sized region, builder's call) by the Hübner et al. 2021 histogram: horizontal normals of flat, opaque, near-vertical splats (shortest axis as normal; flatness threshold to calibrate, start smallest < 0.3 × middle) folded mod 90° into 1° bins, peak cluster, weighted median refine.
    - Candidate azimuths = that direction + multiples of 45°. No clear peak → current fixed azimuths.
-7. **Suggest Views: openness score**, option "Prefer open views".
+7. **Suggest Views: openness score**, option "Prefer open views". *(Now always on at weight 0.3, see the addenda.)*
    - Isovist from each candidate position on the eye-height slice of the grid (ray fan, e.g. 72 rays): area and openness; per direction, the depth spread inside the view frustum.
    - Added as a score term with a weight tuned in the comparison; pitch penalty and image terms stay.
 8. **Viewer consistency check** (experiment, no UI): voxelize the courtyard with splat-transform's CLI collision export at our voxel size (eye/4) and at its default 0.05 m (downsampled: a coarse voxel is solid if any fine voxel is), and compare with our density grid; report agreement. Recorded in the experiment repo.

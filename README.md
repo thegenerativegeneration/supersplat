@@ -48,6 +48,12 @@ To initialize a local development environment for SuperSplat, ensure you have [N
 
 When changes to the source are detected, SuperSplat is rebuilt automatically. Simply refresh your browser to see your changes.
 
+## Hosted Build (this fork)
+
+- Live at https://philipphaslbauer.com/supersplat/
+- Every push to the `pages` branch rebuilds and deploys it (`.github/workflows/pages.yml`)
+- To publish another branch: merge it into `pages` and push
+
 ## WebMCP
 
 SuperSplat exposes native browser WebMCP tools for scene inspection, selection, editing, camera control and import/export. See [WebMCP](docs/webmcp.md) for the tool contract, browser requirements and verification commands.

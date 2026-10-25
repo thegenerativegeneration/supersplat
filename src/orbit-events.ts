@@ -51,15 +51,6 @@ type SceneSettings = { box: Box, eyeHeight: number };
 
 const SAMPLE_VOXELS = 0.25;
 
-// box and eye height of the last Suggest Views run, else fresh estimates;
-// null without splats
-const sceneSettings = async (events: Events): Promise<SceneSettings | null> => {
-    const last = events.invoke('candidates.lastSettings') as SceneSettings | null;
-    if (last) return last;
-    const prepared = await events.invoke('candidates.prepare') as SceneSettings & { points: number };
-    return prepared.points > 0 ? prepared : null;
-};
-
 // Splits [from, to] ranges (to - from <= 360, possibly outside -180..180)
 // into ranges within -180..180.
 const normaliseRanges = (ranges: [number, number][]) => {
@@ -80,10 +71,13 @@ const normaliseRanges = (ranges: [number, number][]) => {
     return out;
 };
 
-// a spec with a finite radius of at least MIN_RADIUS voxels and finite angles
-const sanitise = (spec: OrbitSpec, voxel: number): OrbitSpec => ({
+const diagonal = (box: Box) => Math.hypot(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z);
+
+// a spec with a finite radius of at least MIN_RADIUS voxels, at most the box
+// diagonal, and finite angles
+const sanitise = (spec: OrbitSpec, voxel: number, box: Box | null): OrbitSpec => ({
     ...spec,
-    radius: Math.max(Number.isFinite(spec.radius) ? spec.radius : 0, MIN_RADIUS * voxel),
+    radius: Math.max(Math.min(Number.isFinite(spec.radius) ? spec.radius : 0, box ? diagonal(box) : Infinity), MIN_RADIUS * voxel),
     height: Number.isFinite(spec.height) ? spec.height : 0,
     startDeg: Number.isFinite(spec.startDeg) ? spec.startDeg : 0,
     spanDeg: clampSpan(spec.spanDeg),
@@ -130,25 +124,45 @@ const checkOrbitCurve = (events: Events, id: string, occ: Occupancy) => {
 
 const registerOrbitEvents = (events: Events) => {
     let cached: { points: Float32Array, box: string, eyeHeight: number, occ: Occupancy } | null = null;
+    let prepared: { points: Float32Array, settings: Promise<SceneSettings | null> } | null = null;
 
-    // the scene occupancy, rebuilt when the points, box or eye height change
-    const occupancy = async (): Promise<Occupancy | null> => {
+    // box and eye height of the last Suggest Views run, else estimates,
+    // prepared once per points array; null without splats
+    const sceneSettings = async (): Promise<{ points: Float32Array, extents: OpaquePoints['extents'], settings: SceneSettings } | null> => {
         const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
         if (!points || points.length === 0) return null;
-        const settings = await sceneSettings(events);
-        if (!settings) return null;
-        const { box, eyeHeight } = settings;
+        const last = events.invoke('candidates.lastSettings') as SceneSettings | null;
+        if (last) return { points, extents, settings: last };
+        if (prepared?.points !== points) {
+            const pending = (events.invoke('candidates.prepare') as Promise<SceneSettings & { points: number }>)
+            .then(p => (p.points > 0 ? { box: p.box, eyeHeight: p.eyeHeight } : null));
+            const entry = { points, settings: pending };
+            pending.catch(() => {
+                if (prepared === entry) prepared = null;
+            });
+            prepared = entry;
+        }
+        const settings = await prepared.settings;
+        return settings ? { points, extents, settings } : null;
+    };
+
+    // the scene occupancy and box, the occupancy rebuilt when the points, box
+    // or eye height change
+    const occupancy = async (): Promise<{ occ: Occupancy, box: Box | null } | null> => {
+        const scene = await sceneSettings();
+        if (!scene) return null;
+        const { points, extents, settings: { box, eyeHeight } } = scene;
         const boxKey = JSON.stringify(box);
         if (cached?.points !== points || cached.box !== boxKey || cached.eyeHeight !== eyeHeight) {
             const { occ } = buildSceneGrid(points, box, eyeHeight, undefined, extents);
             cached = { points, box: boxKey, eyeHeight, occ };
         }
-        return cached.occ;
+        return { occ: cached.occ, box };
     };
 
     // orbit around the focal point starting at the camera; null without splats
     events.function('orbit.defaults', async (spanDeg = 360): Promise<OrbitDefaults | null> => {
-        const settings = await sceneSettings(events);
+        const settings = (await sceneSettings())?.settings;
         if (!settings) return null;
         const { position, target } = events.invoke('camera.getPose') as { position: Vec3Like, target: Vec3Like };
         const centre = { x: target.x, y: target.y, z: target.z };
@@ -164,18 +178,21 @@ const registerOrbitEvents = (events: Events) => {
         };
     });
 
-    // keys on the largest free circle up to the requested radius
+    // keys on the largest free circle inside the box (the area Fix Path
+    // routes in) up to the requested radius
     const plan = async (spec: OrbitSpec): Promise<OrbitPlan> => {
-        const occ = await occupancy();
-        if (!occ) return { keys: [], blocked: true, blockedRanges: [], reason: 'noSplats' };
-        const safe = sanitise(spec, occ.voxel);
+        const scene = await occupancy();
+        if (!scene) return { keys: [], blocked: true, blockedRanges: [], reason: 'noSplats' };
+        const { occ } = scene;
+        const area = scene.box ?? undefined;
+        const safe = sanitise(spec, occ.voxel, scene.box);
         const occupied = (ix: number, iy: number, iz: number) => occ.occupied(ix, iy, iz);
-        const fit = fitRadius(occupied, occ.voxel, safe);
+        const fit = fitRadius(occupied, occ.voxel, safe, area);
         if (!fit) {
             return {
                 keys: [],
                 blocked: true,
-                blockedRanges: normaliseRanges(arcBlocked(occupied, occ.voxel, safe).ranges),
+                blockedRanges: normaliseRanges(arcBlocked(occupied, occ.voxel, safe, area).ranges),
                 radius: safe.radius
             };
         }
@@ -194,10 +211,13 @@ const registerOrbitEvents = (events: Events) => {
         const timeline = timelineSettings(events);
         const inShot = poses.filter(p => !isParked(p, timeline.frames)).length;
         const { radius, reduced } = planned;
-        if (inShot + planned.keys.length > timeline.frames) return { ok: false, reason: 'tooFewFrames', radius, reduced, ...none };
+        // a lone full turn in a loop wraps back to its first key by itself
+        const closed = timeline.loop && inShot === 0 && clampSpan(spec.spanDeg) === 360;
+        const keys = closed ? planned.keys.slice(0, -1) : planned.keys;
+        if (inShot + keys.length > timeline.frames) return { ok: false, reason: 'tooFewFrames', radius, reduced, ...none };
 
         const id = nextOrbitId(poses);
-        const balance = await appendAndBalance(events, planned.keys.map(k => ({
+        const balance = await appendAndBalance(events, keys.map(k => ({
             position: new Vec3(k.position.x, k.position.y, k.position.z),
             target: new Vec3(k.target.x, k.target.y, k.target.z),
             fov: k.fov,
@@ -206,10 +226,10 @@ const registerOrbitEvents = (events: Events) => {
         if ('reason' in balance && balance.reason === 'keysChanged') return { ok: false, reason: 'keysChanged', radius, reduced, balance, ...none };
 
         const added = (events.invoke('camera.poses') as Pose[]).filter(p => p.orbit === id).length;
-        if (added !== planned.keys.length) return { ok: false, reason: 'rejected', radius, reduced, balance, ...none };
+        if (added !== keys.length) return { ok: false, reason: 'rejected', radius, reduced, balance, ...none };
 
-        const occ = await occupancy();
-        const check = occ ? checkOrbitCurve(events, id, occ) : { orbitBlocked: false, joinBlocked: false };
+        const scene = await occupancy();
+        const check = scene ? checkOrbitCurve(events, id, scene.occ) : { orbitBlocked: false, joinBlocked: false };
         return { ok: true, added, radius, reduced, balance, ...check };
     });
 };

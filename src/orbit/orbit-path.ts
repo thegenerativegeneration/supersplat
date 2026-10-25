@@ -1,4 +1,5 @@
 import type { CurvePose } from '../anim/camera-curve';
+import { insideBox, type Box } from '../candidates/estimate';
 import type { Vec3Like } from '../candidates/occupancy';
 
 type OrbitSpec = {
@@ -62,11 +63,12 @@ const orbitKeys = (spec: OrbitSpec): CurvePose[] => {
     return keys;
 };
 
-// Samples the circle at the camera height every voxel/4 of arc. Ranges are
-// maximal blocked runs as [from, to] azimuths in degrees, from <= to, unwrapped
-// along the travel (they can lie outside -180..180). On a full turn a run
-// crossing the start azimuth is one range.
-const arcBlocked = (occupied: Occupied, voxel: number, spec: OrbitSpec) => {
+// Samples the circle at the camera height every voxel/4 of arc; a sample is
+// blocked in an occupied voxel or outside the area. Ranges are maximal blocked
+// runs as [from, to] azimuths in degrees, from <= to, unwrapped along the
+// travel (they can lie outside -180..180). On a full turn a run crossing the
+// start azimuth is one range.
+const arcBlocked = (occupied: Occupied, voxel: number, spec: OrbitSpec, area?: Box) => {
     const span = clampSpan(spec.spanDeg);
     const steps = Math.max(1, Math.ceil(span * RAD * spec.radius / (voxel / 4)));
     const runs: [number, number][] = [];
@@ -75,7 +77,7 @@ const arcBlocked = (occupied: Occupied, voxel: number, spec: OrbitSpec) => {
     for (let i = 0; i <= steps; i++) {
         const travelled = span * i / steps;
         const p = positionAt(spec, spec.radius, azimuthAt(spec, travelled));
-        if (occupied(Math.floor(p.x / voxel), Math.floor(p.y / voxel), Math.floor(p.z / voxel))) {
+        if ((area && !insideBox(p.x, p.y, p.z, area)) || occupied(Math.floor(p.x / voxel), Math.floor(p.y / voxel), Math.floor(p.z / voxel))) {
             if (open) {
                 open[1] = travelled;
             } else {
@@ -102,15 +104,15 @@ const arcBlocked = (occupied: Occupied, voxel: number, spec: OrbitSpec) => {
 };
 
 // The largest radius at most spec.radius, in voxel/2 steps and never below
-// MIN_RADIUS, whose arc is free.
-const fitRadius = (occupied: Occupied, voxel: number, spec: OrbitSpec) => {
+// MIN_RADIUS, whose arc is free and inside the area.
+const fitRadius = (occupied: Occupied, voxel: number, spec: OrbitSpec, area?: Box) => {
     const min = MIN_RADIUS * voxel;
     const start = Math.max(spec.radius, min);
     const steps = Math.floor((start - min) / (voxel / 2) + 1e-9);
     const candidates = Array.from({ length: steps + 1 }, (_, k) => start - k * voxel / 2);
     if (candidates[steps] > min + 1e-9) candidates.push(min);
     for (const radius of candidates) {
-        if (!arcBlocked(occupied, voxel, { ...spec, radius }).blocked) {
+        if (!arcBlocked(occupied, voxel, { ...spec, radius }, area).blocked) {
             return { radius, reduced: radius < spec.radius };
         }
     }

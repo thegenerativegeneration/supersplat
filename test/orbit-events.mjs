@@ -42,7 +42,7 @@ const setup = (points, poses = [], opts = {}) => {
     events.function('timeline.frames', () => opts.frames ?? 900);
     events.function('timeline.frameRate', () => 30);
     events.function('timeline.smoothness', () => 1);
-    events.function('timeline.loop', () => false);
+    events.function('timeline.loop', () => opts.loop ?? false);
     events.function('timeline.frame', () => 0);
     events.function('timeline.rotationWeight', () => 1);
     events.function('camera.fov', () => 60);
@@ -50,7 +50,12 @@ const setup = (points, poses = [], opts = {}) => {
     events.function('camera.sampleDistances', list => Promise.resolve(list.map(() => 2)));
     const cloud = { points: new Float32Array(points), extents: undefined };
     events.function('candidates.cloud', () => Promise.resolve(cloud));
-    events.function('candidates.lastSettings', () => ({ box: BOX, eyeHeight: EYE }));
+    const prepared = { calls: 0 };
+    events.function('candidates.lastSettings', () => (opts.prepare ? null : { box: BOX, eyeHeight: EYE }));
+    events.function('candidates.prepare', () => {
+        prepared.calls++;
+        return Promise.resolve({ box: BOX, eyeHeight: EYE, points: points.length / 3 });
+    });
     const popups = [];
     events.function('showPopup', (args) => {
         popups.push(args);
@@ -64,7 +69,7 @@ const setup = (points, poses = [], opts = {}) => {
     const ops = [];
     events.on('edit.add', op => ops.push(op));
     events.fire('camera.loadPoses', poses);
-    return { events, ops, popups };
+    return { events, ops, popups, prepared };
 };
 
 const byFrame = events => events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame);
@@ -153,6 +158,55 @@ const orbitEventsChecks = {
         assert.equal(result.reduced, false);
         assert.equal(result.joinBlocked, true);
         assert.equal(result.orbitBlocked, false);
+    },
+
+    async 'orbit: a lone full turn in a loop leaves out the closing key'() {
+        const { events } = setup(FAR, [], { loop: true, frames: 960 });
+        const result = await events.invoke('orbit.add', SPEC);
+        assert.equal(result.ok, true);
+        assert.equal(result.added, 16);
+        const poses = byFrame(events);
+        const frames = poses.map(p => p.frame);
+        const gaps = frames.slice(1).map((f, i) => f - frames[i]).concat(960 - frames[15] + frames[0]);
+        assert.ok(gaps.every(g => g === 60), `gaps ${gaps}`);
+        const at = i => poses[i % 16].position;
+        for (let i = 0; i < 16; i++) assert.ok(at(i).distance(at(i + 1)) > 0.5, `keys ${i} and ${i + 1} coincide`);
+    },
+
+    async 'orbit: a full turn after other keys in a loop keeps the closing key'() {
+        const { events } = setup(FAR, [pose('camera_0', 0, -10)], { loop: true });
+        const result = await events.invoke('orbit.add', SPEC);
+        assert.equal(result.added, 17);
+    },
+
+    async 'orbit: plans reuse the prepared settings of the same points'() {
+        const { events, prepared } = setup(FAR, [], { prepare: true });
+        await events.invoke('orbit.plan', SPEC);
+        await events.invoke('orbit.plan', { ...SPEC, radius: 3 });
+        await events.invoke('orbit.add', SPEC);
+        await events.invoke('orbit.defaults');
+        assert.equal(prepared.calls, 1);
+    },
+
+    async 'orbit: the circle stays inside the area box'() {
+        const { events } = setup(FAR);
+        const near = await events.invoke('orbit.plan', { ...SPEC, centre: { x: 18, y: 0, z: 0 }, radius: 4 });
+        assert.equal(near.reduced, true);
+        assert.ok(near.radius <= 2, `radius ${near.radius}`);
+        const outside = await events.invoke('orbit.plan', { ...SPEC, centre: { x: 25, y: 0, z: 0 } });
+        assert.equal(outside.blocked, true);
+        assert.ok(outside.blockedRanges.length > 0);
+        const high = await events.invoke('orbit.plan', { ...SPEC, height: 10 });
+        assert.equal(high.blocked, true);
+    },
+
+    async 'orbit: a huge typed radius is capped at the box diagonal'() {
+        const { events } = setup(FAR);
+        const plan = await events.invoke('orbit.plan', { ...SPEC, radius: 1e9 });
+        assert.equal(plan.reduced, true);
+        assert.ok(plan.radius <= 20, `radius ${plan.radius}`);
+        const blocked = await events.invoke('orbit.plan', { ...SPEC, centre: { x: 25, y: 0, z: 0 }, radius: 1e9 });
+        assert.ok(blocked.radius <= Math.hypot(40, 7, 40), `radius ${blocked.radius}`);
     },
 
     async 'orbit: a blocked orbit adds nothing'() {

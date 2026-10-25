@@ -20,12 +20,12 @@ Orbit adds camera keys on a circle around a point in one click: a fountain, a st
 - **Height**: camera height above the focal point. Negative looks up at it.
 - **Span**: how far round, 90–360°. Rounds to steps of 22.5°.
 - **Direction**: **Left** turns counter-clockwise seen from above, **Right** clockwise.
-- **Keys**: one key every 22.5°, plus one at the end. A full turn has 17 keys; the last one repeats the first position.
+- **Keys**: one key every 22.5°, plus one at the end. A full turn has 17 keys; the last one repeats the first position. Exception: a full turn alone in a looping shot has 16 keys, because the loop closes it.
 - Defaults refresh each time you open the box. Click outside or press Escape to close it.
 
 ## Near walls
 
-- The circle is checked against the scan before it is added.
+- The circle is checked against the scan before it is added. Leaving the **Area** box counts as blocked, like in [Fix Path](fix-path.md).
 - If it hits something, the radius shrinks until the circle is free. The box says "Radius reduced to …".
 - If no radius is free: "No clear orbit here". Red parts of the preview show where it is blocked. Move the focal point or the camera.
 - The height never changes and the circle is never cut short.

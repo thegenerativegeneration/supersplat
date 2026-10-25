@@ -13,7 +13,7 @@ import { orbitPreviewLine, type OrbitPreview } from './orbit/orbit-preview-line'
 import { vertexShader, fragmentShader } from './shaders/debug-shader';
 
 // The orbit the Orbit popover would add, drawn as lines next to the camera
-// path, shown like the path with the camera poses and overlays.
+// path while the popover is open and overlays are shown.
 class OrbitPreviewLine extends Element {
     entity: Entity;
     mesh: Mesh;
@@ -65,7 +65,8 @@ class OrbitPreviewLine extends Element {
             this.dirty = false;
             this.rebuild();
         }
-        const visible = scene.events.invoke('camera.showPoses') && scene.camera.renderOverlays;
+        // shown while the popover is open, also with camera poses hidden; off in renders without overlays
+        const visible = scene.camera.renderOverlays;
         // a count-0 draw still validates its attributes, so stay off without lines
         this.entity.enabled = visible && !!this.preview && this.mesh.primitive[0].count > 0;
     }

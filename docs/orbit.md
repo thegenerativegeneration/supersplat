@@ -29,12 +29,12 @@ Orbit adds camera keys on a circle around a point in one click: a fountain, a st
 - If it hits something, the radius shrinks until the circle is free. The box says "Radius reduced to …".
 - If no radius is free: "No clear orbit here". Red parts of the preview show where it is blocked. Move the focal point or the camera.
 - The height never changes and the circle is never cut short.
-- After adding, the camera curve along the orbit is checked too. If it still clips something, a box says so.
+- After adding, the camera curve between the orbit keys is checked too. If it touches geometry, a box says so: try a slightly smaller radius.
 - The way from your last key into the orbit is not routed. If it is blocked, you are told to run **Fix Path**.
 
 ## 3D preview
 
-- Shown while the box is open, with camera poses shown.
+- Shown while the box is open, also with camera poses hidden.
 - Lavender circle with a tick at each key, and a cross at the focal point.
 - Red: blocked part of the circle.
 
@@ -42,7 +42,7 @@ Orbit adds camera keys on a circle around a point in one click: a fountain, a st
 
 - Balance times the orbit like any other keys. There is no separate orbit duration.
 - Turns are capped at 20°/s. A full turn needs at least 18 s.
-- If the shot is shorter, the box warns: "Full turn needs ≥ … s at the turn cap; shot is … s". You can still add the orbit; Balance then turns faster and tells you. Increase **Total Frames** for a calmer orbit.
+- If the shot is shorter, the box warns: "This orbit needs ≥ … s at the turn cap; shot is … s". You can still add the orbit; Balance then turns faster and tells you. Increase **Total Frames** for a calmer orbit.
 
 ## Fix Path
 

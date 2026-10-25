@@ -110,6 +110,10 @@ const orbitEventsChecks = {
         assert.deepEqual(plan.keys, []);
         assert.ok(plan.blockedRanges.length > 0);
         assert.ok(plan.blockedRanges.every(([a, b]) => a >= -180 && b <= 180 && a <= b));
+        // the radius the ranges were found at, for the preview
+        assert.equal(plan.radius, 0.4);
+        const tiny = await events.invoke('orbit.plan', { ...SPEC, centre: { x: 3.1, y: 0, z: 0 }, radius: 0 });
+        assert.ok(tiny.radius > 0, `radius ${tiny.radius}`);
     },
 
     async 'orbit: add on an empty timeline gives one balanced orbit'() {

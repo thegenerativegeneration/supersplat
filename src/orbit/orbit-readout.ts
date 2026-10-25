@@ -35,7 +35,7 @@ const orbitReport = (result: OrbitAddResult, metric: boolean, unit: string): Fix
         lines.push({ key: 'orbit.reduced', params: { radius: lengthText(result.radius, unit) } });
     }
     const problems: ReportLine[] = [];
-    if (result.orbitBlocked) problems.push({ key: 'orbit.blocked' });
+    if (result.orbitBlocked) problems.push({ key: 'orbit.curve-blocked' });
     if (result.joinBlocked) problems.push({ key: 'orbit.join-blocked' });
 
     // a failed balance has shown its own popup

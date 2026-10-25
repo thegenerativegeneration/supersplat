@@ -50,7 +50,8 @@ const orbitReadoutChecks = {
         assert.equal(join.type, 'info');
         assert.ok(keysOf(join).includes('orbit.join-blocked'));
         const inside = orbitReport(okResult({ orbitBlocked: true }), true, 'm');
-        assert.ok(keysOf(inside).includes('orbit.blocked'));
+        assert.equal(inside.type, 'info');
+        assert.deepEqual(keysOf(inside).slice(0, 2), ['orbit.status', 'orbit.curve-blocked']);
         const turn = orbitReport(okResult({ balance: { ok: true, frames: [], iterations: 1, stats, turnLimited: 30 } }), true, 'm');
         assert.equal(turn.type, 'info');
         assert.ok(keysOf(turn).includes('timing.turn-limited'));

@@ -96,9 +96,10 @@ class OrbitOptions extends Container {
             showLine(turnTime, line?.key ?? null, line?.params);
         };
 
+        // without defaults fill() is still loading and plans once it is done
         const preview = async () => {
-            const id = ++planId;
             if (!defaults) return;
+            const id = ++planId;
             const spec = specOf(defaults);
             let plan: OrbitPlan;
             try {
@@ -108,11 +109,9 @@ class OrbitOptions extends Container {
                 return;
             }
             if (id !== planId || this.hidden) return;
-            let shownRadius = spec.radius;
             if ('blocked' in plan) {
                 showLine(hint, plan.reason === 'noSplats' ? 'orbit.noSplats' : 'orbit.blocked');
             } else {
-                shownRadius = plan.radius;
                 const reduced = { radius: `${plan.radius.toFixed(2)} ${radius.unit.text}` };
                 showLine(hint, plan.reduced ? 'orbit.reduced' : null, reduced);
             }
@@ -120,7 +119,7 @@ class OrbitOptions extends Container {
                 keys: plan.keys,
                 blockedRanges: plan.blockedRanges,
                 centre: spec.centre,
-                radius: shownRadius,
+                radius: plan.radius ?? 0,
                 height: spec.height,
                 startDeg: spec.startDeg,
                 spanDeg: spec.spanDeg,

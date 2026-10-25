@@ -27,10 +27,11 @@ type OrbitDefaults = {
 };
 
 // blockedRanges: [from, to] azimuths in degrees within -180..180 where the
-// arc at the requested radius is blocked
+// arc at the requested radius is blocked; a blocked plan's radius is that
+// requested radius, at least MIN_RADIUS (absent without splats)
 type OrbitPlan =
     { keys: CurvePose[], radius: number, reduced: boolean, blockedRanges: [number, number][] } |
-    { keys: [], blocked: true, blockedRanges: [number, number][], reason?: 'noSplats' };
+    { keys: [], blocked: true, blockedRanges: [number, number][], radius?: number, reason?: 'noSplats' };
 
 type OrbitAddResult = {
     ok: boolean,
@@ -171,7 +172,12 @@ const registerOrbitEvents = (events: Events) => {
         const occupied = (ix: number, iy: number, iz: number) => occ.occupied(ix, iy, iz);
         const fit = fitRadius(occupied, occ.voxel, safe);
         if (!fit) {
-            return { keys: [], blocked: true, blockedRanges: normaliseRanges(arcBlocked(occupied, occ.voxel, safe).ranges) };
+            return {
+                keys: [],
+                blocked: true,
+                blockedRanges: normaliseRanges(arcBlocked(occupied, occ.voxel, safe).ranges),
+                radius: safe.radius
+            };
         }
         return { keys: orbitKeys({ ...safe, radius: fit.radius }), radius: fit.radius, reduced: fit.reduced, blockedRanges: [] };
     };

@@ -4,6 +4,7 @@ import type { BalanceResult } from './anim/balance-timing';
 import { Pose } from './camera-poses';
 import { insideBox, looksMetric, type Box } from './candidates/estimate';
 import { buildSceneGrid } from './candidates/generate';
+import type { Vec3Like } from './candidates/occupancy';
 import type { OpaquePoints } from './candidates/read-points';
 import { Events } from './events';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
@@ -38,8 +39,9 @@ type SceneGrid = { grid: NavGrid, eyeHeight: number, box?: Box };
 type OpeningAt = (eyeHeight: number) => number;
 
 type FixPathDeps = {
-    // the navigation grid of the scene, null without visible splats
-    sceneGrid?: (allowFlying: boolean, openingAt: OpeningAt) => Promise<SceneGrid | null>,
+    // the navigation grid of the scene around the user key positions, null
+    // without visible splats
+    sceneGrid?: (allowFlying: boolean, openingAt: OpeningAt, positions?: Vec3Like[]) => Promise<SceneGrid | null>,
     route?: RouteFn
 };
 
@@ -51,13 +53,28 @@ const STALE_EVENTS = [
     'timeline.smoothness', 'timeline.loop', 'timeline.frames'
 ];
 
-// Grid from the cached scene points and splat extents, with the box and eye
-// height of the last Suggest Views run, else fresh estimates.
-const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt): Promise<SceneGrid | null> => {
+// box grown to hold every position with margin on each side
+const boxAroundKeys = (box: Box, positions: Vec3Like[], margin: number): Box => {
+    const min = { ...box.min }, max = { ...box.max };
+    for (const p of positions) {
+        for (const axis of ['x', 'y', 'z'] as const) {
+            min[axis] = Math.min(min[axis], p[axis] - margin);
+            max[axis] = Math.max(max[axis], p[axis] + margin);
+        }
+    }
+    return { min, max };
+};
+
+// Grid from the cached scene points and splat extents, with the eye height of
+// the last Suggest Views run, else fresh estimates. Its box is that run's box
+// (else an estimate) grown to the keys plus one eye height, so the geometry
+// between far keys and the scene is in the grid.
+const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt, positions: Vec3Like[] = []): Promise<SceneGrid | null> => {
     const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
     if (!points || points.length === 0) return null;
     const settings: { box: Box, eyeHeight: number } = events.invoke('candidates.lastSettings') ?? await events.invoke('candidates.prepare');
-    const { box, eyeHeight } = settings;
+    const { eyeHeight } = settings;
+    const box = boxAroundKeys(settings.box, positions, eyeHeight);
     const opening = openingAt(eyeHeight);
     const { occ, levels } = buildSceneGrid(points, box, eyeHeight, navHeadVoxels(eyeHeight, opening), extents);
     return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying, opening), eyeHeight, box };
@@ -135,7 +152,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
         const snapshot = snapshotOf(events);
 
         const runOpening = Number.isFinite(options?.smallestOpening) ? options.smallestOpening : opening;
-        const scene = await sceneGrid(opts.allowFlying, eyeHeight => clampOpening(runOpening, eyeHeight));
+        const scene = await sceneGrid(opts.allowFlying, eyeHeight => clampOpening(runOpening, eyeHeight), userPoses.map(p => p.position));
         if (!scene) return { ok: false, reason: 'noSplats', ...empty };
         estimate = scene.eyeHeight;
         const gridMs = performance.now() - start;
@@ -208,5 +225,5 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     });
 };
 
-export { registerFixPathEvents };
+export { boxAroundKeys, registerFixPathEvents };
 export type { EyeHeightInfo, FixPathDeps, FixPathOptions, FixPathResult, PathMarkers };

@@ -1,5 +1,5 @@
 import type { Cell, NavGrid } from './nav-grid';
-import { CellHeap, snapCell } from './route';
+import { attachCell, CellHeap } from './route';
 import type { Vec3Like } from '../candidates/occupancy';
 
 // One connected component of the nav graph as a compressed adjacency:
@@ -97,7 +97,8 @@ const dijkstra = (c: Component, source: number, goals: number[]): Int32Array => 
     return parent;
 };
 
-// Cheapest routes between the given key positions (snapped like findRoute):
+// Cheapest routes between the given key positions (attached like findRoute,
+// a far key moving towards the others; lengths include the straight moves):
 // the components holding the keys are built once, then one Dijkstra per
 // source key settles all keys of its component.
 const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
@@ -105,7 +106,8 @@ const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
     // component and node of each key, -1 when it has no graph cell
     const compOf = new Int32Array(positions.length).fill(-1);
     const nodeOf = new Int32Array(positions.length).fill(-1);
-    const startCells = positions.map(p => snapCell(grid, p));
+    const attached = positions.map((p, i) => attachCell(grid, p, positions.filter((_, j) => j !== i)));
+    const startCells = attached.map(a => a?.cell ?? null);
     startCells.forEach((cell, i) => {
         if (cell === null || compOf[i] >= 0) return;
         const { component, index } = buildComponent(grid, cell);
@@ -150,7 +152,7 @@ const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
                     return null;
                 }
                 points.reverse();
-                let length = 0;
+                let length = attached[i].straight + attached[j].straight;
                 for (let k = 1; k < points.length; k++) {
                     const a = points[k - 1], b = points[k];
                     length += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);

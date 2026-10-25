@@ -5,6 +5,8 @@ type Route = { points: Vec3Like[], length: number, fromSnapped: boolean, toSnapp
 
 const MAX_EXPANSIONS = 300000;
 const SNAP_VOXELS = 2;
+// march step of a straight move, in voxels
+const STRAIGHT_STEP = 0.25;
 
 const distance = (a: Vec3Like, b: Vec3Like) => Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
 
@@ -120,26 +122,56 @@ const search = (grid: NavGrid, start: Cell, goal: Cell): Cell[] | null => {
 };
 
 // the grid cell of p, else the nearest graph cell within SNAP_VOXELS
-const snapCell = (grid: NavGrid, p: Vec3Like) => grid.cellOf(p) ?? grid.nearestFree(p, SNAP_VOXELS);
+const snapCell = (grid: Pick<NavGrid, 'cellOf' | 'nearestFree'>, p: Vec3Like) => grid.cellOf(p) ?? grid.nearestFree(p, SNAP_VOXELS);
 
-// Route between the grid cells of from and to (snapped to the nearest graph
-// cell within SNAP_VOXELS when outside the graph). Points are cell centres
-// from the start cell to the goal cell; length is in world units.
+type Attach = { cell: Cell, straight: number };
+
+// The graph cell a key at p starts from: its snapped cell (straight 0), else
+// the cell reached by a straight move towards one of toward. Each move marches
+// from p towards that point and stops at the first graph cell; it counts when
+// the line from p to the cell centre is free. The nearest such cell wins;
+// straight is its distance from p. Null when nothing links.
+const attachCell = (grid: Pick<NavGrid, 'voxel' | 'cellOf' | 'nearestFree' | 'centre' | 'lineFree'>, p: Vec3Like, toward: Vec3Like[]): Attach | null => {
+    const snapped = snapCell(grid, p);
+    if (snapped !== null) return { cell: snapped, straight: 0 };
+
+    let best: Attach | null = null;
+    const q = { x: 0, y: 0, z: 0 };
+    for (const t of toward) {
+        const span = distance(p, t);
+        const n = Math.ceil(span / (STRAIGHT_STEP * grid.voxel));
+        for (let i = 1; i <= n; i++) {
+            const s = i / n;
+            q.x = p.x + (t.x - p.x) * s;
+            q.y = p.y + (t.y - p.y) * s;
+            q.z = p.z + (t.z - p.z) * s;
+            const cell = grid.cellOf(q);
+            if (cell === null) continue;
+            const at = grid.centre(cell);
+            const straight = distance(p, at);
+            if ((!best || straight < best.straight) && grid.lineFree(p, at)) best = { cell, straight };
+            break;
+        }
+    }
+    return best;
+};
+
+// Route between the start cells of from and to (see attachCell, each moving
+// towards the other end). Points are cell centres from the start cell to the
+// goal cell; length is in world units and includes the straight moves.
 const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like): Route | null => {
-    const fromCell = grid.cellOf(from);
-    const toCell = grid.cellOf(to);
-    const start = fromCell ?? grid.nearestFree(from, SNAP_VOXELS);
-    const goal = toCell ?? grid.nearestFree(to, SNAP_VOXELS);
+    const start = attachCell(grid, from, [to]);
+    const goal = attachCell(grid, to, [from]);
     if (start === null || goal === null) return null;
 
-    const cells = search(grid, start, goal);
+    const cells = search(grid, start.cell, goal.cell);
     if (!cells) return null;
 
     const points = cells.map(c => grid.centre(c));
-    let length = 0;
+    let length = start.straight + goal.straight;
     for (let i = 1; i < points.length; i++) length += distance(points[i - 1], points[i]);
-    return { points, length, fromSnapped: fromCell === null, toSnapped: toCell === null };
+    return { points, length, fromSnapped: grid.cellOf(from) === null, toSnapped: grid.cellOf(to) === null };
 };
 
-export { CellHeap, findRoute, snapCell };
-export type { Route };
+export { attachCell, CellHeap, findRoute, snapCell };
+export type { Attach, Route };

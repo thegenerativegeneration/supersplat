@@ -427,4 +427,4 @@ const fixPathEventsChecks = {
     }
 };
 
-export { fixPathEventsChecks };
+export { fixPathEventsChecks, setup };

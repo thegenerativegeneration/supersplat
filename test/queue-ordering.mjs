@@ -22,6 +22,7 @@ import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
 import { fixPathEventsChecks } from './fix-path-events.mjs';
 import { fixPathOrbitChecks } from './fix-path-orbit.mjs';
+import { fixPathOverviewChecks } from './fix-path-overview.mjs';
 import { fixPathQualityChecks } from './fix-path-quality.mjs';
 import { navDoorsChecks } from './nav-doors.mjs';
 import { occupancyExtentChecks } from './occupancy-extent.mjs';
@@ -97,6 +98,7 @@ const checks = {
     ...fixPathChecks,
     ...fixPathEventsChecks,
     ...fixPathOrbitChecks,
+    ...fixPathOverviewChecks,
     ...fixPathQualityChecks,
     ...navDoorsChecks,
     ...occupancyExtentChecks,

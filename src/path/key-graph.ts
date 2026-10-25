@@ -1,5 +1,5 @@
 import type { Cell, NavGrid } from './nav-grid';
-import { CellHeap, snapCell, straightHits, type Attach } from './route';
+import { CellHeap, snapCell, straightHits, straightPoints, type Attach } from './route';
 import type { Vec3Like } from '../candidates/occupancy';
 
 // One connected component of the nav graph as a compressed adjacency:
@@ -11,7 +11,9 @@ type KeyRoutes = {
     // world length of the cheapest route from key i to key j, Infinity when
     // they are not connected
     length(i: number, j: number): number,
-    // cell centres of that route from i's cell to j's cell, or null
+    // points of that route from key i to key j (without the keys): the
+    // straight move from i, the cell centres from i's cell to j's cell, the
+    // straight move to j; or null
     points(i: number, j: number): Vec3Like[] | null,
     // nodes and edges held in all components
     size: { nodes: number, edges: number }
@@ -176,7 +178,14 @@ const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
                     const a = points[k - 1], b = points[k];
                     length += Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
                 }
-                paths.set(key, { points, length });
+                paths.set(key, {
+                    points: [
+                        ...straightPoints(positions[i], points[0], grid.voxel),
+                        ...points,
+                        ...straightPoints(positions[j], points[points.length - 1], grid.voxel).reverse()
+                    ],
+                    length
+                });
             }
         }
         return paths.get(key);

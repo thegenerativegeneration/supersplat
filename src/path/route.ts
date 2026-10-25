@@ -160,9 +160,22 @@ const attachCell = (grid: AttachGrid, p: Vec3Like, toward: Vec3Like[]): Attach |
     return straightHits(grid, p, toward)[0] ?? null;
 };
 
+// points about a voxel apart on the straight move from p to at, without
+// either end, in that order
+const straightPoints = (p: Vec3Like, at: Vec3Like, voxel: number): Vec3Like[] => {
+    const n = Math.ceil(distance(p, at) / voxel);
+    const out: Vec3Like[] = [];
+    for (let i = 1; i < n; i++) {
+        const s = i / n;
+        out.push({ x: p.x + (at.x - p.x) * s, y: p.y + (at.y - p.y) * s, z: p.z + (at.z - p.z) * s });
+    }
+    return out;
+};
+
 // Route between the start cells of from and to (see attachCell, each moving
-// towards the other end). Points are cell centres from the start cell to the
-// goal cell; length is in world units and includes the straight moves.
+// towards the other end). Points run from from to to: the straight move from
+// from (see straightPoints), the cell centres from the start cell to the goal
+// cell, then the straight move to to. Length is in world units.
 const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like): Route | null => {
     const start = attachCell(grid, from, [to]);
     const goal = attachCell(grid, to, [from]);
@@ -171,11 +184,16 @@ const findRoute = (grid: NavGrid, from: Vec3Like, to: Vec3Like): Route | null =>
     const cells = search(grid, start.cell, goal.cell);
     if (!cells) return null;
 
-    const points = cells.map(c => grid.centre(c));
+    const centres = cells.map(c => grid.centre(c));
     let length = start.straight + goal.straight;
-    for (let i = 1; i < points.length; i++) length += distance(points[i - 1], points[i]);
+    for (let i = 1; i < centres.length; i++) length += distance(centres[i - 1], centres[i]);
+    const points = [
+        ...straightPoints(from, centres[0], grid.voxel),
+        ...centres,
+        ...straightPoints(to, centres[centres.length - 1], grid.voxel).reverse()
+    ];
     return { points, length, fromSnapped: grid.cellOf(from) === null, toSnapped: grid.cellOf(to) === null };
 };
 
-export { attachCell, CellHeap, findRoute, snapCell, straightHits };
+export { attachCell, CellHeap, findRoute, snapCell, straightHits, straightPoints };
 export type { Attach, Route };

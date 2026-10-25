@@ -78,9 +78,20 @@ const fixPathOverviewChecks = {
         assert.ok(route, 'route');
         assert.ok(route.fromSnapped);
         assert.ok(route.length >= straight, 'length includes the straight move');
+        // the straight move is in the route about every voxel, so detours can sit on it
+        const polyline = pts => pts.slice(1).reduce((sum, b, k) => sum + Math.hypot(b.x - pts[k].x, b.y - pts[k].y, b.z - pts[k].z), 0);
+        const lead = [HIGH, ...route.points.slice(0, route.points.indexOf(route.points.find(p => p.x === at.x && p.y === at.y && p.z === at.z)) + 1)];
+        assert.ok(lead.length > straight / grid.voxel - 1, `${lead.length} points on ${straight.toFixed(1)}`);
+        assert.ok(lead.slice(1).every((p, k) => Math.hypot(p.x - lead[k].x, p.y - lead[k].y, p.z - lead[k].z) <= grid.voxel + 1e-9));
+        assert.ok(Math.abs(route.length - polyline([HIGH, ...route.points])) < 1e-6, 'length unchanged by the points');
         const routes = keyRoutes(grid, [IN_A, HIGH]);
         assert.ok(Number.isFinite(routes.length(0, 1)) && Number.isFinite(routes.length(1, 0)));
         assert.ok(routes.length(1, 0) >= straight);
+        const out = routes.points(1, 0), back = routes.points(0, 1);
+        assert.ok(Math.hypot(out[0].x - HIGH.x, out[0].y - HIGH.y, out[0].z - HIGH.z) <= grid.voxel + 1e-9, 'starts at the far key');
+        const end = back[back.length - 1];
+        assert.ok(Math.hypot(end.x - HIGH.x, end.y - HIGH.y, end.z - HIGH.z) <= grid.voxel + 1e-9, 'ends at the far key');
+        assert.ok(Math.abs(routes.length(1, 0) - polyline([HIGH, ...out])) < 1e-6);
 
         const plan = planFixPath({ keys: [fixKey('a', IN_A), fixKey('o', HIGH)], grid, eyeHeight: EYE, keepOrder: false, timeline: TIMELINE });
         assert.deepEqual(plan.unreachable, []);

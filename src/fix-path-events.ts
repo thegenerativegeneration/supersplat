@@ -154,7 +154,8 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             ...sources[i],
             name: p.name,
             linger: Math.max(0, finiteOr(p.linger, 0)),
-            distance: distances[i] ?? NaN
+            distance: distances[i] ?? NaN,
+            orbit: p.orbit
         }));
         const timeline = timelineSettings(events);
         const plan = planFixPath({

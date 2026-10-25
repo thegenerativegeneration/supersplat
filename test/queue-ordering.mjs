@@ -21,6 +21,7 @@ import { fixPlanBalanceChecks } from './fix-plan-balance.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
 import { fixPathEventsChecks } from './fix-path-events.mjs';
+import { fixPathOrbitChecks } from './fix-path-orbit.mjs';
 import { fixPathQualityChecks } from './fix-path-quality.mjs';
 import { navDoorsChecks } from './nav-doors.mjs';
 import { occupancyExtentChecks } from './occupancy-extent.mjs';
@@ -92,6 +93,7 @@ const checks = {
     ...editorCommandChecks,
     ...fixPathChecks,
     ...fixPathEventsChecks,
+    ...fixPathOrbitChecks,
     ...fixPathQualityChecks,
     ...navDoorsChecks,
     ...occupancyExtentChecks,

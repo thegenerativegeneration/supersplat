@@ -10,6 +10,7 @@ Fix Path repairs a camera shot in one click. It puts the keys in a good order, r
 - Adds **detour keys** where the camera would hit walls, floors or objects. They get their own colour.
 - Balances the timing, like [Balance](balance-timing.md).
 - Your own keys keep their position and view. Only their order and time change.
+- Orbit keys stay together, in their order, with no detour keys between them. An orbit that can't be reached is parked as a whole.
 - One Ctrl+Z undoes the whole run.
 
 ## Before you start

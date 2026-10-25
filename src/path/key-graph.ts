@@ -173,8 +173,9 @@ const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
 
 // The main group of keys: keys reach each other when routes run both ways,
 // and groups join through shared keys. Returns the indices of the group with
-// the most keys, ascending; on a tie the group holding the lowest index.
-const mainGroup = (n: number, length: (i: number, j: number) => number): number[] => {
+// the highest weight (default: the most keys), ascending; on a tie the group
+// holding the lowest index.
+const mainGroup = (n: number, length: (i: number, j: number) => number, weight = (group: number[]) => group.length): number[] => {
     const root = Array.from({ length: n }, (_, i) => i);
     const find = (i: number): number => (root[i] === i ? i : (root[i] = find(root[i])));
     for (let i = 0; i < n; i++) {
@@ -189,8 +190,14 @@ const mainGroup = (n: number, length: (i: number, j: number) => number): number[
         groups.get(r).push(i);
     }
     // groups come in order of their lowest index, so the first largest wins
-    let best: number[] = [];
-    for (const g of groups.values()) if (g.length > best.length) best = g;
+    let best: number[] = [], bestWeight = -Infinity;
+    for (const g of groups.values()) {
+        const w = weight(g);
+        if (w > bestWeight) {
+            best = g;
+            bestWeight = w;
+        }
+    }
     return best;
 };
 

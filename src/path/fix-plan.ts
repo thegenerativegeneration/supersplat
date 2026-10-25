@@ -1,19 +1,21 @@
+import { blockEnds, orbitBlocks, orderBlocks, segmentsInBlocks } from './blocks';
 import { planDetours } from './detours';
-import { keyRoutes, mainGroup, type KeyRoutes } from './key-graph';
+import { keyRoutes, type KeyRoutes } from './key-graph';
 import type { NavGrid } from './nav-grid';
-import { orderKeys } from './order';
 import type { Route } from './route';
 import { balanceTiming, type BalanceInput, type BalanceResult } from '../anim/balance-timing';
 import type { CurvePose } from '../anim/camera-curve';
 import type { Vec3Like } from '../candidates/occupancy';
 
-// a user key; distance is the sampled scene distance (non-finite: unknown)
-type FixKey = CurvePose & { name: string, linger: number, distance: number };
+// a user key; distance is the sampled scene distance (non-finite: unknown);
+// orbit: id of the orbit the key belongs to
+type FixKey = CurvePose & { name: string, linger: number, distance: number, orbit?: string };
 
 type RouteFn = (grid: NavGrid, from: Vec3Like, to: Vec3Like) => Route | null;
 
 type FixPlanInput = {
-    // user keys by frame; the first key of the main group comes first
+    // user keys by frame; the first key of the main group comes first.
+    // Consecutive keys of one orbit form a block that stays together.
     keys: FixKey[],
     grid: NavGrid,
     eyeHeight: number,
@@ -68,31 +70,30 @@ const pairRoutes = (grid: NavGrid, positions: Vec3Like[], route: RouteFn): KeyRo
     };
 };
 
-// Route distances between the given keys, dist[a][b] from keys[a] to
-// keys[b]. With keepOrder they are not needed.
-const distanceMatrix = (keys: number[], length: (i: number, j: number) => number, keepOrder: boolean) => keys.map(
-    (i, a) => keys.map((j, b) => (keepOrder || a === b ? 0 : length(i, j)))
-);
-
 // Plans the main group of keys (the most keys that reach each other) and
 // leaves the others out as unreachable. Orders the group by route distance
 // (its earliest key first), adds detour keys so the camera curve stays in
 // free space and times all keys with Balance. User keys keep their lingers;
-// detours get none and time by their target distance.
+// detours get none and time by their target distance. An orbit block moves
+// as one: routed from its last key to the next block's first, kept or left
+// out whole, and without detours between its keys.
 const planFixPath = (input: FixPlanInput): FixPlan => {
     const { keys, grid, eyeHeight, keepOrder, timeline } = input;
     const start = performance.now();
-    const positions = keys.map(k => k.position);
+    const blocks = orbitBlocks(keys);
+    // routes run between block ends only; node a is key ends[a]
+    const ends = blockEnds(blocks);
+    const node = new Map(ends.map((k, a) => [k, a]));
+    const positions = ends.map(k => keys[k].position);
     const routes = input.route ? pairRoutes(grid, positions, input.route) : keyRoutes(grid, positions);
-    // mainGroup assumes symmetric edges: keys reach each other when routes run both ways
-    const main = mainGroup(keys.length, routes.length);
-    const tour = orderKeys(distanceMatrix(main, routes.length, keepOrder), { loop: timeline.loop, keepOrder }).order.map(a => main[a]);
-    const inMain = new Set(main);
-    const unreachable = keys.map((_, i) => i).filter(i => !inMain.has(i));
+    const tour = orderBlocks(blocks, ends, routes.length, { loop: timeline.loop, keepOrder });
+    const inTour = new Set(tour);
+    const unreachable = keys.map((_, i) => i).filter(i => !inTour.has(i));
 
     const n = tour.length;
     const segments = n < 2 ? 0 : timeline.loop ? n : n - 1;
-    const segmentRoutes = Array.from({ length: segments }, (_, s) => routes.points(tour[s], tour[(s + 1) % n]));
+    const fixed = segmentsInBlocks(blocks, tour, segments);
+    const segmentRoutes = fixed.map((inBlock, s) => (inBlock ? [] : routes.points(node.get(tour[s]), node.get(tour[(s + 1) % n]))));
 
     const user = new Map<CurvePose, FixKey>(keys.map(k => [k, k]));
     // the Balance result behind each frames array retime returns; planDetours
@@ -116,6 +117,7 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
     const plan = planDetours({
         keys: ordered,
         routes: segmentRoutes,
+        fixed,
         grid,
         eyeHeight,
         retime,

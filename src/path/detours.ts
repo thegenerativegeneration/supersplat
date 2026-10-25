@@ -11,6 +11,9 @@ type DetourInput = {
     // grid route of segment i (keys[i] to the next key), without the key
     // positions themselves; null when unreachable
     routes: (Vec3Like[] | null)[],
+    // segments that get no detours (a block's inner segments); their curve
+    // collisions still block them
+    fixed?: boolean[],
     grid: NavGrid,
     eyeHeight: number,
     // frames for the poses; the plan's frames are the array of one of these calls
@@ -237,10 +240,11 @@ const pruneSegment = (seg: Segment, voxel: number, accept: () => boolean) => {
 // runs back to the first key.
 const planDetours = (input: DetourInput): DetourPlan => {
     const { keys, routes, grid, eyeHeight, retime, curveOpts } = input;
+    const fixed = (i: number) => input.fixed?.[i] ?? false;
     const segments = routes.map((r, i): Segment | null => {
         if (!r) return null;
         const full = [keys[i].position, ...r, keys[(i + 1) % keys.length].position];
-        return { full, detours: initialDetours(grid, full) };
+        return { full, detours: fixed(i) ? [] : initialDetours(grid, full) };
     });
     const step = SAMPLE_VOXELS * grid.voxel;
 
@@ -262,7 +266,7 @@ const planDetours = (input: DetourInput): DetourPlan => {
         let added = false;
         for (const { segment, point } of result.collisions) {
             const seg = segments[segment];
-            if (seg) added = insertDetour(seg, point, grid.voxel) || added;
+            if (seg && !fixed(segment)) added = insertDetour(seg, point, grid.voxel) || added;
         }
         if (!added) break;
         result = evaluate();
@@ -278,7 +282,7 @@ const planDetours = (input: DetourInput): DetourPlan => {
         return true;
     };
     segments.forEach((seg, i) => {
-        if (seg && !before.has(i)) pruneSegment(seg, grid.voxel, accept);
+        if (seg && !fixed(i) && !before.has(i)) pruneSegment(seg, grid.voxel, accept);
     });
 
     const blocked = new Set<number>();

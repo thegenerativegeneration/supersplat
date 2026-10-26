@@ -8,7 +8,15 @@ import { Events } from './events';
 import { i18n } from './ui/localization';
 
 // auto: a detour key from Fix path, timed by its target distance as when planned
-type BalanceSource = { position: Pose['position'], target: Pose['target'], fov: number, linger: number, auto?: boolean };
+type BalanceSource = {
+    position: Pose['position'],
+    target: Pose['target'],
+    fov: number,
+    linger: number,
+    auto?: boolean,
+    lookAhead?: boolean,
+    turnIn?: number
+};
 
 const finiteOr = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback);
 
@@ -22,13 +30,15 @@ const timelineSettings = (events: Events): Omit<BalanceInput, 'keys'> => ({
     maxTurnDegPerSec: MAX_TURN_DEG_PER_SEC
 });
 
-// the keys by frame (name, frame, view, linger) and the timeline settings a
+// the keys by frame (name, frame, view, linger, look ahead) and the timeline settings a
 // run planned with; a different snapshot after an await means they changed
 const snapshotOf = (events: Events) => JSON.stringify({
     keys: (events.invoke('camera.poses') as Pose[])
     .slice()
     .sort((a, b) => a.frame - b.frame)
-    .map(({ name, frame, position: p, target: t, fov, linger }) => [name, frame, p.x, p.y, p.z, t.x, t.y, t.z, fov ?? null, linger ?? 0]),
+    .map(({ name, frame, position: p, target: t, fov, linger, lookAhead, turnIn }) => [
+        name, frame, p.x, p.y, p.z, t.x, t.y, t.z, fov ?? null, linger ?? 0, !!lookAhead, turnIn ?? null
+    ]),
     timeline: timelineSettings(events)
 });
 
@@ -63,7 +73,10 @@ const computeBalance = async (events: Events, poses: BalanceSource[], opts: Bala
         target: p.target,
         fov: p.fov,
         linger: Math.max(0, finiteOr(p.linger, 0)),
-        distance: distanceOf.get(p) ?? NaN
+        distance: distanceOf.get(p) ?? NaN,
+        lookAhead: p.lookAhead,
+        turnIn: p.turnIn,
+        auto: p.auto
     }));
 
     onProgress?.('timing');
@@ -117,7 +130,9 @@ const registerTimingEvents = (events: Events) => {
             target: p.target,
             fov: p.fov ?? fallbackFov,
             linger: p.linger ?? 0,
-            auto: p.auto
+            auto: p.auto,
+            lookAhead: p.lookAhead,
+            turnIn: p.turnIn
         }));
 
         const result = await withProgress(events, 'progress.balance', async (h) => {

@@ -1,4 +1,4 @@
-import { CubicSpline } from './spline';
+import { buildViewSpline, MAX_TURN_DEG_PER_SEC } from './look-ahead';
 
 type Point3 = { x: number, y: number, z: number };
 
@@ -9,7 +9,11 @@ type BalanceKey = {
     // seconds spent resting at this key
     linger: number,
     // scene distance at this pose; non-finite values fall back to |target - position|
-    distance: number
+    distance: number,
+    // lookAhead, turnIn and auto: see ViewKey in look-ahead.ts
+    lookAhead?: boolean,
+    turnIn?: number,
+    auto?: boolean
 };
 
 type BalanceInput = {
@@ -23,9 +27,6 @@ type BalanceInput = {
     // peak view turn speed in degrees per second; undefined leaves turning unlimited
     maxTurnDegPerSec?: number
 };
-
-// highest view turn speed the app asks Balance to keep, in degrees per second
-const MAX_TURN_DEG_PER_SEC = 20;
 
 type MotionStats = {
     // scene units along the sampled camera path
@@ -223,12 +224,8 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
         }
         boundaries = next;
 
-        // same construction as CameraAnimTrack.rebuildSpline
-        const keyFrames = boundaries.slice(0, n);
-        const points = poses.flat();
-        const spline = loop ?
-            CubicSpline.fromPointsLooping(frames, keyFrames, points, smoothness) :
-            CubicSpline.fromPoints(keyFrames, points, smoothness);
+        // the curve CameraAnimTrack plays
+        const spline = buildViewSpline(keys, boundaries.slice(0, n), { duration: frames, smoothness, loop, frameRate });
 
         costs = [];
         pathLength = 0;
@@ -246,11 +243,11 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
             // a view vector this short flips direction within one sample, so its turn is left out of the peak
             const shortView = 0.1 * Math.min(d0, d1);
             let prevD = d0;
-            spline.evaluate(t0, prev);
+            spline(t0, prev);
             for (let i = 1; i <= SAMPLES_PER_SEGMENT; i++) {
                 const t = i / SAMPLES_PER_SEGMENT;
                 const d = Math.pow(d0, 1 - t) * Math.pow(d1, t);
-                spline.evaluate(t0 + (t1 - t0) * t, cur);
+                spline(t0 + (t1 - t0) * t, cur);
                 cost += stepCost(prev, cur, prevD, d, rotationWeight);
                 const step = moveLength(prev, cur);
                 pathLength += step;

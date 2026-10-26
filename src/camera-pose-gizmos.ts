@@ -120,6 +120,7 @@ class CameraPoseGizmos extends Element {
         events.on('timeline.smoothness', markDirty);
         events.on('timeline.loop', markDirty);
         events.on('timeline.frames', markDirty);
+        events.on('timeline.frameRate', markDirty);
         events.on('path.markers', (markers: PathMarkers) => {
             this.blocked = markers.blocked;
             this.unreachable = markers.unreachable;
@@ -158,7 +159,8 @@ class CameraPoseGizmos extends Element {
         const timeline = {
             duration: events.invoke('timeline.frames') as number,
             smoothness: events.invoke('timeline.smoothness') as number,
-            loop: events.invoke('timeline.loop') as boolean
+            loop: events.invoke('timeline.loop') as boolean,
+            frameRate: events.invoke('timeline.frameRate') as number
         };
         const { duration, loop } = timeline;
         const curveOf = (keys: Pose[]) => buildCameraCurve(keys.map(p => ({ ...p, fov: p.fov ?? 60 })), keys.map(p => p.frame), timeline);

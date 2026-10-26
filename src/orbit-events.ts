@@ -95,7 +95,7 @@ const checkOrbitCurve = (events: Events, id: string, scene: Scene, onProgress: P
         userFrames: shot.filter(p => !p.auto).map(p => p.frame),
         first,
         last,
-        curve: { duration: timeline.frames, smoothness: timeline.smoothness, loop: timeline.loop }
+        curve: { duration: timeline.frames, smoothness: timeline.smoothness, loop: timeline.loop, frameRate: timeline.frameRate }
     }, { onProgress });
 };
 

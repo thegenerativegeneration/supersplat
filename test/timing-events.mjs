@@ -105,6 +105,19 @@ const timingEventsChecks = {
         assert.deepEqual(sortedKeys(events), [0, 10, 25]);
     },
 
+    async 'balance: a look-ahead change while sampling counts as changed'() {
+        for (const change of [p => (p.lookAhead = true), p => (p.turnIn = 3)]) {
+            const { events, popups } = setup([0, 10, 20], [], async (poses, ev) => {
+                change(ev.invoke('camera.poses')[1]);
+                return poses.map(() => 1);
+            });
+            const result = await events.invoke('timing.balance');
+            assert.deepEqual(result, { ok: false, reason: 'keysChanged' });
+            assert.equal(popups.length, 1);
+            assert.deepEqual(sortedKeys(events), [0, 10, 20]);
+        }
+    },
+
     async 'balance: a smoothness change while sampling counts as changed'() {
         const { events, ops, popups } = setup([0, 10, 20], [], async (poses, ev) => {
             ev.functions.delete('timeline.smoothness');

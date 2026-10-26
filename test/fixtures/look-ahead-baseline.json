@@ -1,0 +1,1030 @@
+{
+ "commit": "7488ec3329dc1b114f9abd84bd5f3474a4d6b076",
+ "note": "Balance and Fix Path output before look ahead existed; recorded with record-baseline.mjs",
+ "balance": [
+  {
+   "name": "courtyard, turn cap",
+   "input": {
+    "frames": 360,
+    "frameRate": 30,
+    "smoothness": 1,
+    "loop": false,
+    "rotationWeight": 1,
+    "maxTurnDegPerSec": 20,
+    "keys": [
+     {
+      "position": {
+       "x": -3,
+       "y": 4,
+       "z": -15
+      },
+      "target": {
+       "x": -4.686177073748469,
+       "y": 3.3610444741477026,
+       "z": -16.686177073748468
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 2.469
+     },
+     {
+      "position": {
+       "x": -3.8000000000000003,
+       "y": 9.6,
+       "z": -45
+      },
+      "target": {
+       "x": -1.6528771665156166,
+       "y": 9.6,
+       "z": -42.85287716651562
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.036
+     },
+     {
+      "position": {
+       "x": -7,
+       "y": 2.8000000000000003,
+       "z": -23
+      },
+      "target": {
+       "x": -11.961739034289423,
+       "y": 2.8000000000000003,
+       "z": -27.96173903428942
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 7.017
+     },
+     {
+      "position": {
+       "x": 7,
+       "y": 3.6,
+       "z": -38.6
+      },
+      "target": {
+       "x": 1.5075452532106413,
+       "y": 3.6,
+       "z": -44.09245474678936
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 7.768
+     },
+     {
+      "position": {
+       "x": -11.8,
+       "y": 10.4,
+       "z": -23.8
+      },
+      "target": {
+       "x": -14.342244157033477,
+       "y": 10.4,
+       "z": -26.342244157033477
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.595
+     },
+     {
+      "position": {
+       "x": 14.200000000000001,
+       "y": 6,
+       "z": -33.4
+      },
+      "target": {
+       "x": 16.543642909517366,
+       "y": 6,
+       "z": -35.74364290951736
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.314
+     },
+     {
+      "position": {
+       "x": -8.200000000000001,
+       "y": 3.6,
+       "z": -34.6
+      },
+      "target": {
+       "x": -13.26859927556385,
+       "y": 3.6,
+       "z": -34.6
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 5.069
+     }
+    ]
+   },
+   "result": {
+    "ok": true,
+    "frames": [
+     0,
+     172,
+     208,
+     221,
+     241,
+     294,
+     359
+    ],
+    "iterations": 3,
+    "stats": {
+     "pathLength": 152.00046174480468,
+     "avgSpeed": 12.70198844664106,
+     "peakSpeed": 72.76670230045168,
+     "peakTurnDegPerSec": 193.51589271688067
+    },
+    "turnLimited": 193.51589271688067
+   }
+  },
+  {
+   "name": "courtyard, no cap",
+   "input": {
+    "frames": 360,
+    "frameRate": 30,
+    "smoothness": 1,
+    "loop": false,
+    "rotationWeight": 1,
+    "keys": [
+     {
+      "position": {
+       "x": -3,
+       "y": 4,
+       "z": -15
+      },
+      "target": {
+       "x": -4.686177073748469,
+       "y": 3.3610444741477026,
+       "z": -16.686177073748468
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 2.469
+     },
+     {
+      "position": {
+       "x": -3.8000000000000003,
+       "y": 9.6,
+       "z": -45
+      },
+      "target": {
+       "x": -1.6528771665156166,
+       "y": 9.6,
+       "z": -42.85287716651562
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.036
+     },
+     {
+      "position": {
+       "x": -7,
+       "y": 2.8000000000000003,
+       "z": -23
+      },
+      "target": {
+       "x": -11.961739034289423,
+       "y": 2.8000000000000003,
+       "z": -27.96173903428942
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 7.017
+     },
+     {
+      "position": {
+       "x": 7,
+       "y": 3.6,
+       "z": -38.6
+      },
+      "target": {
+       "x": 1.5075452532106413,
+       "y": 3.6,
+       "z": -44.09245474678936
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 7.768
+     },
+     {
+      "position": {
+       "x": -11.8,
+       "y": 10.4,
+       "z": -23.8
+      },
+      "target": {
+       "x": -14.342244157033477,
+       "y": 10.4,
+       "z": -26.342244157033477
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.595
+     },
+     {
+      "position": {
+       "x": 14.200000000000001,
+       "y": 6,
+       "z": -33.4
+      },
+      "target": {
+       "x": 16.543642909517366,
+       "y": 6,
+       "z": -35.74364290951736
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.314
+     },
+     {
+      "position": {
+       "x": -8.200000000000001,
+       "y": 3.6,
+       "z": -34.6
+      },
+      "target": {
+       "x": -13.26859927556385,
+       "y": 3.6,
+       "z": -34.6
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 5.069
+     }
+    ]
+   },
+   "result": {
+    "ok": true,
+    "frames": [
+     0,
+     104,
+     170,
+     195,
+     235,
+     307,
+     359
+    ],
+    "iterations": 2,
+    "stats": {
+     "pathLength": 151.99285976752537,
+     "avgSpeed": 12.701353183915769,
+     "peakSpeed": 37.825960928898866,
+     "peakTurnDegPerSec": 317.9226930857484
+    }
+   }
+  },
+  {
+   "name": "courtyard, loop, lingers, cap",
+   "input": {
+    "frames": 360,
+    "frameRate": 30,
+    "smoothness": 1,
+    "loop": true,
+    "rotationWeight": 1,
+    "maxTurnDegPerSec": 20,
+    "keys": [
+     {
+      "position": {
+       "x": -3,
+       "y": 4,
+       "z": -15
+      },
+      "target": {
+       "x": -4.686177073748469,
+       "y": 3.3610444741477026,
+       "z": -16.686177073748468
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 2.469
+     },
+     {
+      "position": {
+       "x": -3.8000000000000003,
+       "y": 9.6,
+       "z": -45
+      },
+      "target": {
+       "x": -1.6528771665156166,
+       "y": 9.6,
+       "z": -42.85287716651562
+      },
+      "fov": 70,
+      "linger": 0.5,
+      "distance": 3.036
+     },
+     {
+      "position": {
+       "x": -7,
+       "y": 2.8000000000000003,
+       "z": -23
+      },
+      "target": {
+       "x": -11.961739034289423,
+       "y": 2.8000000000000003,
+       "z": -27.96173903428942
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 7.017
+     },
+     {
+      "position": {
+       "x": 7,
+       "y": 3.6,
+       "z": -38.6
+      },
+      "target": {
+       "x": 1.5075452532106413,
+       "y": 3.6,
+       "z": -44.09245474678936
+      },
+      "fov": 70,
+      "linger": 1,
+      "distance": 7.768
+     },
+     {
+      "position": {
+       "x": -11.8,
+       "y": 10.4,
+       "z": -23.8
+      },
+      "target": {
+       "x": -14.342244157033477,
+       "y": 10.4,
+       "z": -26.342244157033477
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.595
+     },
+     {
+      "position": {
+       "x": 14.200000000000001,
+       "y": 6,
+       "z": -33.4
+      },
+      "target": {
+       "x": 16.543642909517366,
+       "y": 6,
+       "z": -35.74364290951736
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.314
+     },
+     {
+      "position": {
+       "x": -8.200000000000001,
+       "y": 3.6,
+       "z": -34.6
+      },
+      "target": {
+       "x": -13.26859927556385,
+       "y": 3.6,
+       "z": -34.6
+      },
+      "fov": 70,
+      "linger": 0.5,
+      "distance": 5.069
+     }
+    ]
+   },
+   "result": {
+    "ok": true,
+    "frames": [
+     0,
+     125,
+     159,
+     183,
+     213,
+     256,
+     327
+    ],
+    "iterations": 3,
+    "stats": {
+     "pathLength": 173.63266582758476,
+     "avgSpeed": 17.363266582758477,
+     "peakSpeed": 39.3639744183583,
+     "peakTurnDegPerSec": 183.31047876071162
+    },
+    "turnLimited": 183.31047876071162
+   }
+  },
+  {
+   "name": "courtyard, smoothness 0.5, rotation weight 2",
+   "input": {
+    "frames": 360,
+    "frameRate": 30,
+    "smoothness": 0.5,
+    "loop": false,
+    "rotationWeight": 2,
+    "maxTurnDegPerSec": 20,
+    "keys": [
+     {
+      "position": {
+       "x": -3,
+       "y": 4,
+       "z": -15
+      },
+      "target": {
+       "x": -4.686177073748469,
+       "y": 3.3610444741477026,
+       "z": -16.686177073748468
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 2.469
+     },
+     {
+      "position": {
+       "x": -3.8000000000000003,
+       "y": 9.6,
+       "z": -45
+      },
+      "target": {
+       "x": -1.6528771665156166,
+       "y": 9.6,
+       "z": -42.85287716651562
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.036
+     },
+     {
+      "position": {
+       "x": -7,
+       "y": 2.8000000000000003,
+       "z": -23
+      },
+      "target": {
+       "x": -11.961739034289423,
+       "y": 2.8000000000000003,
+       "z": -27.96173903428942
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 7.017
+     },
+     {
+      "position": {
+       "x": 7,
+       "y": 3.6,
+       "z": -38.6
+      },
+      "target": {
+       "x": 1.5075452532106413,
+       "y": 3.6,
+       "z": -44.09245474678936
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 7.768
+     },
+     {
+      "position": {
+       "x": -11.8,
+       "y": 10.4,
+       "z": -23.8
+      },
+      "target": {
+       "x": -14.342244157033477,
+       "y": 10.4,
+       "z": -26.342244157033477
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.595
+     },
+     {
+      "position": {
+       "x": 14.200000000000001,
+       "y": 6,
+       "z": -33.4
+      },
+      "target": {
+       "x": 16.543642909517366,
+       "y": 6,
+       "z": -35.74364290951736
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 3.314
+     },
+     {
+      "position": {
+       "x": -8.200000000000001,
+       "y": 3.6,
+       "z": -34.6
+      },
+      "target": {
+       "x": -13.26859927556385,
+       "y": 3.6,
+       "z": -34.6
+      },
+      "fov": 70,
+      "linger": 0,
+      "distance": 5.069
+     }
+    ]
+   },
+   "result": {
+    "ok": true,
+    "frames": [
+     0,
+     170,
+     213,
+     224,
+     241,
+     290,
+     359
+    ],
+    "iterations": 3,
+    "stats": {
+     "pathLength": 150.79090469979772,
+     "avgSpeed": 12.600911256250505,
+     "peakSpeed": 85.88783735478383,
+     "peakTurnDegPerSec": 197.76106121762987
+    },
+    "turnLimited": 197.76106121762987
+   }
+  }
+ ],
+ "fixPath": [
+  {
+   "name": "door room, keep order",
+   "keys": [
+    {
+     "name": "a",
+     "position": {
+      "x": 2.5,
+      "y": 1.6,
+      "z": 2.4
+     },
+     "target": {
+      "x": 3.5,
+      "y": 1.6,
+      "z": 2.4
+     },
+     "fov": 60,
+     "linger": 0,
+     "distance": 5
+    },
+    {
+     "name": "b",
+     "position": {
+      "x": 15,
+      "y": 1.6,
+      "z": 8
+     },
+     "target": {
+      "x": 16,
+      "y": 1.6,
+      "z": 9
+     },
+     "fov": 60,
+     "linger": 0.5,
+     "distance": 5
+    },
+    {
+     "name": "c",
+     "position": {
+      "x": 4,
+      "y": 1.6,
+      "z": 8
+     },
+     "target": {
+      "x": 3,
+      "y": 1.6,
+      "z": 9
+     },
+     "fov": 60,
+     "linger": 0,
+     "distance": 5
+    },
+    {
+     "name": "d",
+     "position": {
+      "x": 17,
+      "y": 1.6,
+      "z": 2
+     },
+     "target": {
+      "x": 18,
+      "y": 1.6,
+      "z": 1
+     },
+     "fov": 60,
+     "linger": 0,
+     "distance": 5
+    }
+   ],
+   "keepOrder": true,
+   "timeline": {
+    "frames": 240,
+    "frameRate": 30,
+    "smoothness": 1,
+    "loop": false,
+    "rotationWeight": 1,
+    "maxTurnDegPerSec": 20
+   },
+   "result": {
+    "poses": [
+     {
+      "pose": {
+       "name": "a",
+       "position": {
+        "x": 2.5,
+        "y": 1.6,
+        "z": 2.4
+       },
+       "target": {
+        "x": 3.5,
+        "y": 1.6,
+        "z": 2.4
+       },
+       "fov": 60,
+       "linger": 0,
+       "distance": 5
+      },
+      "frame": 0,
+      "key": "a"
+     },
+     {
+      "pose": {
+       "position": {
+        "x": 11.4,
+        "y": 2,
+        "z": 5.800000000000001
+       },
+       "target": {
+        "x": 12.759156033167066,
+        "y": 1.8489826629814372,
+        "z": 6.6305953536020965
+       },
+       "fov": 60
+      },
+      "frame": 27,
+      "key": null
+     },
+     {
+      "pose": {
+       "name": "b",
+       "position": {
+        "x": 15,
+        "y": 1.6,
+        "z": 8
+       },
+       "target": {
+        "x": 16,
+        "y": 1.6,
+        "z": 9
+       },
+       "fov": 60,
+       "linger": 0.5,
+       "distance": 5
+      },
+      "frame": 48,
+      "key": "b"
+     },
+     {
+      "pose": {
+       "position": {
+        "x": 10.200000000000001,
+        "y": 1.6,
+        "z": 5.800000000000001
+       },
+       "target": {
+        "x": 8.692115607230006,
+        "y": 1.6,
+        "z": 6.335055752273225
+       },
+       "fov": 60
+      },
+      "frame": 110,
+      "key": null
+     },
+     {
+      "pose": {
+       "name": "c",
+       "position": {
+        "x": 4,
+        "y": 1.6,
+        "z": 8
+       },
+       "target": {
+        "x": 3,
+        "y": 1.6,
+        "z": 9
+       },
+       "fov": 60,
+       "linger": 0,
+       "distance": 5
+      },
+      "frame": 131,
+      "key": "c"
+     },
+     {
+      "pose": {
+       "position": {
+        "x": 10.200000000000001,
+        "y": 1.6,
+        "z": 5.800000000000001
+       },
+       "target": {
+        "x": 11.708494466531302,
+        "y": 1.9771236166328257,
+        "z": 5.422876383367175
+       },
+       "fov": 60
+      },
+      "frame": 211,
+      "key": null
+     },
+     {
+      "pose": {
+       "position": {
+        "x": 11.8,
+        "y": 2,
+        "z": 5.4
+       },
+       "target": {
+        "x": 13.13638453770273,
+        "y": 1.8972011894074823,
+        "z": 4.5262101099636
+       },
+       "fov": 60
+      },
+      "frame": 223,
+      "key": null
+     },
+     {
+      "pose": {
+       "name": "d",
+       "position": {
+        "x": 17,
+        "y": 1.6,
+        "z": 2
+       },
+       "target": {
+        "x": 18,
+        "y": 1.6,
+        "z": 1
+       },
+       "fov": 60,
+       "linger": 0,
+       "distance": 5
+      },
+      "frame": 239,
+      "key": "d"
+     }
+    ],
+    "detours": 4,
+    "blocked": [],
+    "unreachable": [],
+    "balance": {
+     "ok": true,
+     "frames": [
+      0,
+      27,
+      48,
+      110,
+      131,
+      211,
+      223,
+      239
+     ],
+     "iterations": 3,
+     "stats": {
+      "pathLength": 40.34016333002786,
+      "avgSpeed": 5.402700445985874,
+      "peakSpeed": 13.235915787865732,
+      "peakTurnDegPerSec": 116.53401982374338
+     },
+     "turnLimited": 116.53401982374338
+    }
+   }
+  },
+  {
+   "name": "door room, reorder, loop",
+   "keys": [
+    {
+     "name": "a",
+     "position": {
+      "x": 2.5,
+      "y": 1.6,
+      "z": 2.4
+     },
+     "target": {
+      "x": 3.5,
+      "y": 1.6,
+      "z": 2.4
+     },
+     "fov": 60,
+     "linger": 0,
+     "distance": 5
+    },
+    {
+     "name": "b",
+     "position": {
+      "x": 15,
+      "y": 1.6,
+      "z": 8
+     },
+     "target": {
+      "x": 16,
+      "y": 1.6,
+      "z": 9
+     },
+     "fov": 60,
+     "linger": 0.5,
+     "distance": 5
+    },
+    {
+     "name": "c",
+     "position": {
+      "x": 4,
+      "y": 1.6,
+      "z": 8
+     },
+     "target": {
+      "x": 3,
+      "y": 1.6,
+      "z": 9
+     },
+     "fov": 60,
+     "linger": 0,
+     "distance": 5
+    },
+    {
+     "name": "d",
+     "position": {
+      "x": 17,
+      "y": 1.6,
+      "z": 2
+     },
+     "target": {
+      "x": 18,
+      "y": 1.6,
+      "z": 1
+     },
+     "fov": 60,
+     "linger": 0,
+     "distance": 5
+    }
+   ],
+   "keepOrder": false,
+   "timeline": {
+    "frames": 240,
+    "frameRate": 30,
+    "smoothness": 1,
+    "loop": true,
+    "rotationWeight": 1,
+    "maxTurnDegPerSec": 20
+   },
+   "result": {
+    "poses": [
+     {
+      "pose": {
+       "name": "a",
+       "position": {
+        "x": 2.5,
+        "y": 1.6,
+        "z": 2.4
+       },
+       "target": {
+        "x": 3.5,
+        "y": 1.6,
+        "z": 2.4
+       },
+       "fov": 60,
+       "linger": 0,
+       "distance": 5
+      },
+      "frame": 0,
+      "key": "a"
+     },
+     {
+      "pose": {
+       "position": {
+        "x": 10.200000000000001,
+        "y": 1.6,
+        "z": 5.4
+       },
+       "target": {
+        "x": 11.631083505599866,
+        "y": 1.6,
+        "z": 4.684458247200068
+       },
+       "fov": 60
+      },
+      "frame": 28,
+      "key": null
+     },
+     {
+      "pose": {
+       "name": "d",
+       "position": {
+        "x": 17,
+        "y": 1.6,
+        "z": 2
+       },
+       "target": {
+        "x": 18,
+        "y": 1.6,
+        "z": 1
+       },
+       "fov": 60,
+       "linger": 0,
+       "distance": 5
+      },
+      "frame": 51,
+      "key": "d"
+     },
+     {
+      "pose": {
+       "name": "b",
+       "position": {
+        "x": 15,
+        "y": 1.6,
+        "z": 8
+       },
+       "target": {
+        "x": 16,
+        "y": 1.6,
+        "z": 9
+       },
+       "fov": 60,
+       "linger": 0.5,
+       "distance": 5
+      },
+      "frame": 93,
+      "key": "b"
+     },
+     {
+      "pose": {
+       "position": {
+        "x": 10.200000000000001,
+        "y": 1.6,
+        "z": 5.800000000000001
+       },
+       "target": {
+        "x": 8.692115607230006,
+        "y": 1.6,
+        "z": 6.335055752273225
+       },
+       "fov": 60
+      },
+      "frame": 152,
+      "key": null
+     },
+     {
+      "pose": {
+       "name": "c",
+       "position": {
+        "x": 4,
+        "y": 1.6,
+        "z": 8
+       },
+       "target": {
+        "x": 3,
+        "y": 1.6,
+        "z": 9
+       },
+       "fov": 60,
+       "linger": 0,
+       "distance": 5
+      },
+      "frame": 174,
+      "key": "c"
+     }
+    ],
+    "detours": 2,
+    "blocked": [],
+    "unreachable": [],
+    "balance": {
+     "ok": true,
+     "frames": [
+      0,
+      28,
+      51,
+      93,
+      152,
+      174
+     ],
+     "iterations": 2,
+     "stats": {
+      "pathLength": 41.45649823229174,
+      "avgSpeed": 5.527533097638899,
+      "peakSpeed": 12.92865854061207,
+      "peakTurnDegPerSec": 114.95795591512413
+     },
+     "turnLimited": 114.95795591512413
+    }
+   }
+  }
+ ]
+}

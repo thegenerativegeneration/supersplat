@@ -70,6 +70,11 @@ class CameraAnimTrack implements AnimTrack {
             this.rebuildSpline();
         });
 
+        // look-ahead turns last seconds, so they span other frames
+        events.on('timeline.frameRate', () => {
+            this.rebuildSpline();
+        });
+
         // Clear track when scene is cleared
         events.on('scene.clear', () => {
             this.clear();
@@ -365,12 +370,13 @@ class CameraAnimTrack implements AnimTrack {
         const duration = this.events.invoke('timeline.frames');
         const smoothness = this.events.invoke('timeline.smoothness');
         const loop = this.events.invoke('timeline.loop');
+        const frameRate = this.events.invoke('timeline.frameRate');
 
         const orderedPoses = this.poses.slice()
         .filter(a => a.frame < duration)
         .sort((a, b) => a.frame - b.frame);
 
-        const curve = buildCameraCurve(orderedPoses as CurvePose[], orderedPoses.map(p => p.frame), { duration, smoothness, loop });
+        const curve = buildCameraCurve(orderedPoses as CurvePose[], orderedPoses.map(p => p.frame), { duration, smoothness, loop, frameRate });
 
         if (curve) {
             const pose = { position: new Vec3(), target: new Vec3(), fov: 0 };

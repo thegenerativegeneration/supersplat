@@ -53,7 +53,9 @@ const appendAndBalance = async (events: Events, added: AddedKey[], opts: Balance
             target: p.target,
             fov: p.fov ?? fallbackFov,
             linger: p.linger ?? 0,
-            auto: p.auto
+            auto: p.auto,
+            lookAhead: p.lookAhead,
+            turnIn: p.turnIn
         })),
         ...added.map(a => ({ position: a.position, target: a.target, fov: a.fov, linger: 0 }))
     ];

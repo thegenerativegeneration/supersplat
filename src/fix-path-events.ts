@@ -225,7 +225,9 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             name: p.name,
             linger: Math.max(0, finiteOr(p.linger, 0)),
             distance: distances[i] ?? NaN,
-            orbit: p.orbit
+            orbit: p.orbit,
+            lookAhead: p.lookAhead,
+            turnIn: p.turnIn
         }));
         let reply: PlanReply | null;
         try {

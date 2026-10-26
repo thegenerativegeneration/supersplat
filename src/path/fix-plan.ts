@@ -9,7 +9,7 @@ import type { Vec3Like } from '../candidates/occupancy';
 import type { ProgressFn } from '../compute/protocol';
 
 // a user key; distance is the sampled scene distance (non-finite: unknown);
-// orbit: id of the orbit the key belongs to
+// orbit: id of the orbit the key belongs to; lookAhead and turnIn come with CurvePose
 type FixKey = CurvePose & { name: string, linger: number, distance: number, orbit?: string };
 
 type RouteFn = (grid: NavGrid, from: Vec3Like, to: Vec3Like) => Route | null;
@@ -109,7 +109,16 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
             ...timeline,
             keys: poses.map((p) => {
                 const key = user.get(p);
-                return { position: p.position, target: p.target, fov: p.fov, linger: key?.linger ?? 0, distance: key?.distance ?? NaN };
+                return {
+                    position: p.position,
+                    target: p.target,
+                    fov: p.fov,
+                    linger: key?.linger ?? 0,
+                    distance: key?.distance ?? NaN,
+                    lookAhead: key?.lookAhead,
+                    turnIn: key?.turnIn,
+                    auto: !key
+                };
             })
         });
         const frames = 'frames' in balance ? balance.frames : evenFrames(poses.length, timeline.frames, timeline.loop);
@@ -126,7 +135,7 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
         grid,
         eyeHeight,
         retime,
-        curveOpts: { duration: timeline.frames, smoothness: timeline.smoothness, loop: timeline.loop },
+        curveOpts: { duration: timeline.frames, smoothness: timeline.smoothness, loop: timeline.loop, frameRate: timeline.frameRate },
         onProgress
     });
 

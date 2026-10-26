@@ -253,7 +253,8 @@ const planDetours = (input: DetourInput): DetourPlan => {
 
     const evaluate = () => {
         const { poses, owner } = assemble(keys, segments, eyeHeight);
-        const curvePoses = poses.map(p => p.pose);
+        // the curve reads the detour flag: look ahead ignores detour views
+        const curvePoses = poses.map(p => (p.auto ? { ...p.pose, auto: true } : p.pose));
         const frames = retime(curvePoses);
         const curve = buildCameraCurve(curvePoses, frames, curveOpts);
         if (!curve) return { poses, frames, collisions: [] };

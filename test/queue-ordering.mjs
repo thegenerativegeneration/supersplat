@@ -17,6 +17,7 @@ import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
 import { keyMarkerGesturesChecks } from './key-marker-gestures.mjs';
 import { keySelectionChecks } from './key-selection.mjs';
+import { lookAheadChecks } from './look-ahead.mjs';
 import { isovistChecks } from './isovist.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
 import { computeClientChecks } from './compute-client.mjs';
@@ -96,6 +97,7 @@ const checks = {
     ...cameraTrackChecks,
     ...keyMarkerGesturesChecks,
     ...keySelectionChecks,
+    ...lookAheadChecks,
     ...computeHandlerChecks,
     ...computeClientChecks,
     ...orbitEventsChecks,

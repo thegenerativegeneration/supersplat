@@ -73,6 +73,46 @@ const withIds = (poses: Pose[]): Pose[] => {
 
 const MAX_LINGER = 60;
 
+type KeyChange = {
+    id: string,
+    frame?: number,
+    position?: Vec3,
+    target?: Vec3,
+    fov?: number,
+    linger?: number,
+    lookAhead?: boolean,
+    turnIn?: number
+};
+
+type KeyRefusal = 'frameTaken' | 'unknownKey' | 'outOfRange';
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+// applies a change to a pose; returns whether anything differed
+const applyKeyChange = (pose: Pose, c: KeyChange): boolean => {
+    const differs =
+        (c.frame !== undefined && c.frame !== pose.frame) ||
+        (c.linger !== undefined && clamp(c.linger, 0, MAX_LINGER) !== (pose.linger ?? 0)) ||
+        (c.lookAhead !== undefined && c.lookAhead !== !!pose.lookAhead) ||
+        (c.turnIn !== undefined && clamp(c.turnIn, 0.1, 10) !== pose.turnIn);
+    const viewDiffers =
+        (c.position !== undefined && !c.position.equals(pose.position)) ||
+        (c.target !== undefined && !c.target.equals(pose.target)) ||
+        (c.fov !== undefined && c.fov !== pose.fov);
+    if (!differs && !viewDiffers) return false;
+
+    if (c.frame !== undefined) pose.frame = c.frame;
+    if (c.position) pose.position = c.position.clone();
+    if (c.target) pose.target = c.target.clone();
+    if (c.fov !== undefined) pose.fov = c.fov;
+    if (c.linger !== undefined) pose.linger = clamp(c.linger, 0, MAX_LINGER);
+    if (c.lookAhead !== undefined) pose.lookAhead = c.lookAhead;
+    if (c.turnIn !== undefined) pose.turnIn = clamp(c.turnIn, 0.1, 10);
+    pose.auto = undefined;
+    if (viewDiffers) pose.orbit = undefined;
+    return true;
+};
+
 /**
  * Camera animation track that manages camera keyframes and interpolation.
  * Implements AnimTrack interface so it can be used with the timeline system.
@@ -248,6 +288,90 @@ class CameraAnimTrack implements AnimTrack {
         this.rebuildSpline();
         this.events.fire('track.keysLoaded');
         return true;
+    }
+
+    /**
+     * Change fields of several keys by id. Refuses, changing nothing, when an
+     * id is unknown, a frame is negative, or two keys would share a frame.
+     */
+    updateKeys(changes: KeyChange[]): true | KeyRefusal | false {
+        const byId = new Map(this.poses.map(p => [p.id, p]));
+        if (changes.some(c => !byId.has(c.id))) return 'unknownKey';
+        if (changes.some(c => c.frame !== undefined && !(c.frame >= 0))) return 'outOfRange';
+
+        const frames = new Map(this.poses.map(p => [p.id, p.frame]));
+        for (const c of changes) {
+            if (c.frame !== undefined) frames.set(c.id, c.frame);
+        }
+        if (new Set(frames.values()).size !== frames.size) return 'frameTaken';
+
+        let changed = false;
+        for (const c of changes) {
+            changed = applyKeyChange(byId.get(c.id), c) || changed;
+        }
+        if (!changed) return false;
+
+        this.unparkInShot();
+        this.rebuildSpline();
+        this.events.fire('track.keysLoaded');
+        return true;
+    }
+
+    // shifts the keys by offset frames, keeping their spacing
+    moveKeys(ids: string[], offset: number): true | KeyRefusal | false {
+        if (!Number.isFinite(offset)) return false;
+        const poses = this.posesById(ids);
+        if (!poses) return 'unknownKey';
+        if (offset === 0) return false;
+        return this.updateKeys(poses.map(p => ({ id: p.id, frame: p.frame + offset })));
+    }
+
+    // adds copies of the keys offset frames away; a copy is a plain key without auto or orbit
+    copyKeys(ids: string[], offset: number): true | KeyRefusal | false {
+        if (!Number.isFinite(offset)) return false;
+        const poses = this.posesById(ids);
+        if (!poses) return 'unknownKey';
+        if (offset === 0 || poses.length === 0) return false;
+        if (poses.some(p => p.frame + offset < 0)) return 'outOfRange';
+
+        const taken = new Set(this.poses.map(p => p.frame));
+        if (poses.some(p => taken.has(p.frame + offset))) return 'frameTaken';
+
+        const nextName = nextNamer(this.poses);
+        for (const p of poses) {
+            this.poses.push({
+                id: newKeyId(),
+                name: nextName(),
+                frame: p.frame + offset,
+                position: p.position.clone(),
+                target: p.target.clone(),
+                fov: p.fov,
+                linger: p.linger,
+                lookAhead: p.lookAhead,
+                turnIn: p.turnIn
+            });
+        }
+        this.unparkInShot();
+        this.rebuildSpline();
+        this.events.fire('track.keysLoaded');
+        return true;
+    }
+
+    removeKeys(ids: string[]): boolean {
+        const doomed = new Set(ids);
+        const kept = this.poses.filter(p => !doomed.has(p.id));
+        if (kept.length === this.poses.length) return false;
+
+        this.poses = kept;
+        this.rebuildSpline();
+        this.events.fire('track.keysLoaded');
+        return true;
+    }
+
+    // the distinct poses for the ids, or null when one is unknown
+    private posesById(ids: string[]): Pose[] | null {
+        const poses = [...new Set(ids)].map(id => this.poses.find(p => p.id === id));
+        return poses.every(Boolean) ? poses : null;
     }
 
     // keys moved into the shot are no longer parked
@@ -488,4 +612,4 @@ const registerCameraPosesEvents = (events: Events) => {
     });
 };
 
-export { registerCameraPosesEvents, CameraAnimTrack, isParked, newKeyId, nextNamer, Pose };
+export { registerCameraPosesEvents, CameraAnimTrack, isParked, newKeyId, nextNamer, KeyChange, KeyRefusal, Pose };

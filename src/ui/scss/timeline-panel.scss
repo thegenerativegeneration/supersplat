@@ -297,15 +297,6 @@
                     &.auto {
                         background-color: rgb(var(--auto-key-rgb));
                     }
-
-                    // declared last so a selected detour or stranded key shows as selected
-                    &.selected {
-                        background-color: $clr-active;
-                        opacity: 1;
-                        bottom: 20px;
-                        width: 12px;
-                        height: 12px;
-                    }
                 }
 
                 &.dragging {

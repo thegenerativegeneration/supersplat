@@ -378,7 +378,7 @@
     "tooltip.timeline.next-frame": "次のフレーム",
     "tooltip.timeline.add-key": "キーフレームを追加",
     "tooltip.timeline.remove-key": "キーフレームを削除",
-    "tooltip.timeline.key": "クリックで選択。Shift+クリックで範囲選択。Ctrl/Cmd+クリックでキーを追加/解除。ドラッグで選択したキーを移動、Alt+ドラッグでコピー。右クリックで滞留時間を設定。このキーの前後でカメラが減速します。ループなしの最初/最後のキーではカメラが停止します。",
+    "tooltip.timeline.key": "クリックで選択。Shift+クリックで範囲選択。{{toggle}}+クリックでキーを追加/解除。ドラッグで選択したキーを移動、Alt+ドラッグでコピー。右クリックで滞留時間を設定。このキーの前後でカメラが減速します。ループなしの最初/最後のキーではカメラが停止します。",
     "tooltip.timeline.key-out-of-range": "キーフレーム {{frame}} はタイムラインの終端を超えているため再生されません。タイムライン上にドラッグするか、総フレーム数を増やしてください。",
     "tooltip.timeline.frame-rate": "フレームレート",
     "tooltip.timeline.total-frames": "総フレーム数",

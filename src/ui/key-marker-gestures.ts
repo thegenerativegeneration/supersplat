@@ -30,14 +30,19 @@ const markerAction = (e: MarkerPress, moved: boolean, offset: number): MarkerAct
 // dragging a selected key takes the whole selection along
 const dragIds = (selected: string[], clicked: string) => (selected.includes(clicked) ? selected : [clicked]);
 
-// Limits a group offset so no key goes below frame 0 and no key on the
-// timeline goes past its end. Keys already past the end don't limit it.
-const clampGroupOffset = (frames: number[], offset: number, lastFrame: number) => {
-    const inRange = frames.filter(f => f <= lastFrame);
+// Limits a group offset so no key goes below frame 0 or past the timeline's
+// end. A move never pushes a key already past the end further out; every copy
+// lands on the timeline, and a copy that can't is cancelled (offset 0).
+const clampGroupOffset = (frames: number[], offset: number, lastFrame: number, copying: boolean) => {
     const lo = -Math.min(...frames);
-    const hi = inRange.length ? lastFrame - Math.max(...inRange) : Infinity;
+    const top = Math.max(...frames);
+    const hi = copying || top <= lastFrame ? lastFrame - top : 0;
+    if (hi < lo) return 0;
     return Math.max(lo, Math.min(hi, offset));
 };
+
+// the modifier that adds or removes one key, as shown in tooltips
+const toggleKeyName = isMac ? '⌘' : 'Ctrl';
 
 // the timeline geometry a marker's gestures need
 type MarkerTrack = {
@@ -113,7 +118,7 @@ const showPreview = (group: Group, track: MarkerTrack, offset: number, copying: 
 const addMarkerGestures = (events: Events, marker: HTMLElement, id: string, track: MarkerTrack) => {
     marker.dataset.keySurface = '';
 
-    let press: { pointerId: number, x: number, y: number, moved: boolean, offset: number, group: Group | null } = null;
+    let press: { pointerId: number, x: number, y: number, moved: boolean, delta: number, group: Group | null } = null;
 
     const run = (action: MarkerAction, group: Group | null, clientX: number, clientY: number) => {
         switch (action.kind) {
@@ -150,7 +155,7 @@ const addMarkerGestures = (events: Events, marker: HTMLElement, id: string, trac
         event.preventDefault();
         event.stopPropagation();
         end();
-        run(markerAction({ button: 2, shift: false, alt: false, toggle: false }, false, 0), null, event.clientX, event.clientY);
+        run({ kind: 'edit' }, null, event.clientX, event.clientY);
     });
 
     marker.addEventListener('pointerdown', (event: PointerEvent) => {
@@ -158,7 +163,7 @@ const addMarkerGestures = (events: Events, marker: HTMLElement, id: string, trac
         event.stopPropagation();
         if (press || !event.isPrimary || event.button !== 0 || (isMac && event.ctrlKey)) return;
         marker.setPointerCapture(event.pointerId);
-        press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false, offset: 0, group: null };
+        press = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, moved: false, delta: 0, group: null };
     });
 
     marker.addEventListener('pointermove', (event: PointerEvent) => {
@@ -171,15 +176,17 @@ const addMarkerGestures = (events: Events, marker: HTMLElement, id: string, trac
         const { group } = press;
         const own = group.frames[group.ids.indexOf(id)];
         if (own === undefined) return;
-        press.offset = clampGroupOffset(group.frames, track.frameAt(event.clientX) - own, track.lastFrame);
-        showPreview(group, track, press.offset, event.altKey);
+        press.delta = track.frameAt(event.clientX) - own;
+        const offset = clampGroupOffset(group.frames, press.delta, track.lastFrame, event.altKey);
+        showPreview(group, track, offset, event.altKey);
     });
 
     marker.addEventListener('pointerup', (event: PointerEvent) => {
         if (press?.pointerId !== event.pointerId) return;
-        const { moved, offset, group } = press;
+        const { moved, delta, group } = press;
         // restore the markers first: a committed edit rebuilds the timeline
         end();
+        const offset = group?.frames.length ? clampGroupOffset(group.frames, delta, track.lastFrame, event.altKey) : 0;
         const toggle = isMac ? event.metaKey : event.ctrlKey;
         const action = markerAction({ button: 0, shift: event.shiftKey, alt: event.altKey, toggle }, moved, offset);
         run(action, group, event.clientX, event.clientY);
@@ -188,4 +195,4 @@ const addMarkerGestures = (events: Events, marker: HTMLElement, id: string, trac
     marker.addEventListener('pointercancel', end);
 };
 
-export { addMarkerGestures, clampGroupOffset, dragIds, markerAction, type MarkerTrack };
+export { addMarkerGestures, clampGroupOffset, dragIds, markerAction, toggleKeyName, type MarkerTrack };

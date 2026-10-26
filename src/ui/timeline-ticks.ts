@@ -2,7 +2,7 @@ import { Container, Element } from '@playcanvas/pcui';
 
 import type { Pose } from '../camera-poses';
 import { Events } from '../events';
-import { addMarkerGestures, type MarkerTrack } from './key-marker-gestures';
+import { addMarkerGestures, toggleKeyName, type MarkerTrack } from './key-marker-gestures';
 import { i18n } from './localization';
 import { TimelinePathMarkers } from './path-markers';
 import { Tooltips } from './tooltips';
@@ -162,7 +162,7 @@ class Ticks extends Container {
                 const wrapper = new Element({ dom: label });
                 tooltips.register(wrapper, () => (outOfRange ?
                     i18n.t('tooltip.timeline.key-out-of-range', { frame: keyFrame }) :
-                    i18n.t('tooltip.timeline.key')), 'top');
+                    i18n.t('tooltip.timeline.key', { toggle: toggleKeyName })), 'top');
                 keyElements.push(wrapper);
 
                 workArea.dom.appendChild(label);

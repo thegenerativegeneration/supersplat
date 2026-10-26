@@ -39,19 +39,35 @@ const keyMarkerGesturesChecks = {
         assert.deepEqual(dragIds([], 'b'), ['b']);
     },
 
-    'marker gestures: a group offset keeps every key at frame 0 or later and in-range keys on the timeline'() {
+    'marker gestures: a moved group stays at frame 0 or later and never goes further past the end'() {
         const last = 99;
         const cases = [
             ['inside', [10, 20], 5, 5],
             ['stops at frame 0', [10, 20], -15, -10],
             ['stops at the last frame', [10, 90], 20, 9],
             ['single key', [40], -60, -40],
-            ['a pinned key does not block moving right', [10, 120], 30, 30],
-            ['the in-range keys still stop at the end', [10, 80, 120], 30, 19],
-            ['a pinned key alone can land in range', [130], -50, -50]
+            ['a key past the end stops a move right', [10, 120], 30, 0],
+            ['a key past the end can still move left', [10, 120], -5, -5],
+            ['a key past the end alone can land in range', [130], -50, -50],
+            ['a key past the end alone cannot move further out', [130], 5, 0]
         ];
         for (const [name, frames, offset, expected] of cases) {
-            assert.equal(clampGroupOffset(frames, offset, last), expected, name);
+            assert.equal(clampGroupOffset(frames, offset, last, false), expected, name);
+        }
+    },
+
+    'marker gestures: every copy lands on the timeline, or the copy is cancelled'() {
+        const last = 99;
+        const cases = [
+            ['inside', [10, 20], 5, 5],
+            ['stops at frame 0', [10, 20], -15, -10],
+            ['stops at the last frame', [10, 90], 20, 9],
+            ['a key past the end must come onto the timeline', [30, 120], 5, -21],
+            ['a key past the end alone copies into range', [130], -10, -31],
+            ['no offset fits both ends', [10, 120], -5, 0]
+        ];
+        for (const [name, frames, offset, expected] of cases) {
+            assert.equal(clampGroupOffset(frames, offset, last, true), expected, name);
         }
     }
 };

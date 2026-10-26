@@ -17,6 +17,10 @@ const LIFT = 0.25;
 // heights, so a downward search from a wall click clears the wall
 const APPROACH = 0.15;
 
+// presses on the scene this soon after a picking press finish a double-click
+// and belong to the pick
+const SETTLE_MS = 600;
+
 // the downward pick: a narrow view straight down, sampled at its centre and
 // four close points so a single gap in the splats doesn't fall through
 const DOWN_FOV = 20;
@@ -117,16 +121,29 @@ const registerKeyPickEvents = (events: Events, scene: Scene) => {
     const onScene = (target: EventTarget) => target === scene.canvas ||
         (target instanceof Element && !!target.closest('#tools-container'));
 
+    let pickedAt = -Infinity;
+    const settling = () => performance.now() - pickedAt < SETTLE_MS;
+
     window.addEventListener('pointerdown', (event: PointerEvent) => {
-        if (!picking || event.button !== 0 || !onScene(event.target)) return;
+        if (event.button !== 0 || !onScene(event.target) || (!picking && !settling())) return;
         event.stopPropagation();
         event.preventDefault();
-        const { mode, id } = picking;
         swallowPointer = event.pointerId;
+        if (!picking) return;
+        const { mode, id } = picking;
+        pickedAt = performance.now();
         setPicking(null);
         const rect = scene.canvas.getBoundingClientRect();
-        pick(mode, id, (event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height);
+        pick(mode, id, (event.clientX - rect.left) / rect.width, (event.clientY - rect.top) / rect.height)
+        .catch(() => events.fire('keys.pickMissed'));
     }, true);
+
+    // nor the click and double-click that complete it, which would refocus the camera
+    const swallowClick = (event: MouseEvent) => {
+        if (settling() && onScene(event.target)) event.stopPropagation();
+    };
+    window.addEventListener('click', swallowClick, true);
+    window.addEventListener('dblclick', swallowClick, true);
 
     // the release of the picking click belongs to no one else
     const swallowRelease = (event: PointerEvent) => {

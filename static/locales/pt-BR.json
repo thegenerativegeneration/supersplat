@@ -378,7 +378,7 @@
     "tooltip.timeline.next-frame": "Próximo Quadro",
     "tooltip.timeline.add-key": "Adicionar Quadro",
     "tooltip.timeline.remove-key": "Remover Quadro",
-    "tooltip.timeline.key": "Clique para selecionar. Shift+clique seleciona um intervalo. {{toggle}}+clique adiciona ou remove um quadro-chave. Arraste para mover os quadros-chave selecionados, Alt+arrastar para copiar. Clique com o botão direito para editar o quadro-chave. Desacelera a câmera em torno deste quadro-chave; no primeiro/último sem repetição a câmera para.",
+    "tooltip.timeline.key": "Clique para selecionar. Shift+clique seleciona um intervalo. {{toggle}}+clique adiciona ou remove um quadro-chave. Arraste para mover os quadros-chave selecionados, Alt+arrastar para copiar. Clique com o botão direito para editar o quadro-chave. A permanência desacelera a câmera em torno deste quadro-chave; no primeiro/último sem repetição a câmera para.",
     "tooltip.timeline.key-out-of-range": "O quadro-chave {{frame}} está além do fim da linha do tempo e não será reproduzido. Arraste-o para a linha do tempo ou aumente o Total de Quadros.",
     "tooltip.timeline.frame-rate": "Taxa de Quadros",
     "tooltip.timeline.total-frames": "Total de Quadros",

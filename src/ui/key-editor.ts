@@ -25,8 +25,13 @@ const keepsOpen = (target: EventTarget) => target instanceof Element &&
 class KeyEditor extends Container {
     constructor(events: Events, tooltips: Tooltips) {
         super({ class: 'key-editor', hidden: true });
-        // a press in the editor keeps Delete on the keys
+        // a press in the editor keeps Delete on the keys, typing in it takes
+        // Delete off them: Enter commits and keeps the field focused, and
+        // after typing only a new click on a key routes Delete to the keys
         this.dom.dataset.keySurface = '';
+        this.dom.addEventListener('focusin', (event: FocusEvent) => {
+            if (event.target instanceof HTMLInputElement && event.target.type === 'text') events.fire('keys.focus', false);
+        });
 
         // set while the fields show the keys, and while a typed value is discarded
         let syncing = false;
@@ -65,7 +70,7 @@ class KeyEditor extends Container {
         };
 
         const numberInput = (args: { min?: number, max?: number, step: number, precision: number }) => new NumericInput({
-            class: 'key-editor-input', allowNull: true, hideSlider: true, value: null, ...args
+            class: 'key-editor-input', allowNull: true, hideSlider: true, value: null, blurOnEnter: false, ...args
         });
 
         const time = numberInput({ min: 0, step: 0.1, precision: 2 });

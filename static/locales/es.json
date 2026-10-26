@@ -378,7 +378,7 @@
     "tooltip.timeline.next-frame": "Siguiente Fotograma",
     "tooltip.timeline.add-key": "Añadir clave",
     "tooltip.timeline.remove-key": "Eliminar clave",
-    "tooltip.timeline.key": "Clic para seleccionar. Mayús+clic selecciona un rango. {{toggle}}+clic añade o quita una clave. Arrastra para mover las claves seleccionadas, Alt+arrastrar para copiar. Clic derecho para editar la clave. Frena la cámara alrededor de esta clave; en la primera/última clave sin bucle la cámara se detiene.",
+    "tooltip.timeline.key": "Clic para seleccionar. Mayús+clic selecciona un rango. {{toggle}}+clic añade o quita una clave. Arrastra para mover las claves seleccionadas, Alt+arrastrar para copiar. Clic derecho para editar la clave. La permanencia frena la cámara alrededor de esta clave; en la primera/última clave sin bucle la cámara se detiene.",
     "tooltip.timeline.key-out-of-range": "El fotograma clave {{frame}} está más allá del final de la línea de tiempo y no se reproducirá. Arrástralo a la línea de tiempo o aumenta los fotogramas totales.",
     "tooltip.timeline.frame-rate": "Velocidad de fotogramas",
     "tooltip.timeline.total-frames": "Fotogramas totales",

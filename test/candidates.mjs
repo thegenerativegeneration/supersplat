@@ -94,7 +94,10 @@ const GEN_OPTS = { box: BIG_BOX, eyeHeight: 1.6, budget: 12, seed: 1, fov: 60 };
 const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true, geometricRows = [], chunkSize = 64 } = {}) => {
     const n = rows.length;
     const layouts = { position: { stride: 12, fields: {} }, geometric: { stride: 32, fields: {} } };
+    // rows per read call, in call order
+    const reads = [];
     return {
+        reads,
         visible,
         worldTransform: world,
         transformPalette: { getTransform: (i, m) => m.setIdentity() },
@@ -108,12 +111,19 @@ const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true, geome
         resource: {
             source: {
                 meta: { chunkSize, numChunks: [1], numGaussians: n, layouts },
-                read: async ({ position, geometric }) => {
+                // a chunk read fills every row; a gather the listed source rows
+                read: async (request) => {
+                    const { position, geometric } = request;
                     const pos = new Float32Array(position.data);
                     const geo = new Float32Array(geometric.data);
-                    rows.forEach(([x, y, z, o], i) => {
+                    const picked = 'indices' in request ?
+                        Array.from(request.indices.subarray(request.indexOffset, request.indexOffset + request.count)) :
+                        rows.map((r, i) => i);
+                    reads.push(picked.length);
+                    picked.forEach((r, i) => {
+                        const [x, y, z, o] = rows[r];
                         pos.set([x, y, z], i * 3);
-                        if (geometricRows[i]) geo.set(geometricRows[i], i * 8);
+                        if (geometricRows[r]) geo.set(geometricRows[r], i * 8);
                         geo[i * 8 + 7] = o;
                     });
                 }
@@ -407,6 +417,33 @@ const candidatesChecks = {
         assert.deepEqual(seen[0], ['reading', 0, eligible]);
         assert.ok(seen.some(([, done]) => done > 0 && done < eligible), JSON.stringify(seen));
         assert.deepEqual(seen[seen.length - 1], ['reading', eligible, eligible]);
+    },
+
+    'candidates: point readback reads a big chunk in slices of 65536 rows': async () => {
+        const total = 80000;
+        const rows = Array.from({ length: total }, (v, i) => [i, 0, 0, i % 10 === 0 ? -5 : 5]);
+        const flags = rows.map((r, i) => (i % 9 === 0 ? 2 : 0));
+        const splat = fakeSplat(rows, { flags, chunkSize: 131072 });
+        const { points } = await readOpaquePoints([splat]);
+        // locked rows are not read: of the 71111 unhidden rows the first 65536 go in one read
+        assert.deepEqual(splat.reads, [65536, total - Math.ceil(total / 9) - 65536]);
+        const expected = rows.filter((r, i) => i % 9 !== 0 && i % 10 !== 0).map(r => r[0]);
+        assert.deepEqual([...points].filter((v, i) => i % 3 === 0), expected);
+    },
+
+    'candidates: point readback goes on when no frame is painted (hidden tab)': async () => {
+        globalThis.requestAnimationFrame = () => 0;
+        let timer;
+        try {
+            const read = readOpaquePoints([fakeSplat([[1, 2, 3, 5]])]).then(r => [...r.points]);
+            const result = await Promise.race([read, new Promise((resolve) => {
+                timer = setTimeout(() => resolve('stalled'), 1000);
+            })]);
+            assert.deepEqual(result, [1, 2, 3]);
+        } finally {
+            clearTimeout(timer);
+            delete globalThis.requestAnimationFrame;
+        }
     },
 
     'candidates: image and video renders refuse while a locked render runs': async () => {

@@ -5,6 +5,7 @@ import { ShortcutManager } from '../shortcut-manager';
 import { BalanceControls } from './balance-controls';
 import { FixPathControls } from './fix-path-controls';
 import { KeyEditor } from './key-editor';
+import { mountKeyStrip } from './key-strip';
 import { i18n } from './localization';
 import { OrbitControls } from './orbit-controls';
 import { createStatusLine } from './status-line';
@@ -172,6 +173,7 @@ class TimelinePanel extends Container {
         this.append(controlsWrap);
         this.append(ticks);
         this.append(new KeyEditor(events, tooltips));
+        mountKeyStrip(this, spacerL, events, tooltips);
 
         // ui handlers
 

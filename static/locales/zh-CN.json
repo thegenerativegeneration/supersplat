@@ -550,5 +550,10 @@
     "tooltip.key-editor.pick-position": "点击场景，将相机放在该处的眼睛高度，保持视线方向",
     "tooltip.key-editor.pick-target": "点击场景，使相机朝向该点",
     "tooltip.key-editor.one-key": "只选择一个关键帧才能更改其视图",
-    "tooltip.key-editor.delete": "删除所选关键帧"
+    "tooltip.key-editor.delete": "删除所选关键帧",
+    "tooltip.timeline.key-strip": "显示或隐藏关键帧缩略图",
+    "tooltip.timeline.key-tile": "{{time}} 秒处的关键帧。",
+    "tooltip.timeline.key-tile-detour": "{{time}} 秒处的绕行关键帧，由修正路径添加。",
+    "tooltip.timeline.key-tile-parked": "{{time}} 秒处的关键帧，超出时间轴末尾，不会播放。",
+    "tooltip.timeline.key-tile-gestures": "点击选择。Shift+点击选择范围。{{toggle}}+点击添加或移除关键帧。双击或右键编辑关键帧。"
 }

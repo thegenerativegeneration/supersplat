@@ -550,5 +550,10 @@
     "tooltip.key-editor.pick-position": "シーンをクリックすると、視線の向きを保ったまま目の高さでカメラをそこに置きます",
     "tooltip.key-editor.pick-target": "シーンをクリックすると、カメラをその点に向けます",
     "tooltip.key-editor.one-key": "ビューを変更するにはキーを1つだけ選択してください",
-    "tooltip.key-editor.delete": "選択したキーを削除"
+    "tooltip.key-editor.delete": "選択したキーを削除",
+    "tooltip.timeline.key-strip": "キーのサムネイルを表示/非表示",
+    "tooltip.timeline.key-tile": "{{time}} 秒のキー。",
+    "tooltip.timeline.key-tile-detour": "{{time}} 秒の迂回キー（パスを修正で追加）。",
+    "tooltip.timeline.key-tile-parked": "{{time}} 秒のキー。タイムラインの終端を超えているため再生されません。",
+    "tooltip.timeline.key-tile-gestures": "クリックで選択。Shift+クリックで範囲選択。{{toggle}}+クリックでキーを追加/解除。ダブルクリックまたは右クリックでキーを編集。"
 }

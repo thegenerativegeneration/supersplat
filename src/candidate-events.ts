@@ -10,8 +10,7 @@ import { ElementType } from './element';
 import { Events } from './events';
 import { Scene } from './scene';
 import { Splat } from './splat';
-
-type Pose = { position: Vec3, target: Vec3 };
+import { canvasOf, createViewCapture } from './view-capture';
 
 const copyPrepared = (p: Estimate): Estimate => ({ ...p, box: { min: { ...p.box.min }, max: { ...p.box.max } } });
 
@@ -20,17 +19,6 @@ const targetOf = (cand: Candidate, depth: number) => new Vec3(
     cand.position.y + cand.direction.y * depth,
     cand.position.z + cand.direction.z * depth
 );
-
-// premultiplied rgba over black, so alpha is dropped
-const thumbnailOf = (rgba: Uint8Array) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = THUMB_WIDTH;
-    canvas.height = THUMB_HEIGHT;
-    const pixels = new Uint8ClampedArray(rgba);
-    for (let i = 3; i < pixels.length; i += 4) pixels[i] = 255;
-    canvas.getContext('2d').putImageData(new ImageData(pixels, THUMB_WIDTH, THUMB_HEIGHT), 0, 0);
-    return canvas;
-};
 
 const registerCandidateEvents = (events: Events, scene: Scene) => {
     let points: Promise<OpaquePoints> | null = null;
@@ -108,15 +96,8 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         running = true;
         try {
             const { points: pts, extents } = await scenePoints();
-            const { camera } = scene;
-            const fov = opts.fov ?? camera.fov;
-            const saved = events.invoke('camera.getPose');
-            const user: Pose = {
-                position: new Vec3(saved.position.x, saved.position.y, saved.position.z),
-                target: new Vec3(saved.target.x, saved.target.y, saved.target.z)
-            };
-            const savedFov = camera.fov;
-            const savedOrtho = camera.ortho;
+            const fov = opts.fov ?? scene.camera.fov;
+            const capture = createViewCapture(events, scene);
             const depths = new Map<string, number>();
             const start = performance.now();
             let rendered = 0;
@@ -129,25 +110,12 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
                     return out;
                 },
                 renderAt: async (cand) => {
-                    // locked mode renders only frames we ask for, always sorted and
-                    // never stochastic, and keeps the viewport from showing candidates
-                    scene.lockedRenderMode = true;
-                    scene.lockedRender = true;
-                    camera.fov = cand.fov;
-                    camera.setPose(new Vec3(cand.position.x, cand.position.y, cand.position.z), targetOf(cand, depths.get(cand.id) ?? 1), 0);
-                    const rgba = await events.invoke('render.offscreen', THUMB_WIDTH, THUMB_HEIGHT) as Uint8Array;
+                    const view = { position: new Vec3(cand.position.x, cand.position.y, cand.position.z), target: targetOf(cand, depths.get(cand.id) ?? 1), fov: cand.fov };
+                    const rgba = await capture.render(view, THUMB_WIDTH, THUMB_HEIGHT);
                     rendered++;
-                    return { rgba, thumbnail: thumbnailOf(rgba) };
+                    return { rgba, thumbnail: canvasOf(rgba, THUMB_WIDTH, THUMB_HEIGHT) };
                 },
-                restore: () => {
-                    // unlock first so a throwing camera call can't leave the editor locked
-                    scene.lockedRenderMode = false;
-                    scene.forceRender = true;
-                    camera.fov = savedFov;
-                    camera.setPose(user.position, user.target, 0);
-                    camera.ortho = savedOrtho;
-                    camera.onUpdate(0);
-                },
+                restore: capture.restore,
                 onProgress: (done, total) => events.fire('candidates.progress', done, total),
                 onAdded: (scored, thumbnail) => events.fire('candidates.added', scored, thumbnail),
                 onLevels: levels => events.fire('candidates.levels', levels)

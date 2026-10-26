@@ -550,5 +550,10 @@
     "tooltip.key-editor.pick-position": "Щёлкните по сцене, чтобы поставить камеру туда на высоте глаз, сохранив направление взгляда",
     "tooltip.key-editor.pick-target": "Щёлкните по сцене, чтобы направить камеру на эту точку",
     "tooltip.key-editor.one-key": "Выберите один ключ, чтобы изменить его вид",
-    "tooltip.key-editor.delete": "Удалить выбранные ключи"
+    "tooltip.key-editor.delete": "Удалить выбранные ключи",
+    "tooltip.timeline.key-strip": "Показать или скрыть миниатюры ключей",
+    "tooltip.timeline.key-tile": "Ключ на {{time}} с.",
+    "tooltip.timeline.key-tile-detour": "Ключ обхода на {{time}} с, добавлен функцией «Исправить путь».",
+    "tooltip.timeline.key-tile-parked": "Ключ на {{time}} с, за концом таймлайна. Он не будет воспроизводиться.",
+    "tooltip.timeline.key-tile-gestures": "Клик — выбрать. Shift+клик — выбрать диапазон. {{toggle}}+клик — добавить или убрать ключ. Двойной или правый клик — изменить ключ."
 }

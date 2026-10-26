@@ -550,5 +550,10 @@
     "tooltip.key-editor.pick-position": "Click the scene to place the camera there at eye height, keeping its view direction",
     "tooltip.key-editor.pick-target": "Click the scene to aim the camera at that point",
     "tooltip.key-editor.one-key": "Select a single key to change its view",
-    "tooltip.key-editor.delete": "Delete the selected keys"
+    "tooltip.key-editor.delete": "Delete the selected keys",
+    "tooltip.timeline.key-strip": "Show or hide the key thumbnails",
+    "tooltip.timeline.key-tile": "Key at {{time}} s.",
+    "tooltip.timeline.key-tile-detour": "Detour key at {{time}} s, added by Fix Path.",
+    "tooltip.timeline.key-tile-parked": "Key at {{time}} s, past the end of the timeline. It won't play.",
+    "tooltip.timeline.key-tile-gestures": "Click to select. Shift+click selects a range. {{toggle}}+click adds or removes a key. Double-click or right-click to edit the key."
 }

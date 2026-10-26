@@ -452,11 +452,14 @@ const candidatesChecks = {
         const scene = { lockedRenderMode: true, events };
         registerRenderEvents(scene, events);
         const started = [];
+        events.function('render.claim', async () => started.push('claim'));
+        events.on('render.release', () => started.push('release'));
         events.on('startSpinner', () => started.push('spinner'));
         events.on('progressStart', () => started.push('progress'));
         await assert.rejects(events.invoke('render.image', { width: 8, height: 8 }), { code: 'busy' });
         await assert.rejects(events.invoke('render.video', {}, null), { code: 'busy' });
-        assert.deepEqual(started, []);
+        // background captures are claimed and released again around each refusal
+        assert.deepEqual(started, ['claim', 'release', 'claim', 'release']);
         assert.equal(scene.lockedRenderMode, true);
     }
 };

@@ -195,4 +195,4 @@ const addMarkerGestures = (events: Events, marker: HTMLElement, id: string, trac
     marker.addEventListener('pointercancel', end);
 };
 
-export { addMarkerGestures, clampGroupOffset, dragIds, markerAction, toggleKeyName, type MarkerTrack };
+export { addMarkerGestures, clampGroupOffset, dragIds, isMac, markerAction, toggleKeyName, type MarkerTrack };

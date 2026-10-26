@@ -1,0 +1,95 @@
+@use 'colors.scss' as *;
+
+// thumbnails of the camera keys above the timeline (see key-strip.ts);
+// detour colours come from src/path/colors.ts
+#timeline-panel > #key-strip {
+    flex-direction: row;
+    flex-shrink: 0;
+    gap: 4px;
+    padding: 4px 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    background-color: $bcg-darkest;
+    border-bottom: 1px solid $bcg-dark;
+    scrollbar-width: thin;
+
+    &:not(.pcui-hidden):not(.empty) {
+        display: flex;
+    }
+
+    > .key-tile {
+        position: relative;
+        flex-shrink: 0;
+        width: 80px;
+        height: 50px;
+        box-sizing: border-box;
+        overflow: hidden;
+        border: 2px solid transparent;
+        border-radius: 4px;
+        background-color: $bcg-primary;
+        cursor: pointer;
+
+        > canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+        }
+
+        > .key-tile-time {
+            position: absolute;
+            left: 4px;
+            bottom: 2px;
+            font-size: 10px;
+            color: $clr-active;
+            text-shadow: 0 0 3px #000, 0 0 2px #000;
+            pointer-events: none;
+        }
+
+        &:hover {
+            border-color: rgba($clr-hilight, 0.5);
+        }
+
+        // detour key added by Fix path
+        &.detour {
+            width: 20px;
+            background-color: rgba(var(--auto-key-rgb), 0.35);
+            box-shadow: inset 0 -3px 0 rgb(var(--auto-key-rgb));
+        }
+
+        // past the end of the shot: kept but not playing
+        &.parked {
+            opacity: 0.45;
+            filter: grayscale(1);
+        }
+
+        &.selected {
+            border-color: $clr-hilight;
+        }
+    }
+}
+
+#timeline-panel > #controls-wrap > .spacer > #key-strip-toggle {
+    width: 36px;
+    height: 24px;
+    margin: 1px auto 1px 1px;
+    padding: 0;
+    flex-grow: 0;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+
+    &:hover {
+        color: #ff9900;
+        cursor: pointer;
+        box-shadow: none;
+        border-color: #ff990088;
+    }
+
+    &.active {
+        color: $clr-hilight;
+    }
+}

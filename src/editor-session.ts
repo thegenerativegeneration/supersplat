@@ -106,15 +106,17 @@ const createEditorSession = (events: Events, scene: Scene, queue: CommandQueue, 
     const checkView = (token: string) => {
         if (viewportInfo().viewToken !== token) throw new EditorError('stale_view', 'The camera or viewport changed. Inspect the scene and use its new viewToken.');
     };
+    // key thumbnails render in the command queue between commands, so they never hold one up
+    const rendering = () => !!scene.lockedRenderMode && !events.invoke('thumbs.capturing');
     const assertIdle = () => {
-        if (busy || scene.lockedRenderMode) throw new EditorError('busy', 'The editor is loading or rendering. Wait for it to finish.');
+        if (busy || rendering()) throw new EditorError('busy', 'The editor is loading or rendering. Wait for it to finish.');
     };
     const read = () => ({
         document: { name: events.invoke('doc.name') ?? null, unsavedChanges: !!events.invoke('scene.dirty') },
         camera: cameraInfo(),
         viewport: viewportInfo(),
         view: viewInfo(),
-        busy: busy > 0 || !!scene.lockedRenderMode,
+        busy: busy > 0 || rendering(),
         bounds: allSplats().length ? scene.bound.clone() : null
     });
     const ready = () => {

@@ -550,5 +550,10 @@
     "tooltip.key-editor.pick-position": "In die Szene klicken, um die Kamera dort auf Augenhöhe zu stellen; die Blickrichtung bleibt",
     "tooltip.key-editor.pick-target": "In die Szene klicken, um die Kamera auf diesen Punkt auszurichten",
     "tooltip.key-editor.one-key": "Einen einzelnen Key auswählen, um seine Ansicht zu ändern",
-    "tooltip.key-editor.delete": "Ausgewählte Keys löschen"
+    "tooltip.key-editor.delete": "Ausgewählte Keys löschen",
+    "tooltip.timeline.key-strip": "Key-Vorschaubilder ein- oder ausblenden",
+    "tooltip.timeline.key-tile": "Key bei {{time}} s.",
+    "tooltip.timeline.key-tile-detour": "Umweg-Key bei {{time}} s, gesetzt von Pfad korrigieren.",
+    "tooltip.timeline.key-tile-parked": "Key bei {{time}} s, hinter dem Ende der Timeline. Er wird nicht abgespielt.",
+    "tooltip.timeline.key-tile-gestures": "Klick wählt aus. Umschalt+Klick wählt einen Bereich. {{toggle}}+Klick fügt einen Key hinzu oder entfernt ihn. Doppelklick oder Rechtsklick bearbeitet den Key."
 }

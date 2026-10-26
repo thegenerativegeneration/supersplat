@@ -153,7 +153,17 @@ const registerRenderEvents = (scene: Scene, events: Events) => {
     // offscreen target; starting a capture would tear both down under it
     const busy = () => new EditorError('busy', 'The editor is already rendering. Wait for it to finish.');
 
-    events.function('render.image', async (imageSettings: ImageSettings, fileStream?: FileSystemWritableFileStream) => {
+    // background captures (key thumbnails) finish first and stay off while the render runs
+    const claimed = <A extends unknown[], R>(render: (...args: A) => Promise<R>) => async (...args: A) => {
+        await events.invoke('render.claim');
+        try {
+            return await render(...args);
+        } finally {
+            events.fire('render.release');
+        }
+    };
+
+    events.function('render.image', claimed(async (imageSettings: ImageSettings, fileStream?: FileSystemWritableFileStream) => {
         if (scene.lockedRenderMode) throw busy();
         events.fire('startSpinner');
 
@@ -338,9 +348,9 @@ const registerRenderEvents = (scene: Scene, events: Events) => {
 
             events.fire('stopSpinner');
         }
-    });
+    }));
 
-    events.function('render.video', (videoSettings: VideoSettings, fileStream: FileSystemWritableFileStream) => {
+    events.function('render.video', claimed((videoSettings: VideoSettings, fileStream: FileSystemWritableFileStream) => {
         if (scene.lockedRenderMode) return Promise.reject(busy());
         const renderImpl = async () => {
             events.fire('progressStart', i18n.t('panel.render.render-video'), true);
@@ -767,7 +777,7 @@ const registerRenderEvents = (scene: Scene, events: Events) => {
             return navigator.locks.request('supersplat-video-render', renderImpl);
         }
         return renderImpl();
-    });
+    }));
 };
 
 export { ImageSettings, registerRenderEvents };

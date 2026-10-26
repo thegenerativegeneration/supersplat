@@ -20,6 +20,7 @@ import { keyEditorModelChecks } from './key-editor-model.mjs';
 import { keyMarkerGesturesChecks } from './key-marker-gestures.mjs';
 import { keyPickChecks } from './key-pick.mjs';
 import { keySelectionChecks } from './key-selection.mjs';
+import { keyThumbnailsChecks } from './key-thumbnails.mjs';
 import { lookAheadChecks } from './look-ahead.mjs';
 import { isovistChecks } from './isovist.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
@@ -102,6 +103,7 @@ const checks = {
     ...keyMarkerGesturesChecks,
     ...keyPickChecks,
     ...keySelectionChecks,
+    ...keyThumbnailsChecks,
     ...lookAheadChecks,
     ...cameraKeyframesChecks,
     ...computeHandlerChecks,

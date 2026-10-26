@@ -550,5 +550,10 @@
     "tooltip.key-editor.pick-position": "Haz clic en la escena para colocar la cámara allí a la altura de los ojos, manteniendo su dirección de vista",
     "tooltip.key-editor.pick-target": "Haz clic en la escena para apuntar la cámara a ese punto",
     "tooltip.key-editor.one-key": "Selecciona una sola clave para cambiar su vista",
-    "tooltip.key-editor.delete": "Eliminar las claves seleccionadas"
+    "tooltip.key-editor.delete": "Eliminar las claves seleccionadas",
+    "tooltip.timeline.key-strip": "Mostrar u ocultar las miniaturas de las claves",
+    "tooltip.timeline.key-tile": "Clave en {{time}} s.",
+    "tooltip.timeline.key-tile-detour": "Clave de desvío en {{time}} s, añadida por Corregir ruta.",
+    "tooltip.timeline.key-tile-parked": "Clave en {{time}} s, más allá del final de la línea de tiempo. No se reproducirá.",
+    "tooltip.timeline.key-tile-gestures": "Clic para seleccionar. Mayús+clic selecciona un rango. {{toggle}}+clic añade o quita una clave. Doble clic o clic derecho para editar la clave."
 }

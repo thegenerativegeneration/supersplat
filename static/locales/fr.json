@@ -550,5 +550,10 @@
     "tooltip.key-editor.pick-position": "Cliquez dans la scène pour y placer la caméra à hauteur des yeux, en gardant sa direction de vue",
     "tooltip.key-editor.pick-target": "Cliquez dans la scène pour orienter la caméra vers ce point",
     "tooltip.key-editor.one-key": "Sélectionnez une seule clé pour changer sa vue",
-    "tooltip.key-editor.delete": "Supprimer les clés sélectionnées"
+    "tooltip.key-editor.delete": "Supprimer les clés sélectionnées",
+    "tooltip.timeline.key-strip": "Afficher ou masquer les miniatures des clés",
+    "tooltip.timeline.key-tile": "Clé à {{time}} s.",
+    "tooltip.timeline.key-tile-detour": "Clé de détour à {{time}} s, ajoutée par Corriger le trajet.",
+    "tooltip.timeline.key-tile-parked": "Clé à {{time}} s, au-delà de la fin de la timeline. Elle ne sera pas jouée.",
+    "tooltip.timeline.key-tile-gestures": "Cliquer pour sélectionner. Maj+clic sélectionne une plage. {{toggle}}+clic ajoute ou retire une clé. Double-clic ou clic droit pour modifier la clé."
 }

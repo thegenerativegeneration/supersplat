@@ -550,5 +550,10 @@
     "tooltip.key-editor.pick-position": "Clique na cena para colocar a câmera ali na altura dos olhos, mantendo a direção da vista",
     "tooltip.key-editor.pick-target": "Clique na cena para apontar a câmera para esse ponto",
     "tooltip.key-editor.one-key": "Selecione um único quadro-chave para mudar sua vista",
-    "tooltip.key-editor.delete": "Excluir os quadros-chave selecionados"
+    "tooltip.key-editor.delete": "Excluir os quadros-chave selecionados",
+    "tooltip.timeline.key-strip": "Mostrar ou ocultar as miniaturas dos quadros-chave",
+    "tooltip.timeline.key-tile": "Quadro-chave em {{time}} s.",
+    "tooltip.timeline.key-tile-detour": "Quadro-chave de desvio em {{time}} s, adicionado por Corrigir trajeto.",
+    "tooltip.timeline.key-tile-parked": "Quadro-chave em {{time}} s, além do fim da linha do tempo. Não será reproduzido.",
+    "tooltip.timeline.key-tile-gestures": "Clique para selecionar. Shift+clique seleciona um intervalo. {{toggle}}+clique adiciona ou remove um quadro-chave. Clique duplo ou clique com o botão direito para editar o quadro-chave."
 }

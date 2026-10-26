@@ -794,6 +794,7 @@ const registerEditorEvents = (events: Events, editHistory: EditHistory, scene: S
     });
 
     events.on('select.delete', () => {
+        if (events.invoke('keys.focused')) return events.fire('keys.delete');
         // Don't delete gaussians when a point-placing tool is active (backspace deletes its points instead)
         if (['measure', 'orient'].includes(events.invoke('tool.active'))) {
             return;

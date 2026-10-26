@@ -15,6 +15,7 @@ import { Events } from './events';
 import { initFileHandler } from './file-handler';
 import { registerFixPathEvents } from './fix-path-events';
 import { registerIframeApi } from './iframe-api';
+import { registerKeySelectionEvents } from './key-selection';
 import { registerOrbitEvents } from './orbit-events';
 import { registerPreferences } from './preferences';
 import { registerPublishEvents } from './publish';
@@ -136,6 +137,7 @@ const main = async () => {
     registerViewKeyEvents(events);
     registerFixPathEvents(events);
     registerOrbitEvents(events);
+    registerKeySelectionEvents(events);
     registerTransformHandlerEvents(events);
     registerPublishEvents(events);
     registerIframeApi(events);

@@ -33,6 +33,7 @@ import { orbitKeyChecks } from './orbit-keys.mjs';
 import { orbitPathChecks } from './orbit-path.mjs';
 import { orbitPreviewChecks, orbitReadoutChecks } from './orbit-readout.mjs';
 import { pathLineChecks } from './path-line.mjs';
+import { progressHandleChecks } from './progress-handle.mjs';
 import { pathMarkersChecks } from './path-markers.mjs';
 import { timingEventsChecks } from './timing-events.mjs';
 import { webmcpChecks } from './webmcp.mjs';
@@ -108,6 +109,7 @@ const checks = {
     ...occupancyExtentChecks,
     ...pathLineChecks,
     ...pathMarkersChecks,
+    ...progressHandleChecks,
     ...timingEventsChecks,
     ...webmcpChecks,
 

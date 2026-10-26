@@ -510,5 +510,17 @@
     "orbit.report": "Revisa la órbita",
     "orbit.noSplats": "No hay splats visibles alrededor de los que orbitar.",
     "orbit.tooFewFrames": "Hay muy pocos fotogramas para tus claves y las claves de la órbita. Aumenta los fotogramas totales e inténtalo de nuevo.",
-    "orbit.rejected": "No se pudieron actualizar las claves de cámara. Inténtalo de nuevo."
+    "orbit.rejected": "No se pudieron actualizar las claves de cámara. Inténtalo de nuevo.",
+    "progress.reading": "Leyendo la escena",
+    "progress.estimate": "Estimando el área",
+    "progress.grid": "Creando la cuadrícula transitable",
+    "progress.routes": "Buscando rutas {{done}}/{{total}}",
+    "progress.detours": "Colocando desvíos",
+    "progress.timing": "Equilibrando el tiempo",
+    "progress.measuring": "Midiendo vistas",
+    "progress.orbit": "Ajustando la órbita",
+    "progress.checking": "Comprobando la órbita",
+    "progress.orbit-add": "Añadir órbita",
+    "progress.balance": "Equilibrar",
+    "progress.add-keys": "Añadir como claves"
 }

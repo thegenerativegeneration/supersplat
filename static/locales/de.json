@@ -510,5 +510,17 @@
     "orbit.report": "Orbit prüfen",
     "orbit.noSplats": "Es gibt keine sichtbaren Splats, um die die Kamera kreisen kann.",
     "orbit.tooFewFrames": "Für Ihre Keyframes und die Orbit-Keyframes gibt es zu wenige Frames. Erhöhen Sie die Gesamtanzahl der Frames und versuchen Sie es erneut.",
-    "orbit.rejected": "Die Kamera-Keyframes konnten nicht aktualisiert werden. Bitte erneut versuchen."
+    "orbit.rejected": "Die Kamera-Keyframes konnten nicht aktualisiert werden. Bitte erneut versuchen.",
+    "progress.reading": "Szene wird gelesen",
+    "progress.estimate": "Bereich wird geschätzt",
+    "progress.grid": "Begehbares Raster wird aufgebaut",
+    "progress.routes": "Routen werden gesucht {{done}}/{{total}}",
+    "progress.detours": "Umwege werden gesetzt",
+    "progress.timing": "Timing wird ausgeglichen",
+    "progress.measuring": "Ansichten werden vermessen",
+    "progress.orbit": "Orbit wird angepasst",
+    "progress.checking": "Orbit wird geprüft",
+    "progress.orbit-add": "Orbit hinzufügen",
+    "progress.balance": "Ausgleichen",
+    "progress.add-keys": "Als Keyframes hinzufügen"
 }

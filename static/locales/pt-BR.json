@@ -510,5 +510,17 @@
     "orbit.report": "Verifique a órbita",
     "orbit.noSplats": "Não há splats visíveis em torno dos quais orbitar.",
     "orbit.tooFewFrames": "Há poucos quadros para seus quadros-chave e os quadros-chave da órbita. Aumente o Total de Quadros e tente novamente.",
-    "orbit.rejected": "Não foi possível atualizar os quadros-chave da câmera. Tente novamente."
+    "orbit.rejected": "Não foi possível atualizar os quadros-chave da câmera. Tente novamente.",
+    "progress.reading": "Lendo a cena",
+    "progress.estimate": "Estimando a área",
+    "progress.grid": "Criando a grade transitável",
+    "progress.routes": "Buscando trajetos {{done}}/{{total}}",
+    "progress.detours": "Posicionando desvios",
+    "progress.timing": "Equilibrando o tempo",
+    "progress.measuring": "Medindo vistas",
+    "progress.orbit": "Ajustando a órbita",
+    "progress.checking": "Verificando a órbita",
+    "progress.orbit-add": "Adicionar órbita",
+    "progress.balance": "Equilibrar",
+    "progress.add-keys": "Adicionar como chaves"
 }

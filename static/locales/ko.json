@@ -510,5 +510,17 @@
     "orbit.report": "오빗 확인 필요",
     "orbit.noSplats": "주위를 돌 수 있는 보이는 스플랫이 없습니다.",
     "orbit.tooFewFrames": "키와 오빗 키에 비해 프레임이 너무 적습니다. 총 프레임 수를 늘린 뒤 다시 시도하세요.",
-    "orbit.rejected": "카메라 키를 업데이트할 수 없습니다. 다시 시도하세요."
+    "orbit.rejected": "카메라 키를 업데이트할 수 없습니다. 다시 시도하세요.",
+    "progress.reading": "씬 읽는 중",
+    "progress.estimate": "영역 추정 중",
+    "progress.grid": "이동 가능 그리드 생성 중",
+    "progress.routes": "경로 찾는 중 {{done}}/{{total}}",
+    "progress.detours": "우회로 배치 중",
+    "progress.timing": "타이밍 균형 조정 중",
+    "progress.measuring": "뷰 측정 중",
+    "progress.orbit": "오빗 맞추는 중",
+    "progress.checking": "오빗 확인 중",
+    "progress.orbit-add": "오빗 추가",
+    "progress.balance": "균형 조정",
+    "progress.add-keys": "키로 추가"
 }

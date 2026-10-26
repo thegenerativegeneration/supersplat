@@ -424,8 +424,26 @@ class EditorUI {
 
         topContainer.append(progress);
 
-        events.on('progressStart', (header: string, cancellable?: boolean) => {
+        let revealTimer: ReturnType<typeof setTimeout> | null = null;
+        const clearRevealTimer = () => {
+            if (revealTimer !== null) {
+                clearTimeout(revealTimer);
+                revealTimer = null;
+            }
+        };
+
+        events.on('progressStart', (header: string, cancellable?: boolean, options?: { revealAfterMs?: number }) => {
+            clearRevealTimer();
             progress.hidden = false;
+            // blocks input at once; the dialog itself shows after the delay
+            const delay = options?.revealAfterMs ?? 0;
+            progress.class[delay > 0 ? 'add' : 'remove']('pending');
+            if (delay > 0) {
+                revealTimer = setTimeout(() => {
+                    revealTimer = null;
+                    progress.class.remove('pending');
+                }, delay);
+            }
             progress.setHeader(header);
             progress.setText('');
             progress.setProgress(0);
@@ -433,7 +451,11 @@ class EditorUI {
             progress.onCancel = cancellable ? () => events.fire('progressCancel') : null;
         });
 
-        events.on('progressUpdate', (options: { text?: string, progress?: number }) => {
+        events.on('progressUpdate', (options: { text?: string, progress?: number, cancellable?: boolean }) => {
+            if (options.cancellable !== undefined) {
+                progress.showCancelButton(options.cancellable);
+                if (!options.cancellable) progress.onCancel = null;
+            }
             if (options.text !== undefined) {
                 progress.setText(options.text);
             }
@@ -443,6 +465,8 @@ class EditorUI {
         });
 
         events.on('progressEnd', () => {
+            clearRevealTimer();
+            progress.class.remove('pending');
             progress.hidden = true;
             progress.showCancelButton(false);
             progress.onCancel = null;

@@ -510,5 +510,17 @@
     "orbit.report": "Orbite à vérifier",
     "orbit.noSplats": "Aucun splat visible autour duquel tourner.",
     "orbit.tooFewFrames": "Il y a trop peu de frames pour vos clés et les clés de l’orbite. Augmentez le nombre total de frames et réessayez.",
-    "orbit.rejected": "Les clés de caméra n’ont pas pu être mises à jour. Réessayez."
+    "orbit.rejected": "Les clés de caméra n’ont pas pu être mises à jour. Réessayez.",
+    "progress.reading": "Lecture de la scène",
+    "progress.estimate": "Estimation de la zone",
+    "progress.grid": "Construction de la grille praticable",
+    "progress.routes": "Recherche des trajets {{done}}/{{total}}",
+    "progress.detours": "Placement des détours",
+    "progress.timing": "Équilibrage du timing",
+    "progress.measuring": "Mesure des vues",
+    "progress.orbit": "Ajustement de l'orbite",
+    "progress.checking": "Vérification de l'orbite",
+    "progress.orbit-add": "Ajouter une orbite",
+    "progress.balance": "Équilibrer",
+    "progress.add-keys": "Ajouter comme clés"
 }

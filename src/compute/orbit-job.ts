@@ -17,8 +17,9 @@ type OrbitPlan =
 
 type OrbitAddResult = {
     ok: boolean,
-    // blocked: no free radius; rejected: the track did not take the keys
-    reason?: 'noSplats' | 'blocked' | 'tooFewFrames' | 'keysChanged' | 'rejected',
+    // blocked: no free radius; rejected: the track did not take the keys;
+    // cancelled: the user cancelled the run before the keys were appended
+    reason?: 'noSplats' | 'blocked' | 'tooFewFrames' | 'keysChanged' | 'rejected' | 'cancelled',
     added: number,
     radius?: number,
     reduced?: boolean,

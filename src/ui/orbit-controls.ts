@@ -11,7 +11,6 @@ import type { OrbitAddResult, OrbitDefaults, OrbitPlan } from '../orbit-events';
 
 // field changes this close together plan once
 const PREVIEW_DELAY_MS = 150;
-const SPINNER_DELAY_MS = 300;
 const DEFAULT_SPAN = 360;
 
 type Fields = { radius: number, height: number, spanDeg: number, dir: 1 | -1 };
@@ -101,11 +100,13 @@ class OrbitOptions extends Container {
             if (!defaults) return;
             const id = ++planId;
             const spec = specOf(defaults);
+            showLine(hint, 'orbit.checking');
             let plan: OrbitPlan;
             try {
                 plan = await events.invoke('orbit.plan', spec) as OrbitPlan;
             } catch {
-                // Add Orbit reports the error
+                // superseded by a newer preview, or an error Add Orbit reports
+                if (id === planId && !this.hidden) showLine(hint, null);
                 return;
             }
             if (id !== planId || this.hidden) return;
@@ -247,11 +248,6 @@ class OrbitControls extends Container {
             busy = true;
             button.enabled = false;
             hideStatus();
-            let spinning = false;
-            const timer = setTimeout(() => {
-                spinning = true;
-                events.fire('startSpinner');
-            }, SPINNER_DELAY_MS);
             let result: OrbitAddResult | null = null;
             let failure = null;
             try {
@@ -259,8 +255,6 @@ class OrbitControls extends Container {
             } catch (error) {
                 failure = error;
             } finally {
-                clearTimeout(timer);
-                if (spinning) events.fire('stopSpinner');
                 busy = false;
                 button.enabled = true;
             }
@@ -270,6 +264,10 @@ class OrbitControls extends Container {
                     header: i18n.t('orbit.failed'),
                     message: String(failure?.message ?? failure ?? '')
                 });
+                return;
+            }
+            if (result.reason === 'cancelled') {
+                showStatus(i18n.t('status.cancelled'));
                 return;
             }
             const unit = i18n.t(metric ? 'fix-path.unit-metres' : 'fix-path.unit-scene');

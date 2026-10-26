@@ -511,6 +511,7 @@
     "orbit.noSplats": "No hay splats visibles alrededor de los que orbitar.",
     "orbit.tooFewFrames": "Hay muy pocos fotogramas para tus claves y las claves de la órbita. Aumenta los fotogramas totales e inténtalo de nuevo.",
     "orbit.rejected": "No se pudieron actualizar las claves de cámara. Inténtalo de nuevo.",
+    "orbit.checking": "Comprobando…",
     "progress.reading": "Leyendo la escena",
     "progress.estimate": "Estimando el área",
     "progress.grid": "Creando la cuadrícula transitable",

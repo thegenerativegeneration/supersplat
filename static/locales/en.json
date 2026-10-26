@@ -511,6 +511,7 @@
     "orbit.noSplats": "There are no visible splats to orbit around.",
     "orbit.tooFewFrames": "There are too few frames for your keys and the orbit keys. Increase Total Frames and try again.",
     "orbit.rejected": "The camera keys couldn't be updated. Try again.",
+    "orbit.checking": "Checking…",
     "progress.reading": "Reading the scene",
     "progress.estimate": "Estimating the area",
     "progress.grid": "Building the walkable grid",

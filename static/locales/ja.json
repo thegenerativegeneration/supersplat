@@ -511,6 +511,7 @@
     "orbit.noSplats": "周回できる表示中のスプラットがありません。",
     "orbit.tooFewFrames": "キーとオービットのキーに対してフレームが少なすぎます。総フレーム数を増やしてもう一度お試しください。",
     "orbit.rejected": "カメラキーを更新できませんでした。もう一度お試しください。",
+    "orbit.checking": "確認中…",
     "progress.reading": "シーンを読み込み中",
     "progress.estimate": "エリアを推定中",
     "progress.grid": "歩行可能なグリッドを作成中",

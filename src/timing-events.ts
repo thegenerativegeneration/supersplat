@@ -1,5 +1,8 @@
-import { balanceTiming, BalanceInput, MAX_TURN_DEG_PER_SEC, BalanceKey, BalanceResult } from './anim/balance-timing';
+import { BalanceInput, MAX_TURN_DEG_PER_SEC, BalanceKey, BalanceResult } from './anim/balance-timing';
 import { isParked, Pose } from './camera-poses';
+import { withProgress } from './compute/progress-handle';
+import type { ProgressFn } from './compute/protocol';
+import { computeOf, isAbortError } from './compute/scene-compute';
 import { Events } from './events';
 import { i18n } from './ui/localization';
 
@@ -28,12 +31,19 @@ const snapshotOf = (events: Events) => JSON.stringify({
     timeline: timelineSettings(events)
 });
 
+type BalanceOptions = { signal?: AbortSignal, onProgress?: ProgressFn };
+
+const cancelled = (): { result: BalanceResult, changed: boolean } => ({ result: { ok: false, reason: 'cancelled' }, changed: false });
+
 // samples scene distances for the given non-auto poses (in playback order) and balances
-// their timing. changed is true when the track keys moved while sampling, in
-// which case the result is a keysChanged failure.
-const computeBalance = async (events: Events, poses: BalanceSource[]): Promise<{ result: BalanceResult, changed: boolean }> => {
+// their timing in the scene compute. changed is true when the track keys moved
+// meanwhile, in which case the result is a keysChanged failure; an aborted
+// signal gives a cancelled failure.
+const computeBalance = async (events: Events, poses: BalanceSource[], opts: BalanceOptions = {}): Promise<{ result: BalanceResult, changed: boolean }> => {
+    const { signal, onProgress } = opts;
     const snapshot = snapshotOf(events);
     const sampleStart = performance.now();
+    onProgress?.('measuring');
     // too few keys fails below without needing the scene
     const sampled = poses.filter(p => !p.auto);
     const sampledDistances = (poses.length >= 2 && sampled.length > 0 ?
@@ -41,11 +51,7 @@ const computeBalance = async (events: Events, poses: BalanceSource[]): Promise<{
         []) as (number | null)[];
     const distanceOf = new Map(sampled.map((p, i) => [p, sampledDistances[i] ?? NaN]));
     const sampleMs = performance.now() - sampleStart;
-
-    // the keys moved while sampling; the computed frames would not match them
-    if (snapshotOf(events) !== snapshot) {
-        return { result: { ok: false, reason: 'keysChanged' }, changed: true };
-    }
+    if (signal?.aborted) return cancelled();
 
     const keys: BalanceKey[] = poses.map(p => ({
         position: p.position,
@@ -55,7 +61,20 @@ const computeBalance = async (events: Events, poses: BalanceSource[]): Promise<{
         distance: distanceOf.get(p) ?? NaN
     }));
 
-    const result = balanceTiming({ keys, ...timelineSettings(events) });
+    onProgress?.('timing');
+    let result: BalanceResult;
+    try {
+        result = await computeOf(events).run('balance', { keys, ...timelineSettings(events) }, { signal });
+    } catch (error) {
+        if (isAbortError(error)) return cancelled();
+        throw error;
+    }
+    if (signal?.aborted) return cancelled();
+
+    // the keys moved meanwhile; the computed frames would not match them
+    if (snapshotOf(events) !== snapshot) {
+        return { result: { ok: false, reason: 'keysChanged' }, changed: true };
+    }
 
     const outcome = 'reason' in result ? `failed (${result.reason})` : `${result.iterations} iterations`;
     console.debug(`timing.balance: sampled ${sampled.length} keys in ${sampleMs.toFixed(1)} ms, ${outcome}`);
@@ -81,7 +100,8 @@ const showBalanceFailure = (events: Events, reason: string) => events.invoke('sh
 const registerTimingEvents = (events: Events) => {
     // retime the camera keys so the camera moves at a steady perceived speed,
     // as one undo step. Keys parked after the shot keep their frames. Leaves
-    // the keys untouched and explains why on failure.
+    // the keys untouched and explains why on failure. Runs under the progress
+    // dialog; a cancelled run changes nothing.
     events.function('timing.balance', async (): Promise<BalanceResult> => {
         const poses = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
         const duration = events.invoke('timeline.frames') as number;
@@ -95,16 +115,15 @@ const registerTimingEvents = (events: Events) => {
             auto: p.auto
         }));
 
-        const { result } = await computeBalance(events, sources);
+        const result = await withProgress(events, 'progress.balance', async (h) => {
+            const balanced = (await computeBalance(events, sources, { signal: h.signal, onProgress: h.update })).result;
+            if ('frames' in balanced) events.fire('track.retime', withParkedFrames(poses, parked, balanced.frames));
+            return balanced;
+        });
 
-        if ('frames' in result) {
-            events.fire('track.retime', withParkedFrames(poses, parked, result.frames));
-        } else {
-            await showBalanceFailure(events, result.reason);
-        }
-
+        if ('reason' in result && result.reason !== 'cancelled') await showBalanceFailure(events, result.reason);
         return result;
     });
 };
 
-export { MAX_TURN_DEG_PER_SEC, registerTimingEvents, computeBalance, finiteOr, showBalanceFailure, snapshotOf, timelineSettings, withParkedFrames, BalanceSource };
+export { MAX_TURN_DEG_PER_SEC, registerTimingEvents, computeBalance, finiteOr, showBalanceFailure, snapshotOf, timelineSettings, withParkedFrames, BalanceOptions, BalanceSource };

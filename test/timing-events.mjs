@@ -43,6 +43,14 @@ const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) =>
     return { events, ops, popups };
 };
 
+// counts of progressStart and progressEnd
+const progressCounts = (events) => {
+    const counts = { start: 0, end: 0 };
+    events.on('progressStart', () => counts.start++);
+    events.on('progressEnd', () => counts.end++);
+    return counts;
+};
+
 const sortedKeys = events => [...events.invoke('track.keys')].sort((a, b) => a - b);
 
 const timingEventsChecks = {
@@ -117,6 +125,19 @@ const timingEventsChecks = {
         assert.deepEqual(sortedKeys(events), [0, 10, 20]);
     },
 
+    async 'balance: cancel during sampling retimes nothing'() {
+        const { events, ops, popups } = setup([0, 10, 20], [], async (poses, ev) => {
+            ev.fire('progressCancel');
+            return poses.map(() => 1);
+        });
+        const counts = progressCounts(events);
+        const result = await events.invoke('timing.balance');
+        assert.deepEqual(result, { ok: false, reason: 'cancelled' });
+        assert.equal(popups.length, 0);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 10, 20]);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
 
     'views: fallback compresses existing and spaces new keys'() {
         const frames = fallbackAppendFrames([0, 90, 180], 2, 181);
@@ -189,6 +210,22 @@ const timingEventsChecks = {
         assert.equal(popups.length, 1);
         assert.equal(ops.length, 1);
         assert.equal(sortedKeys(events).length, 3);
+    },
+
+    async 'views: add as keys cancelled appends nothing'() {
+        const { events, ops, popups } = setup([0, 10], [], async (poses, ev) => {
+            ev.fire('progressCancel');
+            return poses.map(() => 1);
+        });
+        const counts = progressCounts(events);
+        const result = await events.invoke('views.addKeys', [
+            { position: { x: 5, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 }, fov: 50, depth: 2 }
+        ]);
+        assert.deepEqual(result, { ok: false, reason: 'cancelled' });
+        assert.equal(popups.length, 0);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 10]);
+        assert.deepEqual(counts, { start: 1, end: 1 });
     }
 };
 

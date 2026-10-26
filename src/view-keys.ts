@@ -3,8 +3,9 @@ import { Vec3 } from 'playcanvas';
 import { BalanceResult } from './anim/balance-timing';
 import { isParked, Pose } from './camera-poses';
 import { Vec3Like } from './candidates/occupancy';
+import { withProgress } from './compute/progress-handle';
 import { Events } from './events';
-import { BalanceSource, computeBalance, showBalanceFailure, withParkedFrames } from './timing-events';
+import { BalanceOptions, BalanceSource, computeBalance, showBalanceFailure, withParkedFrames } from './timing-events';
 
 type ViewPick = { position: Vec3Like, direction: Vec3Like, fov: number, depth: number };
 
@@ -37,9 +38,9 @@ type AddedKey = { position: Vec3, target: Vec3, fov: number, orbit?: string };
 
 // Append keys after the keys in the shot and balance the timing of all keys
 // except those parked after the shot, as one undo step. Falls back to simple
-// spacing when balancing refuses; appends nothing when the keys changed while
-// sampling.
-const appendAndBalance = async (events: Events, added: AddedKey[]): Promise<BalanceResult> => {
+// spacing when balancing refuses; appends nothing when the keys changed
+// meanwhile or the run was cancelled. Shows no popup: see appendFailure.
+const appendAndBalance = async (events: Events, added: AddedKey[], opts: BalanceOptions = {}): Promise<BalanceResult> => {
     const all = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
     const duration = events.invoke('timeline.frames') as number;
     const parked = (p: Pose) => isParked(p, duration);
@@ -57,28 +58,28 @@ const appendAndBalance = async (events: Events, added: AddedKey[]): Promise<Bala
         ...added.map(a => ({ position: a.position, target: a.target, fov: a.fov, linger: 0 }))
     ];
 
-    const { result, changed } = await computeBalance(events, sources);
-    if (changed) {
-        await showBalanceFailure(events, 'keysChanged');
-        return result;
-    }
+    const { result, changed } = await computeBalance(events, sources, opts);
+    if (changed || ('reason' in result && result.reason === 'cancelled')) return result;
 
     const frames = 'frames' in result ?
         result.frames :
         fallbackAppendFrames(existing.map(p => p.frame), added.length, duration);
     events.fire('track.appendPoses', added, withParkedFrames(all, parked, frames));
-
-    // a lone key needs no balancing, so tooFewKeys is not worth a popup
-    if ('reason' in result && result.reason !== 'tooFewKeys') {
-        await showBalanceFailure(events, result.reason);
-    }
     return result;
 };
 
+// the balance failure of appendAndBalance to explain once the progress is
+// gone; a lone key needs no balancing and a cancelled run no popup
+const appendFailure = (result: BalanceResult) => {
+    if (!('reason' in result) || result.reason === 'tooFewKeys' || result.reason === 'cancelled') return undefined;
+    return result.reason;
+};
+
 const registerViewKeyEvents = (events: Events) => {
-    // append picked views as camera keys and balance the timing
-    events.function('views.addKeys', (views: ViewPick[]): Promise<BalanceResult> => {
-        return appendAndBalance(events, views.map(v => ({
+    // append picked views as camera keys and balance the timing, under the
+    // progress dialog
+    events.function('views.addKeys', async (views: ViewPick[]): Promise<BalanceResult> => {
+        const added = views.map(v => ({
             position: new Vec3(v.position.x, v.position.y, v.position.z),
             target: new Vec3(
                 v.position.x + v.direction.x * v.depth,
@@ -86,9 +87,13 @@ const registerViewKeyEvents = (events: Events) => {
                 v.position.z + v.direction.z * v.depth
             ),
             fov: v.fov
-        })));
+        }));
+        const result = await withProgress(events, 'progress.add-keys', h => appendAndBalance(events, added, { signal: h.signal, onProgress: h.update }));
+        const popup = appendFailure(result);
+        if (popup) await showBalanceFailure(events, popup);
+        return result;
     });
 };
 
-export { appendAndBalance, registerViewKeyEvents, fallbackAppendFrames, ViewPick };
+export { appendAndBalance, appendFailure, registerViewKeyEvents, fallbackAppendFrames, ViewPick };
 export type { AddedKey };

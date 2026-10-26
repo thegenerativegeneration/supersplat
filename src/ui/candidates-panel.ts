@@ -1,5 +1,6 @@
 import { Button, Container, Label, SelectInput } from '@playcanvas/pcui';
 
+import type { BalanceResult } from '../anim/balance-timing';
 import type { LevelInfo } from '../candidates/generate';
 import { PAGE_SIZE, busyInputAction, candidatePose, levelOptions, togglePick, visibleItems, type ViewPose } from '../candidates/panel-model';
 import type { Scored } from '../candidates/score';
@@ -7,6 +8,7 @@ import { Events } from '../events';
 import { Scene } from '../scene';
 import { CandidatesSetup, type Prepared } from './candidates-setup';
 import { i18n } from './localization';
+import { createStatusLine } from './status-line';
 import { Tooltips } from './tooltips';
 
 const BUDGET = 240;
@@ -91,6 +93,7 @@ class CandidatesPanel extends Container {
         this.dom.appendChild(grid);
         this.append(moreButton);
         this.append(footer);
+        const { show: showStatus } = createStatusLine(this, addButton.dom);
 
         // state
         let prepared: Prepared | null = null;
@@ -408,9 +411,10 @@ class CandidatesPanel extends Container {
             addButton.enabled = false;
             try {
                 const before = (events.invoke('camera.poses') as unknown[]).length;
-                await events.invoke('views.addKeys', views);
-                // keep the picks when nothing was appended (keys changed meanwhile)
+                const result = await events.invoke('views.addKeys', views) as BalanceResult;
+                // keep the picks when nothing was appended (keys changed meanwhile or cancelled)
                 if ((events.invoke('camera.poses') as unknown[]).length > before) picks = [];
+                if ('reason' in result && result.reason === 'cancelled') showStatus(i18n.t('status.cancelled'));
             } catch (error) {
                 await events.invoke('showPopup', {
                     type: 'error',

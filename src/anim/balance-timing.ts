@@ -38,7 +38,7 @@ type MotionStats = {
 
 type BalanceResult =
     { ok: true, frames: number[], iterations: number, stats: MotionStats, turnLimited?: number } |
-    { ok: false, reason: 'tooFewKeys' | 'lingerTooLong' | 'tooFewFrames' | 'keysChanged' };
+    { ok: false, reason: 'tooFewKeys' | 'lingerTooLong' | 'tooFewFrames' | 'keysChanged' | 'cancelled' };
 
 const MAX_ITERATIONS = 10;
 const SAMPLES_PER_SEGMENT = 32;

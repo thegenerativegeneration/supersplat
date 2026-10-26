@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import { Vec3 } from 'playcanvas';
 
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
+import { inlineTransport } from './.build/src/compute/inline-transport.js';
+import { createSceneCompute } from './.build/src/compute/scene-compute.js';
 import { Events } from './.build/src/events.js';
 import { registerOrbitEvents } from './.build/src/orbit-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
+import { i18n } from './.build/src/ui/localization.js';
 
 const EYE = 1.6;
 const BOX = { min: { x: -20, y: -1, z: -20 }, max: { x: 20, y: 6, z: 20 } };
@@ -57,6 +60,20 @@ const setup = (points, poses = [], opts = {}) => {
         return Promise.resolve({ action: 'ok' });
     });
 
+    if (opts.onRun) {
+        // the inline compute, calling onRun once each run is on its way
+        const base = createSceneCompute([() => inlineTransport()]);
+        const compute = {
+            pointsVersion: cloud => base.pointsVersion(cloud),
+            run: (op, args, runOpts) => {
+                const pending = base.run(op, args, runOpts);
+                opts.onRun(op, events);
+                return pending;
+            }
+        };
+        events.function('compute', () => compute);
+    }
+
     registerCameraPosesEvents(events);
     registerTrackManagerEvents(events);
     registerOrbitEvents(events);
@@ -65,6 +82,14 @@ const setup = (points, poses = [], opts = {}) => {
     events.on('edit.add', op => ops.push(op));
     events.fire('camera.loadPoses', poses);
     return { events, ops, popups };
+};
+
+// counts of progressStart and progressEnd
+const progressCounts = (events) => {
+    const counts = { start: 0, end: 0 };
+    events.on('progressStart', () => counts.start++);
+    events.on('progressEnd', () => counts.end++);
+    return counts;
 };
 
 const byFrame = events => events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame);
@@ -202,6 +227,53 @@ const orbitEventsChecks = {
         assert.equal(result.reason, 'blocked');
         assert.equal(result.added, 0);
         assert.equal(ops.length, 0);
+    },
+
+    async 'orbit: add cancelled during planning adds nothing and no undo op'() {
+        const { events, ops, popups } = setup(FAR, [pose('camera_0', 0, -10)], {
+            onRun: (op, ev) => op === 'orbitPlan' && ev.fire('progressCancel')
+        });
+        const counts = progressCounts(events);
+        const before = summary(events);
+        const result = await events.invoke('orbit.add', SPEC);
+        assert.equal(result.ok, false);
+        assert.equal(result.reason, 'cancelled');
+        assert.equal(result.added, 0);
+        assert.deepEqual(summary(events), before);
+        assert.equal(ops.length, 0);
+        assert.equal(popups.length, 0);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
+
+    async 'orbit: cancel is locked once the keys are appended'() {
+        const { events, ops, popups } = setup(FAR);
+        const counts = progressCounts(events);
+        const updates = [];
+        events.on('progressUpdate', update => updates.push(update));
+        events.on('track.appendPoses', () => events.fire('progressCancel'));
+        const result = await events.invoke('orbit.add', SPEC);
+        assert.equal(result.ok, true);
+        assert.equal(result.added, 17);
+        assert.equal(result.orbitBlocked, false);
+        assert.equal(byFrame(events).length, 17);
+        assert.equal(ops.length, 1);
+        assert.equal(popups.length, 0);
+        const locked = updates.filter(u => u.cancellable === false);
+        assert.deepEqual(locked, [{ text: i18n.t('progress.checking'), cancellable: false }]);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
+
+    async 'orbit: previews superseded while dragging return only the newest plan'() {
+        const { events } = setup(FAR);
+        const runs = [1, 2, 3, 4].map(radius => events.invoke('orbit.plan', { ...SPEC, radius }));
+        const settled = await Promise.allSettled(runs);
+        assert.deepEqual(settled.map(s => s.status), ['fulfilled', 'rejected', 'rejected', 'fulfilled']);
+        settled.filter(s => s.status === 'rejected').forEach(({ reason }) => {
+            assert.equal(reason.name, 'AbortError');
+            assert.equal(reason.message, 'superseded');
+        });
+        assert.equal(settled[0].value.radius, 1);
+        assert.equal(settled[3].value.radius, 4);
     }
 };
 

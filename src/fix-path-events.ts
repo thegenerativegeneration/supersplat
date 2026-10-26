@@ -5,7 +5,10 @@ import { Pose } from './camera-poses';
 import { looksMetric, type Box } from './candidates/estimate';
 import type { Vec3Like } from './candidates/occupancy';
 import type { OpaquePoints } from './candidates/read-points';
-import { boxAroundKeys, buildFixGrid } from './compute/fix-path-job';
+import { boxAroundKeys, buildFixGrid, replyOf } from './compute/fix-path-job';
+import { withProgress, type ProgressHandle } from './compute/progress-handle';
+import type { Estimate, FixPlanReply, FixPlanRequest } from './compute/protocol';
+import { computeOf, isAbortError, untilAborted, type RunOptions } from './compute/scene-compute';
 import { Events } from './events';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
 import { clampOpening, type NavGrid } from './path/nav-grid';
@@ -17,8 +20,8 @@ type FixPathOptions = { keepOrder: boolean, allowFlying: boolean, smallestOpenin
 type FixPathResult = {
     ok: boolean,
     // rejected: the track refused the new path; tooFewFrames: more keys
-    // than timeline frames
-    reason?: 'tooFewKeys' | 'noSplats' | 'keysChanged' | 'tooFewFrames' | 'rejected',
+    // than timeline frames; cancelled: the user cancelled the run
+    reason?: 'tooFewKeys' | 'noSplats' | 'keysChanged' | 'tooFewFrames' | 'rejected' | 'cancelled',
     detours: number,
     // names of the keys parked after the shot
     unreachable: string[],
@@ -39,11 +42,25 @@ type SceneGrid = { grid: NavGrid, eyeHeight: number, box?: Box };
 // the smallest opening for an eye height
 type OpeningAt = (eyeHeight: number) => number;
 
+// the navigation grid of the scene around the user key positions, at the
+// given eye height or the estimate; null without visible splats
+type SceneGridFn = (allowFlying: boolean, openingAt: OpeningAt, positions?: Vec3Like[], eyeHeight?: number) => Promise<SceneGrid | null>;
+
+// eyeHeight: the user's, undefined for the estimate
+type PlanInput = Omit<FixPlanRequest, 'version' | 'box' | 'eyeHeight' | 'opening'> & { eyeHeight?: number, openingAt: OpeningAt };
+
+// eyeHeight: the one the plan was made at
+type PlanReply = FixPlanReply & { eyeHeight: number };
+
+// the plan of the user keys; null without visible splats
+type Planner = (input: PlanInput, opts: RunOptions) => Promise<PlanReply | null>;
+
+// sceneGrid or route plan on the main thread instead of the scene compute;
+// planner replaces both
 type FixPathDeps = {
-    // the navigation grid of the scene around the user key positions, at the
-    // given eye height or the estimate; null without visible splats
-    sceneGrid?: (allowFlying: boolean, openingAt: OpeningAt, positions?: Vec3Like[], eyeHeight?: number) => Promise<SceneGrid | null>,
-    route?: RouteFn
+    sceneGrid?: SceneGridFn,
+    route?: RouteFn,
+    planner?: Planner
 };
 
 const NO_MARKERS: PathMarkers = { blocked: [], unreachable: [], insideGeometry: [] };
@@ -54,16 +71,44 @@ const STALE_EVENTS = [
     'timeline.smoothness', 'timeline.loop', 'timeline.frames'
 ];
 
+// The cached scene points with the area box and the given eye height or the
+// estimate; null without points. An abort stops the waiting, not the shared
+// read and estimate.
+const sceneOf = async (events: Events, eyeHeight: number | undefined, { signal, onProgress }: RunOptions) => {
+    const cloud = await untilAborted(events.invoke('candidates.cloud', onProgress) as Promise<OpaquePoints>, signal);
+    if (!cloud.points || cloud.points.length === 0) return null;
+    const estimate = await untilAborted(events.invoke('candidates.prepare', onProgress) as Promise<Estimate>, signal);
+    return { cloud, box: estimate.box, eyeHeight: eyeHeight ?? estimate.eyeHeight };
+};
+
 // Grid from the cached scene points and splat extents, in the estimated area
 // box, at the given eye height or the estimate (see buildFixGrid).
-const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt, positions: Vec3Like[] = [], userEyeHeight?: number): Promise<SceneGrid | null> => {
-    const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
-    if (!points || points.length === 0) return null;
-    const estimate = await events.invoke('candidates.prepare') as { box: Box, eyeHeight: number };
-    const { box } = estimate;
-    const eyeHeight = userEyeHeight ?? estimate.eyeHeight;
-    const opening = openingAt(eyeHeight);
-    return { grid: buildFixGrid(points, extents, { box, eyeHeight, opening, allowFlying, positions }), eyeHeight, box };
+const defaultSceneGrid = (events: Events): SceneGridFn => async (allowFlying, openingAt, positions = [], userEyeHeight) => {
+    const scene = await sceneOf(events, userEyeHeight, {});
+    if (!scene) return null;
+    const { cloud: { points, extents }, box, eyeHeight } = scene;
+    return { grid: buildFixGrid(points, extents, { box, eyeHeight, opening: openingAt(eyeHeight), allowFlying, positions }), eyeHeight, box };
+};
+
+// plans in the scene compute, which builds the grid and keeps it for the next run
+const computePlanner = (events: Events): Planner => async (input, opts) => {
+    const scene = await sceneOf(events, input.eyeHeight, opts);
+    if (!scene) return null;
+    const { allowFlying, positions, keys, keepOrder, timeline, openingAt } = input;
+    const { box, eyeHeight } = scene;
+    const compute = computeOf(events);
+    const version = compute.pointsVersion(scene.cloud);
+    const req = { version, box, eyeHeight, opening: openingAt(eyeHeight), allowFlying, positions, keys, keepOrder, timeline };
+    return { ...await compute.run('fixPlan', req, opts), eyeHeight };
+};
+
+// plans on the main thread over the grid of sceneGrid, routing with route
+const inlinePlanner = (sceneGrid: SceneGridFn, route?: RouteFn): Planner => async (input, { onProgress }) => {
+    const scene = await sceneGrid(input.allowFlying, input.openingAt, input.positions, input.eyeHeight);
+    if (!scene) return null;
+    const { keys, keepOrder, timeline } = input;
+    const plan = planFixPath({ keys, grid: scene.grid, eyeHeight: scene.eyeHeight, keepOrder, timeline, route, onProgress });
+    return { ...replyOf(plan, keys, scene.box), eyeHeight: scene.eyeHeight };
 };
 
 // estimated: eyeHeight is the estimate, not the user's
@@ -75,8 +120,19 @@ const namer = (poses: readonly Pose[]) => {
     return () => `camera_${next++}`;
 };
 
+const plannerOf = (events: Events, deps: FixPathDeps): Planner => {
+    if (deps.planner) return deps.planner;
+    if (deps.sceneGrid || deps.route) return inlinePlanner(deps.sceneGrid ?? defaultSceneGrid(events), deps.route);
+    return computePlanner(events);
+};
+
+// a run that changed nothing
+const failure = (reason: FixPathResult['reason']): FixPathResult => ({
+    ok: false, reason, detours: 0, unreachable: [], blocked: [], insideGeometry: []
+});
+
 const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
-    const sceneGrid = deps.sceneGrid ?? defaultSceneGrid(events);
+    const planner = plannerOf(events, deps);
     const settings = { keepOrder: false, allowFlying: true };
     // the user's smallest opening and eye height in scene units, undefined
     // for the defaults
@@ -122,64 +178,14 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
         return { eyeHeight: eyeHeightNow(), estimate, estimated: eyeHeight === undefined, metric: looksMetric(prepared.box) };
     });
 
-    // Order the user keys, add detour keys around geometry and balance the
-    // timing, as one undo step. Old detour keys are replaced. Keys outside the
-    // main group are parked after the end of the shot, in frame order; parked
-    // keys of an earlier run are tried again.
-    events.function('path.fix', async (options?: Partial<FixPathOptions>): Promise<FixPathResult> => {
-        const opts = { ...settings, ...options };
-        const start = performance.now();
-        const empty = { detours: 0, unreachable: [] as string[], blocked: [] as number[], insideGeometry: [] as string[] };
-        clearMarkers();
-
-        const all = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
-        const before = all.map(p => ({ ...p, position: p.position.clone(), target: p.target.clone() }));
-        const userPoses = all.filter(p => !p.auto);
-        if (userPoses.length < 2) return { ok: false, reason: 'tooFewKeys', ...empty };
-        const snapshot = snapshotOf(events);
-
-        const runOpening = Number.isFinite(options?.smallestOpening) ? options.smallestOpening : opening;
-        const runEyeHeight = Number.isFinite(options?.eyeHeight) && options.eyeHeight > 0 ? options.eyeHeight : eyeHeight;
-        const scene = await sceneGrid(opts.allowFlying, eye => clampOpening(runOpening, eye), userPoses.map(p => p.position), runEyeHeight);
-        if (!scene) return { ok: false, reason: 'noSplats', ...empty };
-        if (runEyeHeight === undefined) estimate = scene.eyeHeight;
-        const gridMs = performance.now() - start;
-
-        const fallbackFov = events.invoke('camera.fov') as number;
-        const sources = userPoses.map(p => ({ position: p.position, target: p.target, fov: p.fov ?? fallbackFov }));
-        const distances = await events.invoke('camera.sampleDistances', sources) as (number | null)[];
-        const sampleMs = performance.now() - start - gridMs;
-
-        if (snapshotOf(events) !== snapshot) {
-            await showBalanceFailure(events, 'keysChanged');
-            return { ok: false, reason: 'keysChanged', ...empty };
-        }
-
-        const keys: FixKey[] = userPoses.map((p, i) => ({
-            ...sources[i],
-            name: p.name,
-            linger: Math.max(0, finiteOr(p.linger, 0)),
-            distance: distances[i] ?? NaN,
-            orbit: p.orbit
-        }));
-        const timeline = timelineSettings(events);
-        const plan = planFixPath({
-            keys,
-            grid: scene.grid,
-            eyeHeight: scene.eyeHeight,
-            keepOrder: opts.keepOrder,
-            timeline,
-            route: deps.route
-        });
-        // every key needs a frame of its own
-        if (plan.poses.length > timeline.frames) return { ok: false, reason: 'tooFewFrames', ...empty };
-
-        const byKey = new Map(keys.map((k, i) => [k, userPoses[i]]));
+    // The keys of a plan: user keys at their planned frames, new detour keys,
+    // then the keys outside the shot parked after its end.
+    const posesOf = (reply: FixPlanReply, userPoses: Pose[], frames: number): Pose[] => {
         const nextName = namer(userPoses);
-        const inShot = new Set(plan.poses.map(p => p.key));
-        const parked: Pose[] = userPoses.filter((_, i) => !inShot.has(keys[i])).map((p, i) => ({ ...p, frame: timeline.frames + i, parked: true }));
-        const planned = plan.poses.map(({ pose, frame, key }): Pose => {
-            const p = key && byKey.get(key);
+        const inShot = new Set(reply.poses.map(p => p.keyIndex));
+        const parked: Pose[] = userPoses.filter((_, i) => !inShot.has(i)).map((p, i) => ({ ...p, frame: frames + i, parked: true }));
+        const planned = reply.poses.map(({ pose, frame, keyIndex }): Pose => {
+            const p = keyIndex !== null && userPoses[keyIndex];
             return p ? { ...p, frame, parked: undefined } : {
                 name: nextName(),
                 frame,
@@ -189,28 +195,92 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
                 auto: true
             };
         });
-        const poses = planned.concat(parked);
+        return planned.concat(parked);
+    };
+
+    // One Fix path run under the progress handle h. popup: the balance
+    // failure to explain once the progress is gone.
+    const fixWith = async (h: ProgressHandle, options: Partial<FixPathOptions> | undefined, all: Pose[]): Promise<{ result: FixPathResult, popup?: string }> => {
+        const opts = { ...settings, ...options };
+        const start = performance.now();
+        const before = all.map(p => ({ ...p, position: p.position.clone(), target: p.target.clone() }));
+        const userPoses = all.filter(p => !p.auto);
+        const snapshot = snapshotOf(events);
+        const timeline = timelineSettings(events);
+
+        const runOpening = Number.isFinite(options?.smallestOpening) ? options.smallestOpening : opening;
+        const runEyeHeight = Number.isFinite(options?.eyeHeight) && options.eyeHeight > 0 ? options.eyeHeight : eyeHeight;
+
+        h.update('measuring');
+        const fallbackFov = events.invoke('camera.fov') as number;
+        const sources = userPoses.map(p => ({ position: p.position, target: p.target, fov: p.fov ?? fallbackFov }));
+        const distances = await events.invoke('camera.sampleDistances', sources) as (number | null)[];
+        const sampleMs = performance.now() - start;
+        if (h.signal.aborted) return { result: failure('cancelled') };
+
+        const keys: FixKey[] = userPoses.map((p, i) => ({
+            ...sources[i],
+            name: p.name,
+            linger: Math.max(0, finiteOr(p.linger, 0)),
+            distance: distances[i] ?? NaN,
+            orbit: p.orbit
+        }));
+        let reply: PlanReply | null;
+        try {
+            reply = await planner({
+                keys,
+                positions: userPoses.map(p => p.position),
+                allowFlying: opts.allowFlying,
+                keepOrder: opts.keepOrder,
+                timeline,
+                eyeHeight: runEyeHeight,
+                openingAt: eye => clampOpening(runOpening, eye)
+            }, { signal: h.signal, onProgress: h.update });
+        } catch (error) {
+            if (isAbortError(error)) return { result: failure('cancelled') };
+            throw error;
+        }
+        if (h.signal.aborted) return { result: failure('cancelled') };
+        if (!reply) return { result: failure('noSplats') };
+        if (runEyeHeight === undefined) estimate = reply.eyeHeight;
+        const planMs = performance.now() - start - sampleMs;
+
+        if (snapshotOf(events) !== snapshot) return { result: failure('keysChanged'), popup: 'keysChanged' };
+        // every key needs a frame of its own
+        if (reply.poses.length > timeline.frames) return { result: failure('tooFewFrames') };
+
+        const poses = posesOf(reply, userPoses, timeline.frames);
         const applyStart = performance.now();
         events.fire('track.replacePath', poses);
         const applied = (events.invoke('camera.poses') as Pose[]).map(p => `${p.name}@${p.frame}`).sort().join('|');
-        if (applied !== poses.map(p => `${p.name}@${p.frame}`).sort().join('|')) {
-            return { ok: false, reason: 'rejected', ...empty };
-        }
+        if (applied !== poses.map(p => `${p.name}@${p.frame}`).sort().join('|')) return { result: failure('rejected') };
 
-        const { blocked, unreachable, detours, balance, times, graph } = plan;
-        const { box } = scene;
-        const { insideGeometry } = plan;
+        const { blocked, unreachable, insideGeometry, detours, balance, times, graph, box } = reply;
         setMarkers({ blocked, unreachable, insideGeometry, before });
         const ms = (t: number) => t.toFixed(0);
         console.debug(`path.fix: ${keys.length} keys, ${detours} detours in ${ms(performance.now() - start)} ms ` +
-            `(grid ${ms(gridMs)}, distances ${ms(sampleMs)}, routes ${ms(times.routes)}, detours ${ms(times.detours)}, ` +
+            `(distances ${ms(sampleMs)}, plan ${ms(planMs)}, routes ${ms(times.routes)}, detours ${ms(times.detours)}, ` +
             `apply ${ms(performance.now() - applyStart)})${graph ? `, graph ${graph.nodes} nodes, ${graph.edges} edges` : ''}`);
 
         // a lone key left in the shot needs no balancing
-        if ('reason' in balance && balance.reason !== 'tooFewKeys') await showBalanceFailure(events, balance.reason);
-        return { ok: true, detours, unreachable, blocked, insideGeometry, balance, metric: box ? looksMetric(box) : false };
+        const popup = 'reason' in balance && balance.reason !== 'tooFewKeys' ? balance.reason : undefined;
+        return { result: { ok: true, detours, unreachable, blocked, insideGeometry, balance, metric: box ? looksMetric(box) : false }, popup };
+    };
+
+    // Order the user keys, add detour keys around geometry and balance the
+    // timing, as one undo step. Old detour keys are replaced. Keys outside the
+    // main group are parked after the end of the shot, in frame order; parked
+    // keys of an earlier run are tried again. Runs under the progress dialog;
+    // a cancelled run changes nothing.
+    events.function('path.fix', async (options?: Partial<FixPathOptions>): Promise<FixPathResult> => {
+        clearMarkers();
+        const all = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
+        if (all.filter(p => !p.auto).length < 2) return failure('tooFewKeys');
+        const { result, popup } = await withProgress(events, 'timeline.fix-path', h => fixWith(h, options, all));
+        if (popup) await showBalanceFailure(events, popup);
+        return result;
     });
 };
 
-export { boxAroundKeys, registerFixPathEvents };
-export type { EyeHeightInfo, FixPathDeps, FixPathOptions, FixPathResult, PathMarkers };
+export { boxAroundKeys, inlinePlanner, registerFixPathEvents };
+export type { EyeHeightInfo, FixPathDeps, FixPathOptions, FixPathResult, PathMarkers, Planner };

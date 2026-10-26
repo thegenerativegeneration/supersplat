@@ -8,9 +8,6 @@ import { fixReport } from '../path/markers';
 
 const MIN_KEYS = 2;
 
-// runs shorter than this finish without a spinner
-const SPINNER_DELAY_MS = 300;
-
 type Options = { keepOrder: boolean, allowFlying: boolean, smallestOpening: number, eyeHeight: number };
 
 type EyeHeightInfo = { eyeHeight: number, estimate: number, estimated: boolean, metric: boolean };
@@ -214,11 +211,6 @@ class FixPathControls extends Container {
             busy = true;
             hideStatus();
             updateEnabled();
-            let spinning = false;
-            const timer = setTimeout(() => {
-                spinning = true;
-                events.fire('startSpinner');
-            }, SPINNER_DELAY_MS);
             let result = null;
             let failure = null;
             try {
@@ -226,8 +218,6 @@ class FixPathControls extends Container {
             } catch (error) {
                 failure = error;
             } finally {
-                clearTimeout(timer);
-                if (spinning) events.fire('stopSpinner');
                 busy = false;
                 updateEnabled();
             }
@@ -237,6 +227,8 @@ class FixPathControls extends Container {
                     header: i18n.t('fix-path.failed'),
                     message: String(failure?.message ?? failure)
                 });
+            } else if (result?.reason === 'cancelled') {
+                showStatus(i18n.t('status.cancelled'));
             } else if (result) {
                 await showReport(result);
             }

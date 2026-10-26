@@ -522,5 +522,6 @@
     "progress.checking": "오빗 확인 중",
     "progress.orbit-add": "오빗 추가",
     "progress.balance": "균형 조정",
-    "progress.add-keys": "키로 추가"
+    "progress.add-keys": "키로 추가",
+    "status.cancelled": "취소됨"
 }

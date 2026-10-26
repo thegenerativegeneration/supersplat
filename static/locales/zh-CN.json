@@ -522,5 +522,6 @@
     "progress.checking": "正在检查轨道",
     "progress.orbit-add": "添加轨道",
     "progress.balance": "平衡",
-    "progress.add-keys": "添加为关键帧"
+    "progress.add-keys": "添加为关键帧",
+    "status.cancelled": "已取消"
 }

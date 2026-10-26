@@ -2,12 +2,16 @@ import { createChunkDataPool } from '@playcanvas/splat-transform';
 import { Mat4, Quat } from 'playcanvas';
 
 import { sigmoid } from '../color-grade';
+import type { ProgressFn } from '../compute/protocol';
 import { groupInstancesByChunk } from '../gaussian-instances';
 import type { Splat } from '../splat';
 import { State } from '../splat-state';
 import { EXTENT_STRIDE, type SplatExtents } from './extent';
 
 const OPAQUE = 0.5;
+
+// longest stretch of reading between two yields to the browser
+const YIELD_MS = 16;
 
 type WorldTransform = { m: Float32Array, rotation: Quat, scale: number };
 
@@ -37,9 +41,15 @@ const transformsOf = (splat: Splat) => {
 // World-space centres and extents (2σ radii and rotation, see SplatExtents)
 // of opaque (sigmoid(opacity) > 0.5), finite splats of visible layers,
 // skipping hidden instances. Every stride-th unhidden instance is read, then
-// the opaque ones are thinned evenly to at most maxPoints.
-const readOpaquePoints = async (splats: Splat[], maxPoints = 500000): Promise<OpaquePoints> => {
+// the opaque ones are thinned evenly to at most maxPoints. Yields to the
+// browser every YIELD_MS and reports the chunks read then, at the start and
+// at the end.
+const readOpaquePoints = async (splats: Splat[], maxPoints = 500000, onProgress?: ProgressFn): Promise<OpaquePoints> => {
     const layers = splats.filter(s => s.visible);
+    const chunks = layers.reduce((n, s) => n + s.resource.source.meta.numChunks[0], 0);
+    let chunksRead = 0;
+    let yieldedAt = performance.now();
+    onProgress?.('reading', 0, chunks);
     const eligible = layers.reduce((n, s) => n + s.instances.count - s.instances.numLocked, 0);
     const stride = Math.max(1, Math.floor(eligible / (2 * maxPoints)));
     const out = new Float32Array(Math.ceil(eligible / stride) * 3);
@@ -57,7 +67,14 @@ const readOpaquePoints = async (splats: Splat[], maxPoints = 500000): Promise<Op
         const { starts, ordered } = groupInstancesByChunk(instances, chunkSize, numChunks[0]);
         const pool = createChunkDataPool({ chunkSize });
         try {
-            for (let chunkIndex = 0; chunkIndex < numChunks[0]; ++chunkIndex) {
+            for (let chunkIndex = 0; chunkIndex < numChunks[0]; ++chunkIndex, ++chunksRead) {
+                if (performance.now() - yieldedAt >= YIELD_MS) {
+                    onProgress?.('reading', chunksRead, chunks);
+                    await new Promise<void>((resolve) => {
+                        setTimeout(resolve, 0);
+                    });
+                    yieldedAt = performance.now();
+                }
                 if (starts[chunkIndex] === starts[chunkIndex + 1]) continue;
                 const count = Math.min(chunkSize, numGaussians - chunkIndex * chunkSize);
                 const position = pool.acquire('position', layouts.position, count);
@@ -105,6 +122,8 @@ const readOpaquePoints = async (splats: Splat[], maxPoints = 500000): Promise<Op
             pool.destroy();
         }
     }
+
+    onProgress?.('reading', chunks, chunks);
 
     const count = n / 3;
     const take = Math.min(count, maxPoints);

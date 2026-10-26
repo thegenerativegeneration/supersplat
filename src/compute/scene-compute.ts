@@ -32,6 +32,21 @@ type Pending = {
 
 const abortError = (message: 'cancelled' | 'superseded') => new DOMException(message, 'AbortError');
 
+// whether error is the rejection of a cancelled or superseded run
+const isAbortError = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
+
+// promise, or a cancelled rejection once signal aborts; the work behind
+// promise goes on either way
+const untilAborted = <T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> => {
+    if (!signal) return promise;
+    if (signal.aborted) return Promise.reject(abortError('cancelled'));
+    return new Promise<T>((resolve, reject) => {
+        const onAbort = () => reject(abortError('cancelled'));
+        signal.addEventListener('abort', onAbort);
+        promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+    });
+};
+
 // The main-thread side of scene compute. Requests go to the first transport
 // that starts; when it fails, the next one takes over every pending request.
 // The handler keeps only the latest points, so the client remembers them
@@ -225,5 +240,5 @@ const computeOf = (events: Events): SceneCompute => {
     return events.invoke('compute');
 };
 
-export { computeOf, createSceneCompute };
+export { computeOf, createSceneCompute, isAbortError, untilAborted };
 export type { RunOptions, SceneCompute, Transport };

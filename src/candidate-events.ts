@@ -1,10 +1,11 @@
 import { Vec3 } from 'playcanvas';
 
-import { estimateEyeHeight, estimateTiltDeg, proposeBox, type Box } from './candidates/estimate';
 import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH, type GenerateOptions } from './candidates/generate';
 import { readOpaquePoints, type OpaquePoints } from './candidates/read-points';
 import type { Candidate } from './candidates/sample';
 import type { Scored } from './candidates/score';
+import type { Estimate, ProgressFn } from './compute/protocol';
+import { computeOf } from './compute/scene-compute';
 import { ElementType } from './element';
 import { Events } from './events';
 import { Scene } from './scene';
@@ -12,9 +13,7 @@ import { Splat } from './splat';
 
 type Pose = { position: Vec3, target: Vec3 };
 
-type Prepared = { box: Box, eyeHeight: number, tiltDeg: number, points: number };
-
-const copyPrepared = (p: Prepared): Prepared => ({ ...p, box: { min: { ...p.box.min }, max: { ...p.box.max } } });
+const copyPrepared = (p: Estimate): Estimate => ({ ...p, box: { min: { ...p.box.min }, max: { ...p.box.max } } });
 
 const targetOf = (cand: Candidate, depth: number) => new Vec3(
     cand.position.x + cand.direction.x * depth,
@@ -36,8 +35,8 @@ const thumbnailOf = (rgba: Uint8Array) => {
 const registerCandidateEvents = (events: Events, scene: Scene) => {
     let points: Promise<OpaquePoints> | null = null;
     // the scene estimate for the points it was made from
-    let estimate: { points: Promise<OpaquePoints>, result: Promise<Prepared> } | null = null;
-    let lastEstimate: Prepared | null = null;
+    let estimate: { points: Promise<OpaquePoints>, result: Promise<Estimate> } | null = null;
+    let lastEstimate: Estimate | null = null;
     let running = false;
 
     const invalidate = () => {
@@ -51,9 +50,23 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         events.on(name, invalidate);
     }
 
+    // progress of reading the points and estimating from them, for every
+    // caller waiting on them
+    const readProgress: ProgressFn = (stage, done, total) => events.fire('candidates.readProgress', stage, done, total);
+
+    // the result of start, with the read progress going to onProgress while it is pending
+    const reporting = async <T>(onProgress: ProgressFn | undefined, start: () => Promise<T>) => {
+        const handle = onProgress && events.on('candidates.readProgress', onProgress);
+        try {
+            return await start();
+        } finally {
+            handle?.off();
+        }
+    };
+
     const scenePoints = () => {
         if (!points) {
-            const pending = readOpaquePoints(scene.getElementsByType(ElementType.splat) as Splat[]);
+            const pending = readOpaquePoints(scene.getElementsByType(ElementType.splat) as Splat[], undefined, readProgress);
             pending.catch(() => {
                 if (points === pending) points = null;
             });
@@ -63,17 +76,18 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     };
 
     // the cached opaque splat centres (x, y, z triples) and extents of the visible layers
-    events.function('candidates.cloud', () => scenePoints());
+    events.function('candidates.cloud', (onProgress?: ProgressFn) => reporting(onProgress, scenePoints));
 
-    // Area box, eye height and tilt estimated from the scene alone, made once
-    // per points array. Suggest Views edits its copy; Fix Path and Orbit use it
-    // as it is.
-    events.function('candidates.prepare', async (): Promise<Prepared> => {
+    // Area box, eye height and tilt estimated from the scene alone by the
+    // scene compute, made once per points array. Suggest Views edits its
+    // copy; Fix Path and Orbit use it as it is.
+    events.function('candidates.prepare', (onProgress?: ProgressFn): Promise<Estimate> => reporting(onProgress, async () => {
         const cloud = scenePoints();
         if (estimate?.points !== cloud) {
-            const result = cloud.then(({ points: pts }) => {
-                const box = proposeBox(pts);
-                return { box, eyeHeight: estimateEyeHeight(pts, box), tiltDeg: estimateTiltDeg(pts), points: pts.length / 3 };
+            const result = cloud.then((read) => {
+                readProgress('estimate');
+                const compute = computeOf(events);
+                return compute.run('estimate', { version: compute.pointsVersion(read) });
             });
             const entry = { points: cloud, result };
             result.then((p) => {
@@ -84,7 +98,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
             estimate = entry;
         }
         return copyPrepared(await estimate.result);
-    });
+    }));
 
     // the last finished estimate, null before one or after the splats changed
     events.function('candidates.estimated', () => (lastEstimate && estimate?.points === points ? copyPrepared(lastEstimate) : null));

@@ -102,8 +102,21 @@ const timingEventsChecks = {
         assert.equal(popups.length, 1);
         assert.equal(ops.length, 1);
         assert.deepEqual(sortedKeys(events), [0, 10, 25]);
-    }
-    ,
+    },
+
+    async 'balance: a smoothness change while sampling counts as changed'() {
+        const { events, ops, popups } = setup([0, 10, 20], [], async (poses, ev) => {
+            ev.functions.delete('timeline.smoothness');
+            ev.function('timeline.smoothness', () => 0.5);
+            return poses.map(() => 1);
+        });
+        const result = await events.invoke('timing.balance');
+        assert.deepEqual(result, { ok: false, reason: 'keysChanged' });
+        assert.equal(popups.length, 1);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 10, 20]);
+    },
+
 
     'views: fallback compresses existing and spaces new keys'() {
         const frames = fallbackAppendFrames([0, 90, 180], 2, 181);

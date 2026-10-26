@@ -522,5 +522,6 @@
     "progress.checking": "Verificando a órbita",
     "progress.orbit-add": "Adicionar órbita",
     "progress.balance": "Equilibrar",
-    "progress.add-keys": "Adicionar como chaves"
+    "progress.add-keys": "Adicionar como chaves",
+    "status.cancelled": "Cancelado"
 }

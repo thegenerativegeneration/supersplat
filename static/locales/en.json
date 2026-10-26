@@ -522,5 +522,6 @@
     "progress.checking": "Checking the orbit",
     "progress.orbit-add": "Add Orbit",
     "progress.balance": "Balance",
-    "progress.add-keys": "Add as Keys"
+    "progress.add-keys": "Add as Keys",
+    "status.cancelled": "Cancelled"
 }

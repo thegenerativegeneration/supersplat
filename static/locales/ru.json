@@ -522,5 +522,6 @@
     "progress.checking": "Проверка орбиты",
     "progress.orbit-add": "Добавить орбиту",
     "progress.balance": "Выровнять",
-    "progress.add-keys": "Добавить как ключи"
+    "progress.add-keys": "Добавить как ключи",
+    "status.cancelled": "Отменено"
 }

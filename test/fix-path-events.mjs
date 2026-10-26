@@ -5,7 +5,7 @@ import { Vec3 } from 'playcanvas';
 import { registerCandidateEvents } from './.build/src/candidate-events.js';
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
 import { Events } from './.build/src/events.js';
-import { registerFixPathEvents } from './.build/src/fix-path-events.js';
+import { inlinePlanner, registerFixPathEvents } from './.build/src/fix-path-events.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 import { bandRoom } from './nav-doors.mjs';
@@ -106,6 +106,16 @@ const summary = events => events.invoke('camera.poses')
 .map(p => `${p.name}@${p.frame}${p.auto ? '*' : ''}`);
 
 const FIX = { keepOrder: false, allowFlying: true };
+
+// counts of progressStart and progressEnd
+const progressCounts = (events) => {
+    const counts = { start: 0, end: 0 };
+    events.on('progressStart', () => counts.start++);
+    events.on('progressEnd', () => counts.end++);
+    return counts;
+};
+
+const fakeSceneGrid = async () => ({ grid: fakeGrid, eyeHeight: 1.6 });
 
 const fixPathEventsChecks = {
     async 'path: fix path is one undo step and removes old auto keys'() {
@@ -460,6 +470,78 @@ const fixPathEventsChecks = {
         await events.invoke('path.fix', FIX);
         assert.equal(used, 1.8);
         assert.deepEqual(await events.invoke('path.eyeHeight'), { eyeHeight: 1.8, estimate: 1.5, estimated: false, metric: true });
+    },
+
+    async 'path: cancel before the plan applies nothing'() {
+        const { events, ops } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('camera_2', 60, 8)]);
+        const counts = progressCounts(events);
+        const original = summary(events);
+        const pending = events.invoke('path.fix', FIX);
+        events.fire('progressCancel');
+        const result = await pending;
+        assert.equal(result.ok, false);
+        assert.equal(result.reason, 'cancelled');
+        assert.deepEqual(summary(events), original);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
+
+    async 'path: cancel after the planner replied applies nothing'() {
+        let events = null;
+        const base = inlinePlanner(fakeSceneGrid, fakeRoute);
+        const planner = async (input, opts) => {
+            const reply = await base(input, opts);
+            events.fire('progressCancel');
+            return reply;
+        };
+        const run = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('camera_2', 60, 8)], { deps: { planner } });
+        events = run.events;
+        const counts = progressCounts(events);
+        const original = summary(events);
+        const result = await events.invoke('path.fix', FIX);
+        assert.equal(result.ok, false);
+        assert.equal(result.reason, 'cancelled');
+        assert.deepEqual(summary(events), original);
+        assert.equal(run.ops.length, 0);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
+
+    async 'path: a moved key position fails with keysChanged'() {
+        // addKey names the key camera_<number of keys>, so camera_3 keeps its name
+        let release = null;
+        const sampled = new Promise((resolve) => {
+            release = resolve;
+        });
+        const { events, ops, popups } = setup([pose('camera_0', 0, 0), pose('camera_3', 30, 4), pose('camera_2', 60, 8)], {
+            onSample: () => sampled
+        });
+        const names = summary(events);
+        const pending = events.invoke('path.fix', FIX);
+        events.functions.delete('camera.getPose');
+        events.function('camera.getPose', () => ({ position: new Vec3(4, 1, 0.5), target: new Vec3(4, 1, -1), fov: 60 }));
+        events.fire('track.addKey', 30);
+        assert.deepEqual(summary(events), names, 'same names and frames');
+        assert.equal(events.invoke('camera.poses').find(p => p.frame === 30).position.z, 0.5);
+        release();
+        const result = await pending;
+        assert.equal(result.ok, false);
+        assert.equal(result.reason, 'keysChanged');
+        assert.deepEqual(ops.map(op => op.name), ['addKey'], 'only the overwrite');
+        assert.equal(popups.length, 1);
+    },
+
+    async 'path: a planner error rejects, shows no apply and ends progress once'() {
+        const planner = async () => {
+            throw new Error('planner failed');
+        };
+        const { events, ops, popups } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], { deps: { planner } });
+        const counts = progressCounts(events);
+        const original = summary(events);
+        await assert.rejects(events.invoke('path.fix', FIX), /planner failed/);
+        assert.deepEqual(summary(events), original);
+        assert.equal(ops.length, 0);
+        assert.equal(popups.length, 0);
+        assert.deepEqual(counts, { start: 1, end: 1 });
     },
 
     async 'candidates: the scene estimate is made once per points and handed out as copies'() {

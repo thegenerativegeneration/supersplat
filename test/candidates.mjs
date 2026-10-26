@@ -364,6 +364,14 @@ const candidatesChecks = {
         assert.ok(out[3 * 9] > 30, `${out}`);
     },
 
+    'candidates: point readback reports the chunks read': async () => {
+        const seen = [];
+        const layers = [fakeSplat([[1, 2, 3, 5]]), fakeSplat([[4, 5, 6, 5]])];
+        await readOpaquePoints(layers, undefined, (stage, done, total) => seen.push([stage, done, total]));
+        assert.deepEqual(seen[0], ['reading', 0, 2]);
+        assert.deepEqual(seen[seen.length - 1], ['reading', 2, 2]);
+    },
+
     'candidates: image and video renders refuse while a locked render runs': async () => {
         const events = new Events();
         // any camera or target access would throw a TypeError instead of busy

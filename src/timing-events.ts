@@ -8,12 +8,6 @@ type BalanceSource = { position: Pose['position'], target: Pose['target'], fov: 
 
 const finiteOr = (value: number, fallback: number) => (Number.isFinite(value) ? value : fallback);
 
-const snapshotOf = (events: Events) => (events.invoke('camera.poses') as Pose[])
-.slice()
-.sort((a, b) => a.frame - b.frame)
-.map(p => `${p.name}@${p.frame}`)
-.join('|');
-
 // the timeline values Balance works with, rotation weight clamped to [0, 4]
 const timelineSettings = (events: Events): Omit<BalanceInput, 'keys'> => ({
     frames: events.invoke('timeline.frames'),
@@ -22,6 +16,16 @@ const timelineSettings = (events: Events): Omit<BalanceInput, 'keys'> => ({
     loop: events.invoke('timeline.loop'),
     rotationWeight: Math.min(4, Math.max(0, finiteOr(events.invoke('timeline.rotationWeight'), 1))),
     maxTurnDegPerSec: MAX_TURN_DEG_PER_SEC
+});
+
+// the keys by frame (name, frame, view, linger) and the timeline settings a
+// run planned with; a different snapshot after an await means they changed
+const snapshotOf = (events: Events) => JSON.stringify({
+    keys: (events.invoke('camera.poses') as Pose[])
+    .slice()
+    .sort((a, b) => a.frame - b.frame)
+    .map(({ name, frame, position: p, target: t, fov, linger }) => [name, frame, p.x, p.y, p.z, t.x, t.y, t.z, fov ?? null, linger ?? 0]),
+    timeline: timelineSettings(events)
 });
 
 // samples scene distances for the given non-auto poses (in playback order) and balances

@@ -522,5 +522,6 @@
     "progress.checking": "オービットを確認中",
     "progress.orbit-add": "オービットを追加",
     "progress.balance": "調整",
-    "progress.add-keys": "キーとして追加"
+    "progress.add-keys": "キーとして追加",
+    "status.cancelled": "キャンセルしました"
 }

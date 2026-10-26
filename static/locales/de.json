@@ -522,5 +522,6 @@
     "progress.checking": "Orbit wird geprüft",
     "progress.orbit-add": "Orbit hinzufügen",
     "progress.balance": "Ausgleichen",
-    "progress.add-keys": "Als Keyframes hinzufügen"
+    "progress.add-keys": "Als Keyframes hinzufügen",
+    "status.cancelled": "Abgebrochen"
 }

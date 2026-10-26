@@ -67,23 +67,29 @@ const velocity = (spline: CubicSpline, time: number, out: Vec3Like) => {
     return out;
 };
 
+// velocity at a frame of a stretch; in a loop a wrapped frame (below 0) reads the curve's last
+// turn, since the looping spline reaches back only two keys before 0
+const travelVelocity = (spline: CubicSpline, frame: number, opts: ViewSplineOptions, out: Vec3Like) => {
+    return velocity(spline, opts.loop && frame < 0 ? frame + opts.duration : frame, out);
+};
+
 // The forward view at evenly spaced frames over [t0, t1]. Vertical travel keeps the heading of
 // the last travel before it, or the key view's; a standstill holds the forward around it; the
 // forward turns at most FORWARD_TURN_LIMIT. Null when the stretch has no travel.
-const sampleForwards = (spline: CubicSpline, t0: number, t1: number, keyView: Vec3Like, frameRate: number) => {
+const sampleForwards = (spline: CubicSpline, t0: number, t1: number, keyView: Vec3Like, opts: ViewSplineOptions) => {
     const n = Math.max(MIN_SAMPLES, Math.ceil((t1 - t0) / SAMPLE_FRAMES));
     const v = { x: 0, y: 0, z: 0 };
     let heading = headingOf(keyView) ?? { x: 1, y: 0, z: 0 };
     const out: (Vec3Like | null)[] = [];
     for (let j = 0; j <= n; j++) {
-        velocity(spline, t0 + (t1 - t0) * j / n, v);
+        travelVelocity(spline, t0 + (t1 - t0) * j / n, opts, v);
         if (Math.hypot(v.x, v.z) >= VERTICAL * Math.hypot(v.x, v.y, v.z)) heading = headingOf(v) ?? heading;
         out.push(forwardOf(v, heading));
     }
     const first = out.findIndex(f => f);
     if (first < 0) return null;
     for (let j = 0; j <= n; j++) out[j] ??= out[j > first ? j - 1 : first];
-    return limitTurnRate(out, (t1 - t0) / n / frameRate, FORWARD_TURN_LIMIT);
+    return limitTurnRate(out, (t1 - t0) / n / opts.frameRate, FORWARD_TURN_LIMIT);
 };
 
 // the forward at frame t of the stretch, between its samples
@@ -96,10 +102,12 @@ const forwardAt = (s: { t0: number, t1: number }, forwards: Vec3Like[], t: numbe
     return normalized(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u) ?? a;
 };
 
-// the stretches arriving at the user keys with look ahead, each from the user key before it
+// the stretches arriving at the user keys with look ahead, each from the user key before it;
+// none without a frame rate to time the turns
 const stretchesOf = (keys: ViewKey[], times: number[], spline: CubicSpline, opts: ViewSplineOptions) => {
     const users = keys.map((_, i) => i).filter(i => !keys[i].auto);
     const out: Stretch[] = [];
+    if (!(opts.frameRate > 0)) return out;
     users.forEach((to, u) => {
         if (!keys[to].lookAhead || (u === 0 && !opts.loop)) return;
         const from = users[(u + users.length - 1) % users.length];
@@ -114,7 +122,7 @@ const stretchesOf = (keys: ViewKey[], times: number[], spline: CubicSpline, opts
             prevTurnIn: keys[from].lookAhead ? turnInOf(keys[from]) : DEFAULT_TURN_IN,
             turnIn: turnInOf(keys[to])
         };
-        const forwards = sampleForwards(spline, views.t0, views.t1, key.view, opts.frameRate);
+        const forwards = sampleForwards(spline, views.t0, views.t1, key.view, opts);
         out.push({
             ...views,
             prevDistance: prev.distance,
@@ -155,7 +163,7 @@ const buildViewSpline = (keys: ViewKey[], times: number[], opts: ViewSplineOptio
         spline.evaluate(frame, result);
         for (const s of stretches) {
             const t = frame > s.t1 && opts.loop ? frame - opts.duration : frame;
-            if (t <= s.t0 || t > s.t1) continue;
+            if (!(t > s.t0 && t <= s.t1)) continue;
             const u = (t - s.t0) / (s.t1 - s.t0);
             const dir = s.forwards ?
                 lookAheadView({ ...s.plan, t, t0: s.t0, t1: s.t1, frameRate: s.frameRate, forward: forwardAt(s, s.forwards, t), prevView: s.prevView, keyView: s.keyView }) :
@@ -170,5 +178,5 @@ const buildViewSpline = (keys: ViewKey[], times: number[], opts: ViewSplineOptio
     };
 };
 
-export { buildViewSpline };
+export { buildViewSpline, travelVelocity };
 export type { ViewKey, ViewSplineOptions };

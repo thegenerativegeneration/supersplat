@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { balanceTiming } from './.build/src/anim/balance-timing.js';
 import { buildCameraCurve } from './.build/src/anim/camera-curve.js';
 import { lookAheadView, planTurns } from './.build/src/anim/look-ahead.js';
+import { travelVelocity } from './.build/src/anim/look-ahead-spline.js';
 import { CubicSpline } from './.build/src/anim/spline.js';
 import { buildSceneGrid } from './.build/src/candidates/generate.js';
 import { planFixPath } from './.build/src/path/fix-plan.js';
@@ -255,6 +256,55 @@ const lookAheadChecks = {
             assert.ok(Math.abs(v.y) < 0.98, `frame ${f}: y ${v.y}`);
         }
         assert.ok(maxStep(climb, 0, 399, 0.25) * 4 <= 20 / 30 * 1.05, 'the climb turns within the cap');
+    },
+
+    'look: the spline velocity matches a finite difference of the curve, across the loop seam'() {
+        const keys = [key([0, 0, 0], yaw(0)), key([8, 2, 3], yaw(0)), key([5, 4, 12], yaw(0)), key([-3, 1, 7], yaw(0)), key([-6, 0, 1], yaw(0))];
+        const frames = [0, 70, 150, 260, 330];
+        for (const loop of [false, true]) {
+            const opts = { duration: 400, smoothness: 1, loop, frameRate: 30 };
+            const spline = plainSpline(keys, frames, opts);
+            const at = f => {
+                const r = [];
+                spline.evaluate(loop && f < 0 ? f + opts.duration : f, r);
+                return v3(r[0], r[1], r[2]);
+            };
+            const [from, to] = loop ? [-399, 399] : [1, 329];
+            for (let f = from; f < to; f += 13.7) {
+                const a = at(f - 1e-4), b = at(f + 1e-4);
+                const difference = v3(b.x - a.x, b.y - a.y, b.z - a.z);
+                const v = travelVelocity(spline, f, opts, v3(0, 0, 0));
+                assert.ok(angleDeg(v, difference) < 1e-3, `frame ${f} loop ${loop}: ${angleDeg(v, difference)}°`);
+            }
+        }
+    },
+
+    'look: a NaN frame or a missing frame rate does not throw'() {
+        const keys = [key([0, 0, 0], yaw(0)), key([10, 0, 0], yaw(30), { lookAhead: true })];
+        const curve = buildCameraCurve(keys, [0, 90], { duration: 120, smoothness: 1, loop: false, frameRate: 30 });
+        assert.ok(Number.isNaN(curve(NaN, newPose()).target.x));
+        const unrated = buildCameraCurve(keys, [0, 90], { duration: 120, smoothness: 1, loop: false });
+        const plain = [];
+        plainSpline(keys, [0, 90], { duration: 120, smoothness: 1, loop: false }).evaluate(45, plain);
+        assert.deepEqual(viewAt(unrated, 45), v3(plain[3] - plain[0], plain[4] - plain[1], plain[5] - plain[2]));
+    },
+
+    'look: on a loop the view follows the travel direction across the wrap'() {
+        // keys on a circle of radius 10, travelling anticlockwise seen from above (+z after +x)
+        const onCircle = (a, extra) => key([10 * Math.cos(a * DEG), 0, 10 * Math.sin(a * DEG)], yaw(a + 90), extra);
+        const opts = { duration: 600, smoothness: 1, loop: true, frameRate: 30 };
+        const lone = [onCircle(0, { lookAhead: true }), ...[72, 144, 216, 288].map(a => onCircle(a, { auto: true, target: v3(0, 5, 0) }))];
+        const two = [onCircle(0, { lookAhead: true }), onCircle(72, { lookAhead: true }), ...[144, 216, 288].map(a => onCircle(a, { auto: true }))];
+        for (const [name, keys, from, to] of [['lone key', lone, 60, 540], ['detours on the wrap', two, 180, 540]]) {
+            const curve = buildCameraCurve(keys, [0, 120, 240, 360, 480], opts);
+            for (let f = from; f <= to; f += 10) {
+                const a = curve(f - 0.5, newPose()).position, b = curve(f + 0.5, newPose()).position;
+                const travel = v3(b.x - a.x, 0, b.z - a.z);
+                const view = viewAt(curve, f);
+                const off = angleDeg(v3(view.x, 0, view.z), travel);
+                assert.ok(off < 10, `${name} frame ${f}: view ${off}° off the travel direction`);
+            }
+        }
     },
 
     'balance: results identical without lookAhead for the courtyard 7-key set'() {

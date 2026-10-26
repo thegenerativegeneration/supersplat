@@ -11,6 +11,8 @@ import type { OrbitAddResult, OrbitDefaults, OrbitPlan } from '../orbit-events';
 
 // field changes this close together plan once
 const PREVIEW_DELAY_MS = 150;
+// a preview plan this quick shows no "Checking…"
+const CHECKING_DELAY_MS = 150;
 const DEFAULT_SPAN = 360;
 
 type Fields = { radius: number, height: number, spanDeg: number, dir: 1 | -1 };
@@ -100,7 +102,10 @@ class OrbitOptions extends Container {
             if (!defaults) return;
             const id = ++planId;
             const spec = specOf(defaults);
-            showLine(hint, 'orbit.checking');
+            // a quick plan keeps the previous hint until its own replaces it
+            const checking = setTimeout(() => {
+                if (id === planId && !this.hidden) showLine(hint, 'orbit.checking');
+            }, CHECKING_DELAY_MS);
             let plan: OrbitPlan;
             try {
                 plan = await events.invoke('orbit.plan', spec) as OrbitPlan;
@@ -108,6 +113,8 @@ class OrbitOptions extends Container {
                 // superseded by a newer preview, or an error Add Orbit reports
                 if (id === planId && !this.hidden) showLine(hint, null);
                 return;
+            } finally {
+                clearTimeout(checking);
             }
             if (id !== planId || this.hidden) return;
             if ('blocked' in plan) {

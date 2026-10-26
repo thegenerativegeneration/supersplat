@@ -21,13 +21,23 @@ const harness = () => {
         targetSizeOverride: null,
         mainTarget,
         finalPass: { vars: liveVars, enabled: true },
-        camera: { projection: PROJECTION_ORTHOGRAPHIC, aspectRatio: 2, horizontalFov: true, framePasses: ['main', 'final'], onAppPrerender() {} },
+        camera: {
+            projection: PROJECTION_ORTHOGRAPHIC,
+            aspectRatio: 2,
+            horizontalFov: true,
+            orthoHeight: 3,
+            framePasses: ['main', 'final'],
+            onAppPrerender() {},
+            camera: { _updateViewProjMat() {} }
+        },
         frameAtPose: (position, target, fov) => ({ position, rotation: new Quat(), fov, near: 0.1, far: 50 }),
         setPoseOverride(override) {
             this.poseOverride = override;
+            // the camera's update sizes the ortho view for the current target
+            if (this.targetSizeOverride) this.camera.orthoHeight = 99;
         }
     };
-    const scene = { graphicsDevice: device, camera, lockedRenderMode: false, lockedRender: false, forceRender: false, overdrawRender: false };
+    const scene = { graphicsDevice: device, camera, lockedRenderMode: false, lockedRender: false, forceRender: false, overdrawRender: false, renderHold: 0 };
     const offscreen = {};
     events.function('render.offscreen', (width, height) => {
         camera.targetSizeOverride = { width, height };
@@ -79,6 +89,7 @@ const viewCaptureChecks = {
             assert.equal(camera.fov, 50);
             assert.equal(camera.camera.projection, PROJECTION_ORTHOGRAPHIC);
             assert.equal(camera.camera.aspectRatio, 2, 'overlays project with the live aspect');
+            assert.equal(camera.camera.orthoHeight, 3, 'and the live ortho height, though the target is still offscreen');
             assert.equal(camera.finalPass.vars, liveVars);
             assert.equal(camera.finalPass.enabled, false, 'still offscreen while the readback runs');
             assert.deepEqual(passes, ['main', 'final']);
@@ -88,6 +99,7 @@ const viewCaptureChecks = {
             capture.restore();
             assert.equal(scene.lockedRenderMode, false);
             assert.equal(scene.forceRender, true);
+            assert.equal(scene.settledRender, true, 'the repaint after the capture is a settled frame');
         } finally {
             cleanup();
         }
@@ -113,17 +125,27 @@ const viewCaptureChecks = {
         }
     },
 
-    async 'capture: waits out an owed live frame, and steps aside when not ready'() {
+    async 'capture: waits out a pick and an owed live frame, and steps aside when not ready'() {
         const { events, scene, camera, view, cleanup } = harness();
         try {
             const capture = createViewCapture(events, scene);
-            scene.forceRender = true;
-            const pending = capture.render(view, 160, 100, () => false);
+            let asked = 0;
+            scene.renderHold = 1;
+            const pending = capture.render(view, 160, 100, () => {
+                asked++;
+                return false;
+            });
             events.fire('update');
-            assert.equal(camera.poseOverride, null, 'the target holds something else until the live frame renders');
+            assert.equal(asked, 0, 'a pick holds the target');
+            scene.renderHold = 0;
+            scene.forceRender = true;
+            events.fire('update');
+            assert.equal(asked, 0, 'the target holds something else until the live frame renders');
             scene.forceRender = false;
             events.fire('update');
             assert.equal(await pending, null);
+            assert.equal(asked, 1);
+            assert.equal(camera.poseOverride, null);
             assert.equal(scene.lockedRenderMode, false);
         } finally {
             cleanup();

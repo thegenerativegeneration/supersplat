@@ -99,7 +99,7 @@ const createViewCapture = (events: Events, scene: Scene) => {
     // locked from then on, so no later live frame replaces it
     let held: RenderTarget | null = null;
     // the live camera and blit while a view is on
-    let live: { fov: number, projection: number, aspectRatio: number, horizontalFov: boolean, blitVars: () => object } | null = null;
+    let live: { fov: number, projection: number, aspectRatio: number, horizontalFov: boolean, orthoHeight: number, blitVars: () => object } | null = null;
     // runs after a capture's passes and puts the live view back
     let liveAgain: RenderPass | null = null;
 
@@ -115,10 +115,14 @@ const createViewCapture = (events: Events, scene: Scene) => {
         component.aspectRatio = live.aspectRatio;
         component.horizontalFov = live.horizontalFov;
         camera.fov = live.fov;
+        const { orthoHeight } = live;
         live = null;
         // the component caches its view matrix until it is dirtied
         component.onAppPrerender();
         camera.setPoseOverride(null);
+        // the update above sized the ortho view for the offscreen target
+        component.orthoHeight = orthoHeight;
+        component.camera._updateViewProjMat();
     };
 
     const start = (view: CaptureView, width: number, height: number) => {
@@ -133,6 +137,7 @@ const createViewCapture = (events: Events, scene: Scene) => {
             projection: component.projection,
             aspectRatio: component.aspectRatio,
             horizontalFov: component.horizontalFov,
+            orthoHeight: component.orthoHeight,
             blitVars: finalPass.vars
         };
         // the live frame's overdraw view, before offscreen mode turns overlays off
@@ -163,9 +168,9 @@ const createViewCapture = (events: Events, scene: Scene) => {
         render: (view: CaptureView, width: number, height: number, ready?: () => boolean) => new Promise<Uint8Array | null>((resolve, reject) => {
             let timer: ReturnType<typeof setTimeout> | null = null;
             const update = events.on('update', () => {
-                // a live frame is owed: after a pick the target holds something
-                // else, after motion it holds a noisy frame, until it renders
-                if (!held && (scene.forceRender || scene.pendingResolve)) return;
+                // a live frame is owed: during and after a pick the target holds
+                // something else, after motion a noisy frame, until it renders
+                if (!held && (scene.forceRender || scene.pendingResolve || scene.renderHold > 0)) return;
                 update.off();
                 clearTimeout(timer);
                 try {
@@ -186,6 +191,7 @@ const createViewCapture = (events: Events, scene: Scene) => {
             // unlock first so a throwing camera call can't leave the editor locked
             scene.lockedRenderMode = false;
             scene.forceRender = true;
+            scene.settledRender = true;
             putBack();
             if (held) {
                 held = null;

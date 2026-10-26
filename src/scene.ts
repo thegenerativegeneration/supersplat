@@ -101,6 +101,10 @@ class Scene {
     // frame to render that wouldn't have.
     forceInteracting = false;
 
+    // the next frame is a settled repaint (after a view capture, whose own
+    // state changes are not interaction), so it takes the clean sorted path
+    settledRender = false;
+
     // motion-adaptive stochastic rendering. While the scene is actively changing
     // (camera orbit / edit) we draw the fast no-sort stochastic mode; when it
     // settles we render a single clean sorted & blended frame. movingRender picks
@@ -569,7 +573,7 @@ class Scene {
 
         // compare with previously serialized
         const changed = this.forceRender || profiling || all.size > 0;
-        const interacting = this.forceInteracting || all.size > 0;
+        const interacting = !this.settledRender && (this.forceInteracting || all.size > 0);
         // per-gaussian edits reach here only through forceRender; layer moves,
         // visibility and grade changes through the state diff
         this.editedRender = this.forceRender || [...all].some(type => type !== ElementType.camera);
@@ -623,6 +627,7 @@ class Scene {
         }
         this.forceRender = false;
         this.forceInteracting = false;
+        this.settledRender = false;
 
         // raise per-type update events
         ElementTypeList.forEach((type) => {

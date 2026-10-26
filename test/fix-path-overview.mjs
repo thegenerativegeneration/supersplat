@@ -46,11 +46,11 @@ const fixKey = (name, p) => ({ name, position: p, target: { x: p.x, y: p.y - 1, 
 
 const pose = (name, frame, p) => ({ name, frame, position: new Vec3(p.x, p.y, p.z), target: new Vec3(p.x, p.y - 1, p.z + 1), fov: 60 });
 
-// Fix Path with the default scene grid over points and the Suggest Views box
+// Fix Path with the default scene grid over points and an estimated box
 const fixOver = async (points, box, keys, deps = {}) => {
     const { events } = setup(keys.map(([name, p], i) => pose(name, i * 30, p)), { deps });
     events.function('candidates.cloud', async () => ({ points }));
-    events.function('candidates.lastSettings', () => ({ box, eyeHeight: EYE }));
+    events.function('candidates.prepare', async () => ({ box, eyeHeight: EYE, points: points.length / 3 }));
     const result = await events.invoke('path.fix', FIX);
     return { result, poses: events.invoke('camera.poses').map(p => `${p.name}@${p.frame}:${p.position.x},${p.position.y},${p.position.z}`).sort() };
 };

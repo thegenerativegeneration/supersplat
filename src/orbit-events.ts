@@ -124,26 +124,14 @@ const checkOrbitCurve = (events: Events, id: string, occ: Occupancy) => {
 
 const registerOrbitEvents = (events: Events) => {
     let cached: { points: Float32Array, box: string, eyeHeight: number, occ: Occupancy } | null = null;
-    let prepared: { points: Float32Array, settings: Promise<SceneSettings | null> } | null = null;
 
-    // box and eye height of the last Suggest Views run, else estimates,
-    // prepared once per points array; null without splats
+    // box and eye height estimated from the scene alone, so Suggest Views
+    // and Fix Path settings leave orbits as they are; null without splats
     const sceneSettings = async (): Promise<{ points: Float32Array, extents: OpaquePoints['extents'], settings: SceneSettings } | null> => {
         const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
         if (!points || points.length === 0) return null;
-        const last = events.invoke('candidates.lastSettings') as SceneSettings | null;
-        if (last) return { points, extents, settings: last };
-        if (prepared?.points !== points) {
-            const pending = (events.invoke('candidates.prepare') as Promise<SceneSettings & { points: number }>)
-            .then(p => (p.points > 0 ? { box: p.box, eyeHeight: p.eyeHeight } : null));
-            const entry = { points, settings: pending };
-            pending.catch(() => {
-                if (prepared === entry) prepared = null;
-            });
-            prepared = entry;
-        }
-        const settings = await prepared.settings;
-        return settings ? { points, extents, settings } : null;
+        const p = await events.invoke('candidates.prepare') as SceneSettings & { points: number };
+        return p.points > 0 ? { points, extents, settings: { box: p.box, eyeHeight: p.eyeHeight } } : null;
     };
 
     // the scene occupancy and box, the occupancy rebuilt when the points, box
@@ -179,7 +167,7 @@ const registerOrbitEvents = (events: Events) => {
     });
 
     // keys on the largest free circle inside the box (the area Fix Path
-    // routes in) up to the requested radius
+    // routes in when it has no far keys) up to the requested radius
     const plan = async (spec: OrbitSpec): Promise<OrbitPlan> => {
         const scene = await occupancy();
         if (!scene) return { keys: [], blocked: true, blockedRanges: [], reason: 'noSplats' };

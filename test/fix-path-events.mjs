@@ -328,9 +328,9 @@ const fixPathEventsChecks = {
 
     async 'path: settings default to reorder and flying'() {
         const { events } = setup([]);
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, smallestOpening: 0.8 });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, smallestOpening: 0.8, eyeHeight: 1.6 });
         events.fire('path.setSettings', { keepOrder: true });
-        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, smallestOpening: 0.8 });
+        assert.deepEqual(events.invoke('path.settings'), { keepOrder: true, allowFlying: true, smallestOpening: 0.8, eyeHeight: 1.6 });
         // missing options come from the settings
         const fixed = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 8), pose('camera_2', 60, 4)]);
         fixed.events.fire('path.setSettings', { keepOrder: true });
@@ -363,7 +363,7 @@ const fixPathEventsChecks = {
         assert.equal(openingAt(1.6), 0.6);
         // the range follows the eye height Fix path uses
         assert.equal(openingAt(3.2), 0.8);
-        events.function('candidates.lastSettings', () => ({ box: null, eyeHeight: 3.2 }));
+        events.fire('path.setSettings', { eyeHeight: 3.2 });
         assert.equal(opening(), 0.8);
     },
 
@@ -374,7 +374,8 @@ const fixPathEventsChecks = {
         const points = bandRoom(1.6, 2.4).map(v => v * 2);
         const box = { min: { x: -2, y: -2, z: -2 }, max: { x: 42, y: 12, z: 22 } };
         events.function('candidates.cloud', async () => ({ points }));
-        events.function('candidates.lastSettings', () => ({ box, eyeHeight: 3.2 }));
+        events.function('candidates.prepare', async () => ({ box, eyeHeight: 3.2, points: points.length / 3 }));
+        await events.invoke('path.eyeHeight');
         const opening = () => events.invoke('path.settings').smallestOpening;
         assert.equal(opening(), 1.6, 'default at eye height 3.2');
         events.fire('path.setSettings', { smallestOpening: 0.1 });
@@ -411,7 +412,7 @@ const fixPathEventsChecks = {
         assert.equal(events.invoke('path.settings').smallestOpening, 0.8);
     },
 
-    async 'path: a cleared scene forgets the last Suggest Views settings'() {
+    async 'path: the eye height is its own and ignores Suggest Views runs'() {
         const events = new Events();
         events.function('camera.getPose', () => ({ position: new Vec3(1, 1, 1), target: new Vec3(1, 1, 0) }));
         const scene = { lockedRenderMode: false, camera: { fov: 60, ortho: false }, getElementsByType: () => [] };
@@ -419,11 +420,50 @@ const fixPathEventsChecks = {
         registerFixPathEvents(events);
         const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 10, y: 3, z: 10 } };
         await events.invoke('candidates.generate', { box, eyeHeight: 1.2, budget: 4, seed: 1 }, new AbortController().signal);
-        assert.deepEqual(await events.invoke('path.eyeHeight'), { eyeHeight: 1.2, estimated: false, metric: true });
+        assert.equal(events.invoke('path.settings').eyeHeight, 1.6, 'the Suggest Views eye height stays out');
+        events.fire('path.setSettings', { eyeHeight: 2.1 });
+        events.fire('path.setSettings', { eyeHeight: -1 });
+        assert.equal(events.invoke('path.settings').eyeHeight, 2.1);
         events.fire('scene.clear');
-        assert.equal(events.invoke('candidates.lastSettings'), null);
-        // Fix path prepares afresh, which finds no splats here
+        assert.equal(events.invoke('path.settings').eyeHeight, 1.6);
+        // no splats to estimate from here
         assert.equal(await events.invoke('path.eyeHeight'), null);
+    },
+
+    async 'path: the user eye height reaches the scene grid; the info says it is not the estimate'() {
+        let used = null;
+        const { events } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4)], {
+            deps: {
+                sceneGrid: async (allowFlying, opening, positions, eyeHeight) => {
+                    used = eyeHeight;
+                    return { grid: fakeGrid, eyeHeight: eyeHeight ?? 1.5 };
+                },
+                route: fakeRoute
+            }
+        });
+        const box = { min: { x: -5, y: -5, z: -5 }, max: { x: 5, y: 5, z: 5 } };
+        events.function('candidates.prepare', async () => ({ box, eyeHeight: 1.5, points: 10 }));
+        await events.invoke('path.fix', FIX);
+        assert.equal(used, undefined, 'the estimate by default');
+        assert.deepEqual(await events.invoke('path.eyeHeight'), { eyeHeight: 1.5, estimate: 1.5, estimated: true, metric: true });
+        events.fire('path.setSettings', { eyeHeight: 1.8 });
+        await events.invoke('path.fix', FIX);
+        assert.equal(used, 1.8);
+        assert.deepEqual(await events.invoke('path.eyeHeight'), { eyeHeight: 1.8, estimate: 1.5, estimated: false, metric: true });
+    },
+
+    async 'candidates: the scene estimate is made once per points and handed out as copies'() {
+        const events = new Events();
+        const scene = { lockedRenderMode: false, camera: { fov: 60, ortho: false }, getElementsByType: () => [] };
+        registerCandidateEvents(events, scene);
+        assert.equal(events.invoke('candidates.estimated'), null);
+        const first = await events.invoke('candidates.prepare');
+        first.box.min.x = 99;
+        const second = await events.invoke('candidates.prepare');
+        assert.notEqual(second.box.min.x, 99);
+        assert.deepEqual(events.invoke('candidates.estimated'), second);
+        events.fire('splat.moved');
+        assert.equal(events.invoke('candidates.estimated'), null, 'stale after the splats change');
     }
 };
 

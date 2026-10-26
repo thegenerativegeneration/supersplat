@@ -12,6 +12,10 @@ import { Splat } from './splat';
 
 type Pose = { position: Vec3, target: Vec3 };
 
+type Prepared = { box: Box, eyeHeight: number, tiltDeg: number, points: number };
+
+const copyPrepared = (p: Prepared): Prepared => ({ ...p, box: { min: { ...p.box.min }, max: { ...p.box.max } } });
+
 const targetOf = (cand: Candidate, depth: number) => new Vec3(
     cand.position.x + cand.direction.x * depth,
     cand.position.y + cand.direction.y * depth,
@@ -31,17 +35,14 @@ const thumbnailOf = (rgba: Uint8Array) => {
 
 const registerCandidateEvents = (events: Events, scene: Scene) => {
     let points: Promise<OpaquePoints> | null = null;
+    // the scene estimate for the points it was made from
+    let estimate: { points: Promise<OpaquePoints>, result: Promise<Prepared> } | null = null;
+    let lastEstimate: Prepared | null = null;
     let running = false;
-    // box and eye height of the last Suggest Views run in this session
-    let lastSettings: { box: Box, eyeHeight: number } | null = null;
 
     const invalidate = () => {
         points = null;
     };
-    // a new or loaded project starts without the last run's settings
-    events.on('scene.clear', () => {
-        lastSettings = null;
-    });
     // only splats matter: the area box joins and leaves the scene as well
     for (const name of ['scene.elementAdded', 'scene.elementRemoved']) {
         events.on(name, (element: { type: ElementType }) => element?.type === ElementType.splat && invalidate());
@@ -64,26 +65,33 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     // the cached opaque splat centres (x, y, z triples) and extents of the visible layers
     events.function('candidates.cloud', () => scenePoints());
 
-    events.function('candidates.lastSettings', () => lastSettings);
-
-    events.function('candidates.prepare', async () => {
-        const { points: pts } = await scenePoints();
-        const box = proposeBox(pts);
-        return {
-            box,
-            eyeHeight: estimateEyeHeight(pts, box),
-            tiltDeg: estimateTiltDeg(pts),
-            points: pts.length / 3
-        };
+    // Area box, eye height and tilt estimated from the scene alone, made once
+    // per points array. Suggest Views edits its copy; Fix Path and Orbit use it
+    // as it is.
+    events.function('candidates.prepare', async (): Promise<Prepared> => {
+        const cloud = scenePoints();
+        if (estimate?.points !== cloud) {
+            const result = cloud.then(({ points: pts }) => {
+                const box = proposeBox(pts);
+                return { box, eyeHeight: estimateEyeHeight(pts, box), tiltDeg: estimateTiltDeg(pts), points: pts.length / 3 };
+            });
+            const entry = { points: cloud, result };
+            result.then((p) => {
+                if (estimate === entry) lastEstimate = p;
+            }, () => {
+                if (estimate === entry) estimate = null;
+            });
+            estimate = entry;
+        }
+        return copyPrepared(await estimate.result);
     });
+
+    // the last finished estimate, null before one or after the splats changed
+    events.function('candidates.estimated', () => (lastEstimate && estimate?.points === points ? copyPrepared(lastEstimate) : null));
 
     events.function('candidates.generate', async (opts: GenerateOptions, signal: AbortSignal): Promise<Scored[]> => {
         if (running || scene.lockedRenderMode) throw new Error('candidates.generate: the editor is already rendering');
         running = true;
-        lastSettings = {
-            box: { min: { ...opts.box.min }, max: { ...opts.box.max } },
-            eyeHeight: opts.eyeHeight
-        };
         try {
             const { points: pts, extents } = await scenePoints();
             const { camera } = scene;

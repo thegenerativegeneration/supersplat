@@ -11,8 +11,8 @@ import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
 import { buildNavGrid, clampOpening, navHeadVoxels, type NavGrid } from './path/nav-grid';
 import { finiteOr, showBalanceFailure, snapshotOf, timelineSettings } from './timing-events';
 
-// smallestOpening: in scene units, see clampOpening
-type FixPathOptions = { keepOrder: boolean, allowFlying: boolean, smallestOpening: number };
+// smallestOpening: in scene units, see clampOpening; eyeHeight: in scene units
+type FixPathOptions = { keepOrder: boolean, allowFlying: boolean, smallestOpening: number, eyeHeight: number };
 
 type FixPathResult = {
     ok: boolean,
@@ -39,9 +39,9 @@ type SceneGrid = { grid: NavGrid, eyeHeight: number, box?: Box };
 type OpeningAt = (eyeHeight: number) => number;
 
 type FixPathDeps = {
-    // the navigation grid of the scene around the user key positions, null
-    // without visible splats
-    sceneGrid?: (allowFlying: boolean, openingAt: OpeningAt, positions?: Vec3Like[]) => Promise<SceneGrid | null>,
+    // the navigation grid of the scene around the user key positions, at the
+    // given eye height or the estimate; null without visible splats
+    sceneGrid?: (allowFlying: boolean, openingAt: OpeningAt, positions?: Vec3Like[], eyeHeight?: number) => Promise<SceneGrid | null>,
     route?: RouteFn
 };
 
@@ -67,30 +67,23 @@ const boxAroundKeys = (box: Box, positions: Vec3Like[], margin: number): Box => 
     return { min, max };
 };
 
-// Grid from the cached scene points and splat extents, with the box and eye
-// height of the last Suggest Views run, else fresh estimates. The graph stays
-// inside the box; its occupancy also covers the keys outside it plus one eye
-// height, so straight moves from far keys see the geometry on their way.
-const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt, positions: Vec3Like[] = []): Promise<SceneGrid | null> => {
+// Grid from the cached scene points and splat extents, in the estimated area
+// box, at the given eye height or the estimate. The graph stays inside the
+// box; its occupancy also covers the keys outside it plus one eye height, so
+// straight moves from far keys see the geometry on their way.
+const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt, positions: Vec3Like[] = [], userEyeHeight?: number): Promise<SceneGrid | null> => {
     const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
     if (!points || points.length === 0) return null;
-    const settings: { box: Box, eyeHeight: number } = events.invoke('candidates.lastSettings') ?? await events.invoke('candidates.prepare');
-    const { box, eyeHeight } = settings;
+    const estimate = await events.invoke('candidates.prepare') as { box: Box, eyeHeight: number };
+    const { box } = estimate;
+    const eyeHeight = userEyeHeight ?? estimate.eyeHeight;
     const opening = openingAt(eyeHeight);
     const { occ, levels } = buildSceneGrid(points, boxAroundKeys(box, positions, eyeHeight), eyeHeight, navHeadVoxels(eyeHeight, opening), extents);
     return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying, opening), eyeHeight, box };
 };
 
-type EyeHeightInfo = { eyeHeight: number, estimated: boolean, metric: boolean };
-
-// box and eye height of the last Suggest Views run, if any
-const lastSettingsOf = (events: Events): { box: Box, eyeHeight: number } | null => {
-    return events.functions.has('candidates.lastSettings') ? events.invoke('candidates.lastSettings') : null;
-};
-
-// the eye height without waiting for an estimate: the last Suggest Views
-// value, else the last one seen, else 1.6
-const eyeHeightNow = (events: Events, estimate: number | null) => lastSettingsOf(events)?.eyeHeight ?? estimate ?? 1.6;
+// estimated: eyeHeight is the estimate, not the user's
+type EyeHeightInfo = { eyeHeight: number, estimate: number, estimated: boolean, metric: boolean };
 
 // the next free camera_N name
 const namer = (poses: readonly Pose[]) => {
@@ -101,13 +94,19 @@ const namer = (poses: readonly Pose[]) => {
 const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     const sceneGrid = deps.sceneGrid ?? defaultSceneGrid(events);
     const settings = { keepOrder: false, allowFlying: true };
-    // the user's smallest opening in scene units, undefined for the default
+    // the user's smallest opening and eye height in scene units, undefined
+    // for the defaults
     let opening: number | undefined;
+    let eyeHeight: number | undefined;
     let estimate: number | null = null;
-    const openingAt = (eyeHeight: number) => clampOpening(opening, eyeHeight);
-    // a new or loaded project starts from the default opening and a fresh estimate
+    const openingAt = (eye: number) => clampOpening(opening, eye);
+    // the eye height without waiting for an estimate: the user's, else the
+    // last estimate seen, else 1.6
+    const eyeHeightNow = () => eyeHeight ?? estimate ?? 1.6;
+    // a new or loaded project starts from the defaults and a fresh estimate
     events.on('scene.clear', () => {
         opening = undefined;
+        eyeHeight = undefined;
         estimate = null;
     });
     let markersShown = false;
@@ -119,22 +118,24 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     const clearMarkers = () => markersShown && setMarkers(NO_MARKERS);
     for (const name of STALE_EVENTS) events.on(name, clearMarkers);
 
-    events.function('path.settings', (): FixPathOptions => ({ ...settings, smallestOpening: openingAt(eyeHeightNow(events, estimate)) }));
+    events.function('path.settings', (): FixPathOptions => {
+        const eye = eyeHeightNow();
+        return { ...settings, smallestOpening: openingAt(eye), eyeHeight: eye };
+    });
     events.on('path.setSettings', (changes: Partial<FixPathOptions>) => {
         if (typeof changes.keepOrder === 'boolean') settings.keepOrder = changes.keepOrder;
         if (typeof changes.allowFlying === 'boolean') settings.allowFlying = changes.allowFlying;
         if (Number.isFinite(changes.smallestOpening)) opening = changes.smallestOpening;
+        if (Number.isFinite(changes.eyeHeight) && changes.eyeHeight > 0) eyeHeight = changes.eyeHeight;
     });
 
-    // the eye height Fix path will use and whether the scene looks metric;
-    // null without splats to estimate from
+    // the eye height Fix path will use, the scene estimate and whether the
+    // scene looks metric; null without splats to estimate from
     events.function('path.eyeHeight', async (): Promise<EyeHeightInfo | null> => {
-        const last = lastSettingsOf(events);
-        if (last) return { eyeHeight: last.eyeHeight, estimated: false, metric: looksMetric(last.box) };
         const prepared = await events.invoke('candidates.prepare') as { box: Box, eyeHeight: number, points: number };
         if (!(prepared.points > 0)) return null;
         estimate = prepared.eyeHeight;
-        return { eyeHeight: prepared.eyeHeight, estimated: true, metric: looksMetric(prepared.box) };
+        return { eyeHeight: eyeHeightNow(), estimate, estimated: eyeHeight === undefined, metric: looksMetric(prepared.box) };
     });
 
     // Order the user keys, add detour keys around geometry and balance the
@@ -153,9 +154,10 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
         const snapshot = snapshotOf(events);
 
         const runOpening = Number.isFinite(options?.smallestOpening) ? options.smallestOpening : opening;
-        const scene = await sceneGrid(opts.allowFlying, eyeHeight => clampOpening(runOpening, eyeHeight), userPoses.map(p => p.position));
+        const runEyeHeight = Number.isFinite(options?.eyeHeight) && options.eyeHeight > 0 ? options.eyeHeight : eyeHeight;
+        const scene = await sceneGrid(opts.allowFlying, eye => clampOpening(runOpening, eye), userPoses.map(p => p.position), runEyeHeight);
         if (!scene) return { ok: false, reason: 'noSplats', ...empty };
-        estimate = scene.eyeHeight;
+        if (runEyeHeight === undefined) estimate = scene.eyeHeight;
         const gridMs = performance.now() - start;
 
         const fallbackFov = events.invoke('camera.fov') as number;

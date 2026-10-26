@@ -25,7 +25,7 @@ Orbit adds camera keys on a circle around a point in one click: a fountain, a st
 
 ## Near walls
 
-- The circle is checked against the scan before it is added. Leaving the **Area** box counts as blocked, like in [Fix Path](fix-path.md).
+- The circle is checked against the scan before it is added. Leaving the area estimated from the scan counts as blocked, like in [Fix Path](fix-path.md). Suggest Views and Fix Path settings don't change it.
 - If it hits something, the radius shrinks until the circle is free. The box says "Radius reduced to …".
 - If no radius is free: "No clear orbit here". Red parts of the preview show where it is blocked. Move the focal point or the camera.
 - The height never changes and the circle is never cut short.

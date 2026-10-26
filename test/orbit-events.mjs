@@ -50,12 +50,7 @@ const setup = (points, poses = [], opts = {}) => {
     events.function('camera.sampleDistances', list => Promise.resolve(list.map(() => 2)));
     const cloud = { points: new Float32Array(points), extents: undefined };
     events.function('candidates.cloud', () => Promise.resolve(cloud));
-    const prepared = { calls: 0 };
-    events.function('candidates.lastSettings', () => (opts.prepare ? null : { box: BOX, eyeHeight: EYE }));
-    events.function('candidates.prepare', () => {
-        prepared.calls++;
-        return Promise.resolve({ box: BOX, eyeHeight: EYE, points: points.length / 3 });
-    });
+    events.function('candidates.prepare', () => Promise.resolve({ box: BOX, eyeHeight: EYE, points: points.length / 3 }));
     const popups = [];
     events.function('showPopup', (args) => {
         popups.push(args);
@@ -69,7 +64,7 @@ const setup = (points, poses = [], opts = {}) => {
     const ops = [];
     events.on('edit.add', op => ops.push(op));
     events.fire('camera.loadPoses', poses);
-    return { events, ops, popups, prepared };
+    return { events, ops, popups };
 };
 
 const byFrame = events => events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame);
@@ -177,15 +172,6 @@ const orbitEventsChecks = {
         const { events } = setup(FAR, [pose('camera_0', 0, -10)], { loop: true });
         const result = await events.invoke('orbit.add', SPEC);
         assert.equal(result.added, 17);
-    },
-
-    async 'orbit: plans reuse the prepared settings of the same points'() {
-        const { events, prepared } = setup(FAR, [], { prepare: true });
-        await events.invoke('orbit.plan', SPEC);
-        await events.invoke('orbit.plan', { ...SPEC, radius: 3 });
-        await events.invoke('orbit.add', SPEC);
-        await events.invoke('orbit.defaults');
-        assert.equal(prepared.calls, 1);
     },
 
     async 'orbit: the circle stays inside the area box'() {

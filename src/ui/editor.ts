@@ -425,6 +425,8 @@ class EditorUI {
         topContainer.append(progress);
 
         let revealTimer: ReturnType<typeof setTimeout> | null = null;
+        // focus moves into the dialog so keyboard shortcuts stay blocked (.blocks-shortcuts)
+        let focusBeforeProgress: HTMLElement | null = null;
         const clearRevealTimer = () => {
             if (revealTimer !== null) {
                 clearTimeout(revealTimer);
@@ -434,7 +436,11 @@ class EditorUI {
 
         events.on('progressStart', (header: string, cancellable?: boolean, options?: { revealAfterMs?: number }) => {
             clearRevealTimer();
+            if (progress.hidden) {
+                focusBeforeProgress = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            }
             progress.hidden = false;
+            progress.dom.focus({ preventScroll: true });
             // blocks input at once; the dialog itself shows after the delay
             const delay = options?.revealAfterMs ?? 0;
             progress.class[delay > 0 ? 'add' : 'remove']('pending');
@@ -470,6 +476,10 @@ class EditorUI {
             progress.hidden = true;
             progress.showCancelButton(false);
             progress.onCancel = null;
+            if (focusBeforeProgress?.isConnected) {
+                focusBeforeProgress.focus({ preventScroll: true });
+            }
+            focusBeforeProgress = null;
         });
 
         // initialize canvas to correct size before creating graphics device etc

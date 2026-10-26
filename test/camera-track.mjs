@@ -266,6 +266,24 @@ const cameraTrackChecks = {
         assert.equal(events.invoke('camera.poses').find(p => p.frame === 0).linger, undefined);
     },
 
+    'keys: a group move where one key would land on an unselected key\'s frame is refused as a whole'() {
+        const { events, ops } = setup([[0], [30], [60]]);
+        const refusals = [];
+        events.on('track.refused', reason => refusals.push(reason));
+        events.fire('track.setLinger', 0, 1);
+        const ids = events.invoke('camera.poses').filter(p => p.frame <= 30).map(p => p.id);
+
+        events.fire('track.moveKeys', ids, 30);
+        assert.deepEqual(refusals, ['frameTaken']);
+        events.fire('track.copyKeys', ids, 30);
+        assert.deepEqual(refusals, ['frameTaken', 'frameTaken']);
+        assert.deepEqual(sortedKeys(events), [0, 30, 60]);
+        assert.equal(ops.length, 1);
+
+        ops[0].undo();
+        assert.equal(events.invoke('camera.poses').find(p => p.frame === 0).linger, undefined);
+    },
+
     'keys: updateKeys on a detour clears auto; a linger change keeps orbit, a target change clears it'() {
         const { events } = setup([[0], [60]]);
         const detour = { name: 'detour', frame: 30, position: new Vec3(5, 0, 0), target: new Vec3(5, 0, -1), fov: 60, auto: true, orbit: 'o1' };

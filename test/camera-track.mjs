@@ -35,6 +35,87 @@ export const setup = (frames, total = { frames: 181 }) => {
 const sortedKeys = events => [...events.invoke('track.keys')].sort((a, b) => a - b);
 
 const cameraTrackChecks = {
+    async 'track: every key has a unique id that survives move, retime, undo and save/load'() {
+        const { events, ops } = setup([[0], [30], [60]]);
+        const ids = () => events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame).map(p => p.id);
+        const before = ids();
+        assert.ok(before.every(Boolean));
+        assert.equal(new Set(before).size, 3);
+
+        events.fire('track.moveKey', 30, 40);
+        assert.deepEqual(ids(), before);
+        events.fire('track.retime', [0, 100, 180]);
+        assert.deepEqual(ids(), before);
+        await ops[1].undo();
+        assert.deepEqual(ids(), before);
+
+        const other = setup([]);
+        other.events.invoke('docDeserialize.poseSets', events.invoke('docSerialize.poseSets'));
+        assert.deepEqual(other.events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame).map(p => p.id), before);
+    },
+
+    'track: addKey after a delete never repeats a name'() {
+        const { events } = setup([[0], [30], [60]]);
+        events.function('camera.getPose', () => ({ position: new Vec3(9, 0, 0), target: new Vec3(9, 0, -1), fov: 60 }));
+        events.fire('track.removeKey', 0);
+        events.fire('track.addKey', 90);
+        events.fire('track.copyKey', 90, 120);
+        const names = events.invoke('camera.poses').map(p => p.name);
+        assert.equal(new Set(names).size, names.length);
+        assert.deepEqual(names.slice().sort(), ['camera_1', 'camera_2', 'camera_3', 'camera_4']);
+    },
+
+    'track: old files without ids or with duplicate names load with unique ids and names, and play the same curve'() {
+        const curveAt = (events) => {
+            const seen = [];
+            events.on('camera.setPose', pose => seen.push([pose.position.x, pose.position.y, pose.position.z, pose.target.x, pose.fov]));
+            return (frame) => {
+                seen.length = 0;
+                events.fire('timeline.frame', frame);
+                return seen.at(-1);
+            };
+        };
+        const poses = [0, 1, 2].map(i => ({ name: 'camera_0', frame: i * 60, position: [i, i * 2, 0], target: [i, 0, -1], fov: 60 }));
+        const { events } = setup([]);
+        const at = curveAt(events);
+        events.invoke('docDeserialize.poseSets', [{ name: 'set0', poses }]);
+        const loaded = events.invoke('camera.poses');
+        assert.equal(new Set(loaded.map(p => p.id)).size, 3);
+        assert.deepEqual(loaded.map(p => p.name), ['camera_0', 'camera_1', 'camera_2']);
+
+        const frames = [0, 15, 30, 45, 60, 75, 90, 105, 120, 150];
+        const first = frames.map(at);
+        const again = setup([]);
+        const atAgain = curveAt(again.events);
+        again.events.invoke('docDeserialize.poseSets', events.invoke('docSerialize.poseSets'));
+        assert.deepEqual(frames.map(atAgain), first);
+        assert.ok(first.every(Boolean));
+    },
+
+    async 'track: lookAhead and turnIn survive copyPose, undo and save/load'() {
+        const { events, ops } = setup([[0], [30], [60]]);
+        const poses = events.invoke('camera.poses').map(p => ({ ...p }));
+        poses[1].lookAhead = true;
+        poses[1].turnIn = 0.5;
+        events.fire('track.replacePath', poses);
+        const keyAt = (ev, frame) => ev.invoke('camera.poses').find(p => p.frame === frame);
+        assert.equal(keyAt(events, 30).lookAhead, true);
+        assert.equal(keyAt(events, 30).turnIn, 0.5);
+
+        events.fire('track.setLinger', 0, 1);
+        await ops[1].undo();
+        assert.equal(keyAt(events, 30).lookAhead, true);
+        assert.equal(keyAt(events, 30).turnIn, 0.5);
+
+        const sets = events.invoke('docSerialize.poseSets');
+        assert.ok(!('lookAhead' in sets[0].poses[0]));
+        const other = setup([]);
+        other.events.invoke('docDeserialize.poseSets', sets);
+        assert.equal(keyAt(other.events, 30).lookAhead, true);
+        assert.equal(keyAt(other.events, 30).turnIn, 0.5);
+        assert.equal(keyAt(other.events, 0).lookAhead, undefined);
+    },
+
     async 'track: setLinger is one undo step and survives snapshot/restore'() {
         const { events, ops } = setup([[0], [30], [60]]);
         events.fire('track.setLinger', 30, 1.5);

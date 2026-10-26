@@ -1,7 +1,7 @@
 import { Vec3 } from 'playcanvas';
 
 import type { BalanceResult } from './anim/balance-timing';
-import { Pose } from './camera-poses';
+import { newKeyId, nextNamer, Pose } from './camera-poses';
 import { looksMetric, type Box } from './candidates/estimate';
 import type { Vec3Like } from './candidates/occupancy';
 import type { OpaquePoints } from './candidates/read-points';
@@ -115,12 +115,6 @@ const inlinePlanner = (sceneGrid: SceneGridFn, route?: RouteFn): Planner => asyn
 // estimated: eyeHeight is the estimate, not the user's
 type EyeHeightInfo = { eyeHeight: number, estimate: number, estimated: boolean, metric: boolean };
 
-// the next free camera_N name
-const namer = (poses: readonly Pose[]) => {
-    let next = 1 + Math.max(-1, ...poses.map(p => Number(/^camera_(\d+)$/.exec(p.name)?.[1] ?? -1)));
-    return () => `camera_${next++}`;
-};
-
 const plannerOf = (events: Events, deps: FixPathDeps): Planner => {
     if (deps.planner) return deps.planner;
     if (deps.sceneGrid || deps.route) return inlinePlanner(deps.sceneGrid ?? defaultSceneGrid(events), deps.route);
@@ -182,12 +176,13 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     // The keys of a plan: user keys at their planned frames, new detour keys,
     // then the keys outside the shot parked after its end.
     const posesOf = (reply: FixPlanReply, userPoses: Pose[], frames: number): Pose[] => {
-        const nextName = namer(userPoses);
+        const nextName = nextNamer(userPoses);
         const inShot = new Set(reply.poses.map(p => p.keyIndex));
         const parked: Pose[] = userPoses.filter((_, i) => !inShot.has(i)).map((p, i) => ({ ...p, frame: frames + i, parked: true }));
         const planned = reply.poses.map(({ pose, frame, keyIndex }): Pose => {
             const p = keyIndex !== null && userPoses[keyIndex];
             return p ? { ...p, frame, parked: undefined } : {
+                id: newKeyId(),
                 name: nextName(),
                 frame,
                 position: new Vec3(pose.position.x, pose.position.y, pose.position.z),

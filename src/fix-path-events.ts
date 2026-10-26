@@ -248,6 +248,9 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
             throw error;
         }
         if (h.signal.aborted) return { result: failure('cancelled') };
+        // past the last cancel point: a cancelled run keeps the markers of the
+        // last one, since the keys are unchanged
+        clearMarkers();
         if (!reply) return { result: failure('noSplats') };
         if (runEyeHeight === undefined) estimate = reply.eyeHeight;
         const planMs = performance.now() - start - sampleMs;
@@ -278,9 +281,8 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
     // timing, as one undo step. Old detour keys are replaced. Keys outside the
     // main group are parked after the end of the shot, in frame order; parked
     // keys of an earlier run are tried again. Runs under the progress dialog;
-    // a cancelled run changes nothing.
+    // a cancelled run changes nothing, markers included.
     events.function('path.fix', async (options?: Partial<FixPathOptions>): Promise<FixPathResult> => {
-        clearMarkers();
         const all = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
         if (all.filter(p => !p.auto).length < 2) return failure('tooFewKeys');
         const { result, popup } = await withProgress(events, 'timeline.fix-path', h => fixWith(h, options, all));

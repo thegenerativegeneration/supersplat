@@ -8,9 +8,23 @@ import { progressCounts } from './progress-counts.mjs';
 
 const fakeSceneGrid = async () => ({ grid: fakeGrid, eyeHeight: 1.6 });
 
+// three keys with the wall between the last two
+const KEYS = () => [pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('camera_2', 60, 8)];
+
+// a finished run; returns the markers it shows, with the route before it
+const fixOnce = async ({ events, markers }) => {
+    const result = await events.invoke('path.fix', FIX);
+    assert.equal(result.ok, true);
+    const shown = markers[markers.length - 1];
+    assert.ok(shown.before.length > 0);
+    return shown;
+};
+
 const fixPathCancelChecks = {
-    async 'path: cancel before the plan applies nothing'() {
-        const { events, ops } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('camera_2', 60, 8)]);
+    async 'path: cancel before the plan applies nothing and keeps the markers'() {
+        const run = setup(KEYS());
+        const shown = await fixOnce(run);
+        const { events, ops, markers } = run;
         const counts = progressCounts(events);
         const original = summary(events);
         const pending = events.invoke('path.fix', FIX);
@@ -19,18 +33,24 @@ const fixPathCancelChecks = {
         assert.equal(result.ok, false);
         assert.equal(result.reason, 'cancelled');
         assert.deepEqual(summary(events), original);
-        assert.equal(ops.length, 0);
+        assert.equal(ops.length, 1, 'only the first run');
         assert.deepEqual(counts, { start: 1, end: 1 });
+        assert.equal(markers[markers.length - 1], shown, 'markers and route before the first run stay');
     },
 
     async 'path: cancel returns at once while a sampling batch hangs'() {
         let calls = 0;
-        const { events, ops } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('camera_2', 60, 8)], {
+        let hang = false;
+        const run = setup(KEYS(), {
             onSample: () => {
+                if (!hang) return;
                 calls++;
                 return new Promise(() => {});
             }
         });
+        const shown = await fixOnce(run);
+        const { events, ops, markers } = run;
+        hang = true;
         const counts = progressCounts(events);
         const original = summary(events);
         const pending = events.invoke('path.fix', FIX);
@@ -44,28 +64,33 @@ const fixPathCancelChecks = {
         assert.equal(result.reason, 'cancelled');
         assert.equal(calls, 1);
         assert.deepEqual(summary(events), original);
-        assert.equal(ops.length, 0);
+        assert.equal(ops.length, 1, 'only the first run');
         assert.deepEqual(counts, { start: 1, end: 1 });
+        assert.equal(markers[markers.length - 1], shown, 'markers and route before the first run stay');
     },
 
-    async 'path: cancel after the planner replied applies nothing'() {
+    async 'path: cancel after the planner replied applies nothing and keeps the markers'() {
         let events = null;
+        let cancelNext = false;
         const base = inlinePlanner(fakeSceneGrid, fakeRoute);
         const planner = async (input, opts) => {
             const reply = await base(input, opts);
-            events.fire('progressCancel');
+            if (cancelNext) events.fire('progressCancel');
             return reply;
         };
-        const run = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('camera_2', 60, 8)], { deps: { planner } });
+        const run = setup(KEYS(), { deps: { planner } });
         events = run.events;
+        const shown = await fixOnce(run);
+        cancelNext = true;
         const counts = progressCounts(events);
         const original = summary(events);
         const result = await events.invoke('path.fix', FIX);
         assert.equal(result.ok, false);
         assert.equal(result.reason, 'cancelled');
         assert.deepEqual(summary(events), original);
-        assert.equal(run.ops.length, 0);
+        assert.equal(run.ops.length, 1, 'only the first run');
         assert.deepEqual(counts, { start: 1, end: 1 });
+        assert.equal(run.markers[run.markers.length - 1], shown, 'markers and route before the first run stay');
     },
 
     async 'path: a moved key position fails with keysChanged'() {

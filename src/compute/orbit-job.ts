@@ -67,17 +67,24 @@ const sanitise = (spec: OrbitSpec, voxel: number, box: Box | null): OrbitSpec =>
     dir: spec.dir === -1 ? -1 : 1
 });
 
-let cached: { points: Float32Array, box: string, eyeHeight: number, occ: Occupancy } | null = null;
-
-// the scene occupancy, rebuilt when the points, box or eye height change
-const orbitOccupancy = (points: Float32Array, extents: SplatExtents | undefined, box: Box, eyeHeight: number, onProgress?: ProgressFn): Occupancy => {
-    const boxKey = JSON.stringify(box);
-    if (cached?.points !== points || cached.box !== boxKey || cached.eyeHeight !== eyeHeight) {
-        onProgress?.('grid');
-        const { occ } = buildSceneGrid(points, box, eyeHeight, undefined, extents);
-        cached = { points, box: boxKey, eyeHeight, occ };
-    }
-    return cached.occ;
+// One scene occupancy: get rebuilds it when the points, box or eye height
+// change; clear drops it and its points.
+const createOccupancyCache = () => {
+    let cached: { points: Float32Array, box: string, eyeHeight: number, occ: Occupancy } | null = null;
+    const get = (points: Float32Array, extents: SplatExtents | undefined, box: Box, eyeHeight: number, onProgress?: ProgressFn): Occupancy => {
+        const boxKey = JSON.stringify(box);
+        if (cached?.points !== points || cached.box !== boxKey || cached.eyeHeight !== eyeHeight) {
+            cached = null;
+            onProgress?.('grid');
+            const { occ } = buildSceneGrid(points, box, eyeHeight, undefined, extents);
+            cached = { points, box: boxKey, eyeHeight, occ };
+        }
+        return cached.occ;
+    };
+    const clear = () => {
+        cached = null;
+    };
+    return { get, clear };
 };
 
 // keys on the largest free circle inside the box (the area Fix Path
@@ -119,5 +126,5 @@ const orbitCheck = (occ: Occupancy, req: OrbitCurve) => {
     };
 };
 
-export { normaliseRanges, orbitCheck, orbitOccupancy, orbitPlan };
+export { createOccupancyCache, normaliseRanges, orbitCheck, orbitPlan };
 export type { OrbitAddResult, OrbitPlan };

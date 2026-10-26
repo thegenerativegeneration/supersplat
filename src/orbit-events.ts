@@ -6,7 +6,7 @@ import { looksMetric, type Box } from './candidates/estimate';
 import { VOXELS_PER_EYE } from './candidates/generate';
 import type { Occupancy, Vec3Like } from './candidates/occupancy';
 import type { OpaquePoints } from './candidates/read-points';
-import { normaliseRanges, orbitCheck, orbitOccupancy, orbitPlan, type OrbitAddResult, type OrbitPlan } from './compute/orbit-job';
+import { createOccupancyCache, normaliseRanges, orbitCheck, orbitPlan, type OrbitAddResult, type OrbitPlan } from './compute/orbit-job';
 import { Events } from './events';
 import { clampSpan, orbitDefaults, type OrbitSpec } from './orbit/orbit-path';
 import { timelineSettings } from './timing-events';
@@ -57,6 +57,8 @@ const checkOrbitCurve = (events: Events, id: string, occ: Occupancy) => {
 };
 
 const registerOrbitEvents = (events: Events) => {
+    const occupancies = createOccupancyCache();
+
     // box and eye height estimated from the scene alone, so Suggest Views
     // and Fix Path settings leave orbits as they are; null without splats
     const sceneSettings = async (): Promise<{ points: Float32Array, extents: OpaquePoints['extents'], settings: SceneSettings } | null> => {
@@ -71,7 +73,7 @@ const registerOrbitEvents = (events: Events) => {
         const scene = await sceneSettings();
         if (!scene) return null;
         const { points, extents, settings: { box, eyeHeight } } = scene;
-        return { occ: orbitOccupancy(points, extents, box, eyeHeight), box };
+        return { occ: occupancies.get(points, extents, box, eyeHeight), box };
     };
 
     // orbit around the focal point starting at the camera; null without splats

@@ -1,5 +1,5 @@
-import { runFixPlan } from './fix-path-job';
-import { orbitCheck, orbitOccupancy, orbitPlan } from './orbit-job';
+import { createGridCache, runFixPlan } from './fix-path-job';
+import { createOccupancyCache, orbitCheck, orbitPlan } from './orbit-job';
 import type { ComputeOps, Estimate, ProgressFn, Reply, Request, Stage } from './protocol';
 import { balanceTiming } from '../anim/balance-timing';
 import { estimateEyeHeight, estimateTiltDeg, proposeBox } from '../candidates/estimate';
@@ -52,11 +52,14 @@ const throttled = (post: (progress: Progress) => void) => {
 const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error)) || 'compute job failed';
 
 // Runs scene compute requests synchronously and posts their replies. It keeps
-// the points of the latest points request; the other requests name the
-// version they were made for. Estimate and Balance post no progress (one
-// stage each); the orbit jobs post grid when they build the occupancy.
+// the points of the latest points request, and the grid and occupancy built
+// from them; the other requests name the version they were made for.
+// Estimate and Balance post no progress (one stage each); the orbit jobs post
+// grid when they build the occupancy.
 const createComputeHandler = () => {
     let scene: Scene | null = null;
+    const grids = createGridCache();
+    const occupancies = createOccupancyCache();
 
     const sceneOf = (version: number) => {
         if (scene?.version !== version) throw new Error(`unknown points version ${version}`);
@@ -71,17 +74,17 @@ const createComputeHandler = () => {
         },
         fixPlan: (req, onProgress) => {
             const s = sceneOf(req.version);
-            return runFixPlan(s.points, s.extents, req, onProgress);
+            return runFixPlan(s.points, s.extents, req, onProgress, grids);
         },
         orbitPlan: (req, onProgress) => {
             const s = sceneOf(req.version);
-            const occ = orbitOccupancy(s.points, s.extents, req.box, req.eyeHeight, onProgress);
+            const occ = occupancies.get(s.points, s.extents, req.box, req.eyeHeight, onProgress);
             onProgress('orbit');
             return orbitPlan(occ, req.box, req.spec);
         },
         orbitCheck: (req, onProgress) => {
             const s = sceneOf(req.version);
-            const occ = orbitOccupancy(s.points, s.extents, req.box, req.eyeHeight, onProgress);
+            const occ = occupancies.get(s.points, s.extents, req.box, req.eyeHeight, onProgress);
             onProgress('checking');
             return orbitCheck(occ, req);
         },
@@ -93,6 +96,9 @@ const createComputeHandler = () => {
         try {
             if (req.op === 'points') {
                 const { version, points, extents } = req.args;
+                // the old points go with the caches built from them
+                grids.clear();
+                occupancies.clear();
                 scene = { version, points, extents };
                 post({ id, result: null });
                 return;

@@ -103,6 +103,28 @@ const computeHandlerChecks = {
         assert.deepEqual(summaryOf(c.result(second)), summaryOf(c.result(first)));
     },
 
+    'compute: caches belong to one handler and go with its points'() {
+        // the same points object, so only the cache owner and clearing decide
+        const grids = (handle, id, op, args) => {
+            const posts = [];
+            handle({ id, op, args }, reply => posts.push(reply));
+            return posts.filter(r => r.progress?.stage === 'grid').length;
+        };
+        const points = { version: 1, points: BAND.points, extents: undefined };
+        const a = createComputeHandler(), b = createComputeHandler();
+        grids(a, 1, 'points', points);
+        grids(b, 1, 'points', points);
+        assert.equal(grids(a, 2, 'fixPlan', fixRequest()), 1, 'a builds its grid');
+        assert.equal(grids(a, 3, 'fixPlan', fixRequest()), 0, 'a reuses it');
+        assert.equal(grids(b, 2, 'fixPlan', fixRequest()), 1, 'b builds its own');
+        const orbit = { version: 1, box: BAND.box, eyeHeight: BAND.eyeHeight, spec: SPEC };
+        assert.equal(grids(a, 4, 'orbitPlan', orbit), 1, 'a builds its occupancy');
+        assert.equal(grids(a, 5, 'orbitPlan', orbit), 0, 'a reuses it');
+        grids(a, 6, 'points', points);
+        assert.equal(grids(a, 7, 'fixPlan', fixRequest()), 1, 'a points request drops the grid');
+        assert.equal(grids(a, 8, 'orbitPlan', orbit), 1, 'and the occupancy');
+    },
+
     'compute: progress arrives in stage order and ends at total'() {
         const c = connect();
         sendBand(c, 7);

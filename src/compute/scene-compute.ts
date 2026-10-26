@@ -135,7 +135,7 @@ class SceneComputeClient implements SceneCompute {
         this.transport = null;
         try {
             this.current();
-            this.resendAll();
+            this.resume();
         } catch (lastError) {
             this.rejectAll(lastError);
         }
@@ -152,9 +152,13 @@ class SceneComputeClient implements SceneCompute {
         return { id: ++this.lastId, op: 'points', args: { version, points, extents } };
     }
 
-    private resendAll() {
+    // the transport lost its work: free the preview slot if nobody waits on
+    // it, send the points and every pending request again, then the queue
+    private resume() {
+        if (this.previewSent !== null && !this.pending.has(this.previewSent)) this.previewSent = null;
         if (this.scene) this.transport.send(this.pointsRequest());
         this.pending.forEach(p => this.transport.send(p.req));
+        this.pump();
     }
 
     private rejectAll(error: Error) {
@@ -206,9 +210,7 @@ class SceneComputeClient implements SceneCompute {
 
     private restart() {
         this.transport.restart();
-        if (this.previewSent !== null && !this.pending.has(this.previewSent)) this.previewSent = null;
-        this.resendAll();
-        this.pump();
+        this.resume();
     }
 }
 

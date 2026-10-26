@@ -57,6 +57,15 @@ const fakeWorkers = () => {
 
 const bandCloud = () => ({ points: BAND.points, extents: undefined });
 
+// rejects when promise has not settled within ms, so a hang fails the check
+const within = (promise, ms = 1000) => {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`no reply within ${ms} ms`)), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
 const isAbort = message => error => error instanceof DOMException && error.name === 'AbortError' && error.message === message;
 
 // the replies of one request sent straight to a fresh handler
@@ -153,6 +162,22 @@ const computeClientChecks = {
         });
         assert.equal(warns, 1);
         assert.deepEqual(log.ops, [], 'the failed worker ran nothing');
+    },
+
+    async 'client: an aborted preview on a failed worker does not block the next preview'() {
+        const { FakeWorker, log } = fakeWorkers();
+        const cloud = { points: new Float32Array(FAR), extents: undefined };
+        const request = (version, radius) => ({ version, box: BOX, eyeHeight: EYE, spec: { ...SPEC, radius } });
+        await counting(async () => {
+            const compute = createSceneCompute([() => workerTransport(URL_, FakeWorker), () => inlineTransport()]);
+            const version = compute.pointsVersion(cloud);
+            const abort = new AbortController();
+            const aborted = compute.run('orbitPlan', request(version, 1), { lane: 'preview', signal: abort.signal });
+            abort.abort();
+            await assert.rejects(aborted, isAbort('cancelled'));
+            log.workers[0].fail();
+            assert.deepEqual(await within(compute.run('orbitPlan', request(version, 2), { lane: 'preview' })), directResult(cloud, 'orbitPlan', request(version, 2)));
+        });
     },
 
     async 'client: a worker that cannot be constructed falls back to inline'() {

@@ -1,7 +1,8 @@
 import { AnimTrack } from './anim-track';
-import { CameraAnimTrack, KeyChange, KeyRefusal, Pose } from './camera-poses';
+import { CameraAnimTrack, Pose } from './camera-poses';
 import { AnimTrackEditOp } from './edit-ops';
 import { Events } from './events';
+import { KeyChange, KeyRefusal } from './key-ops';
 
 /**
  * Manages the active animation track and provides undo-wrapped

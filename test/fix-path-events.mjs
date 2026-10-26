@@ -486,6 +486,31 @@ const fixPathEventsChecks = {
         assert.deepEqual(counts, { start: 1, end: 1 });
     },
 
+    async 'path: cancel returns at once while a sampling batch hangs'() {
+        let calls = 0;
+        const { events, ops } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('camera_2', 60, 8)], {
+            onSample: () => {
+                calls++;
+                return new Promise(() => {});
+            }
+        });
+        const counts = progressCounts(events);
+        const original = summary(events);
+        const pending = events.invoke('path.fix', FIX);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        events.fire('progressCancel');
+        let timer;
+        const result = await Promise.race([pending, new Promise((resolve) => {
+            timer = setTimeout(() => resolve({ reason: 'timeout' }), 1000);
+        })]);
+        clearTimeout(timer);
+        assert.equal(result.reason, 'cancelled');
+        assert.equal(calls, 1);
+        assert.deepEqual(summary(events), original);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
+
     async 'path: cancel after the planner replied applies nothing'() {
         let events = null;
         const base = inlinePlanner(fakeSceneGrid, fakeRoute);

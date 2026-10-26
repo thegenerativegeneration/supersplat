@@ -240,5 +240,5 @@ const computeOf = (events: Events): SceneCompute => {
     return events.invoke('compute');
 };
 
-export { computeOf, createSceneCompute, isAbortError, untilAborted };
+export { abortError, computeOf, createSceneCompute, isAbortError, untilAborted };
 export type { RunOptions, SceneCompute, Transport };

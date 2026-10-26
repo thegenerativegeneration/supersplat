@@ -125,6 +125,40 @@ const timingEventsChecks = {
         assert.deepEqual(sortedKeys(events), [0, 10, 20]);
     },
 
+    async 'balance: samples in batches of at most four, in order'() {
+        const sizes = [];
+        const seen = [];
+        const { events } = setup([0, 10, 20, 30, 40, 50, 60, 70, 80], [], async (poses) => {
+            sizes.push(poses.length);
+            seen.push(...poses.map(p => p.position.x));
+            return poses.map(p => p.position.x + 1);
+        });
+        const result = await events.invoke('timing.balance');
+        assert.equal(result.ok, true);
+        assert.deepEqual(sizes, [4, 4, 1]);
+        assert.deepEqual(seen, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    },
+
+    async 'balance: cancel returns at once while a sampling batch hangs'() {
+        let calls = 0;
+        const { events, ops } = setup([0, 10, 20, 30, 40, 50], [], () => {
+            calls++;
+            return new Promise(() => {});
+        });
+        const pending = events.invoke('timing.balance');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        events.fire('progressCancel');
+        let timer;
+        const result = await Promise.race([pending, new Promise((resolve) => {
+            timer = setTimeout(() => resolve('timeout'), 1000);
+        })]);
+        clearTimeout(timer);
+        assert.deepEqual(result, { ok: false, reason: 'cancelled' });
+        assert.equal(calls, 1);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 10, 20, 30, 40, 50]);
+    },
+
     async 'balance: cancel during sampling retimes nothing'() {
         const { events, ops, popups } = setup([0, 10, 20], [], async (poses, ev) => {
             ev.fire('progressCancel');

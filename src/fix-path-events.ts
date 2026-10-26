@@ -8,6 +8,7 @@ import type { OpaquePoints } from './candidates/read-points';
 import { boxAroundKeys, buildFixGrid, replyOf } from './compute/fix-path-job';
 import { withProgress, type ProgressHandle } from './compute/progress-handle';
 import type { Estimate, FixPlanReply, FixPlanRequest } from './compute/protocol';
+import { sampleDistances } from './compute/sample-distances';
 import { computeOf, isAbortError, untilAborted, type RunOptions } from './compute/scene-compute';
 import { Events } from './events';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
@@ -214,9 +215,15 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
         h.update('measuring');
         const fallbackFov = events.invoke('camera.fov') as number;
         const sources = userPoses.map(p => ({ position: p.position, target: p.target, fov: p.fov ?? fallbackFov }));
-        const distances = await events.invoke('camera.sampleDistances', sources) as (number | null)[];
-        const sampleMs = performance.now() - start;
+        let distances: (number | null)[];
+        try {
+            distances = await sampleDistances(events, sources, h.signal);
+        } catch (error) {
+            if (isAbortError(error)) return { result: failure('cancelled') };
+            throw error;
+        }
         if (h.signal.aborted) return { result: failure('cancelled') };
+        const sampleMs = performance.now() - start;
 
         const keys: FixKey[] = userPoses.map((p, i) => ({
             ...sources[i],

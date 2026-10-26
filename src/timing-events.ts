@@ -2,6 +2,7 @@ import { BalanceInput, MAX_TURN_DEG_PER_SEC, BalanceKey, BalanceResult } from '.
 import { isParked, Pose } from './camera-poses';
 import { withProgress } from './compute/progress-handle';
 import type { ProgressFn } from './compute/protocol';
+import { sampleDistances } from './compute/sample-distances';
 import { computeOf, isAbortError } from './compute/scene-compute';
 import { Events } from './events';
 import { i18n } from './ui/localization';
@@ -46,12 +47,16 @@ const computeBalance = async (events: Events, poses: BalanceSource[], opts: Bala
     onProgress?.('measuring');
     // too few keys fails below without needing the scene
     const sampled = poses.filter(p => !p.auto);
-    const sampledDistances = (poses.length >= 2 && sampled.length > 0 ?
-        await events.invoke('camera.sampleDistances', sampled.map(p => ({ position: p.position, target: p.target, fov: p.fov }))) :
-        []) as (number | null)[];
+    let sampledDistances: (number | null)[] = [];
+    try {
+        if (poses.length >= 2) sampledDistances = await sampleDistances(events, sampled.map(p => ({ position: p.position, target: p.target, fov: p.fov })), signal);
+    } catch (error) {
+        if (isAbortError(error)) return cancelled();
+        throw error;
+    }
+    if (signal?.aborted) return cancelled();
     const distanceOf = new Map(sampled.map((p, i) => [p, sampledDistances[i] ?? NaN]));
     const sampleMs = performance.now() - sampleStart;
-    if (signal?.aborted) return cancelled();
 
     const keys: BalanceKey[] = poses.map(p => ({
         position: p.position,

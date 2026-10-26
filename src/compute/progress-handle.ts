@@ -26,11 +26,9 @@ const startProgress = (events: Events, headerKey: string, revealAfterMs = 300): 
         update: (stage, done, total) => {
             if (!active) return;
             const text = i18n.t(`progress.${stage}`, { done, total });
-            if (done !== undefined && total) {
-                events.fire('progressUpdate', { text, progress: 100 * done / total });
-            } else {
-                events.fire('progressUpdate', { text });
-            }
+            // an unknown total clears the fill, leaving the bar's pulse
+            const progress = done !== undefined && total ? 100 * done / total : 0;
+            events.fire('progressUpdate', { text, progress });
         },
 
         lockCancel: (textKey) => {

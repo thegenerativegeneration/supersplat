@@ -61,7 +61,7 @@ const progressHandleChecks = {
         assert.deepEqual(fired.map(f => f[0]), ['progressStart', 'progressEnd']);
     },
 
-    'progress: update maps stages to text and percentage': async () => {
+    'progress: update maps stages to text and percentage, an unknown total clears the fill': async () => {
         const { events, fired } = await setup();
         const handle = startProgress(events, 'timeline.fix-path');
         fired.length = 0;
@@ -70,7 +70,7 @@ const progressHandleChecks = {
         handle.lockCancel('progress.timing');
         assert.deepEqual(fired, [
             ['progressUpdate', { text: 'Finding routes 3/12', progress: 25 }],
-            ['progressUpdate', { text: 'Building the walkable grid' }],
+            ['progressUpdate', { text: 'Building the walkable grid', progress: 0 }],
             ['progressUpdate', { text: 'Balancing the timing', cancellable: false }]
         ]);
         handle.end();

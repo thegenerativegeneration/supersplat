@@ -89,7 +89,7 @@ const registerKeySelectionEvents = (events: Events) => {
         const kept = new Set([...selected].filter(id => live.has(id)));
         apply(kept, anchor !== null && live.has(anchor) ? anchor : null);
     };
-    ['track.keysLoaded', 'track.keyRemoved', 'track.keysCleared'].forEach(name => events.on(name, dropStale));
+    ['track.keysLoaded', 'track.keyRemoved', 'track.keysCleared', 'track.keyMoved', 'track.keyAdded'].forEach(name => events.on(name, dropStale));
 
     if (typeof document !== 'undefined') {
         document.addEventListener('pointerdown', (e) => {

@@ -48,6 +48,13 @@ const keySelectionChecks = {
         assert.equal(seen.length, 3);
     },
 
+    'selection: a selected key overwritten by a move drops out'() {
+        const { events, pid, poses } = withKeys();
+        events.fire('keys.setSelection', [pid[1], pid[2]]);
+        events.fire('track.moveKey', poses[0].frame, poses[1].frame);
+        assert.deepEqual(events.invoke('keys.selected'), [pid[2]]);
+    },
+
     'selection: delete removes keys when focused, else select.delete stays with splats'() {
         const { events, ops, pid } = withKeys();
         let splatDeletes = 0;

@@ -1,7 +1,7 @@
-import { buildViewSpline } from './look-ahead';
+import { buildViewSpline } from './look-ahead-spline';
 import type { Vec3Like } from '../candidates/occupancy';
 
-// lookAhead, turnIn and auto: see ViewKey in look-ahead.ts
+// lookAhead, turnIn and auto: see ViewKey in look-ahead-spline.ts
 type CurvePose = { position: Vec3Like, target: Vec3Like, fov: number, lookAhead?: boolean, turnIn?: number, auto?: boolean };
 
 // frameRate times the look-ahead turns, which are in seconds

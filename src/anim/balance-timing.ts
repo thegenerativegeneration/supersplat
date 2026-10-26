@@ -1,4 +1,5 @@
-import { buildViewSpline, MAX_TURN_DEG_PER_SEC } from './look-ahead';
+import { MAX_TURN_DEG_PER_SEC } from './look-ahead';
+import { buildViewSpline } from './look-ahead-spline';
 
 type Point3 = { x: number, y: number, z: number };
 
@@ -10,7 +11,7 @@ type BalanceKey = {
     linger: number,
     // scene distance at this pose; non-finite values fall back to |target - position|
     distance: number,
-    // lookAhead, turnIn and auto: see ViewKey in look-ahead.ts
+    // lookAhead, turnIn and auto: see ViewKey in look-ahead-spline.ts
     lookAhead?: boolean,
     turnIn?: number,
     auto?: boolean

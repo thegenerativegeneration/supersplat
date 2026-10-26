@@ -378,7 +378,7 @@
     "tooltip.timeline.next-frame": "Image Suivante",
     "tooltip.timeline.add-key": "Ajouter une clé",
     "tooltip.timeline.remove-key": "Supprimer une clé",
-    "tooltip.timeline.key": "Glisser pour déplacer. Maj+glisser pour copier. Ctrl+clic pour reprendre la vue actuelle. Clic droit pour régler le maintien : ralentit la caméra autour de cette clé ; sur la première/dernière clé sans boucle, la caméra s'arrête.",
+    "tooltip.timeline.key": "Cliquer pour sélectionner. Maj+clic sélectionne une plage. Ctrl/Cmd+clic ajoute ou retire une clé. Glisser pour déplacer les clés sélectionnées, Alt+glisser pour copier. Clic droit pour régler le maintien : ralentit la caméra autour de cette clé ; sur la première/dernière clé sans boucle, la caméra s'arrête.",
     "tooltip.timeline.key-out-of-range": "L'image clé {{frame}} est au-delà de la fin de la timeline et ne sera pas jouée. Glissez-la sur la timeline ou augmentez le nombre total de frames.",
     "tooltip.timeline.frame-rate": "Fréquence d'image",
     "tooltip.timeline.total-frames": "Nombre total de frames",
@@ -528,5 +528,6 @@
     "progress.orbit-add": "Ajouter une orbite",
     "progress.balance": "Équilibrer",
     "progress.add-keys": "Ajouter comme clés",
-    "status.cancelled": "Annulé"
+    "status.cancelled": "Annulé",
+    "status.frame-taken": "Une autre clé est déjà sur cette frame"
 }

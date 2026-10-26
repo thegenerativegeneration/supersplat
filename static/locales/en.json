@@ -378,7 +378,7 @@
     "tooltip.timeline.next-frame": "Next Frame",
     "tooltip.timeline.add-key": "Add Key",
     "tooltip.timeline.remove-key": "Remove Key",
-    "tooltip.timeline.key": "Drag to move. Shift+drag to copy. Ctrl+click to set to current view. Right-click to set linger. Slows down around this key; at the first/last key without looping the camera stops.",
+    "tooltip.timeline.key": "Click to select. Shift+click selects a range. Ctrl/Cmd+click adds or removes a key. Drag to move the selected keys, Alt+drag to copy. Right-click to set linger. Slows down around this key; at the first/last key without looping the camera stops.",
     "tooltip.timeline.key-out-of-range": "Keyframe {{frame}} is past the end of the timeline and won't play. Drag it onto the timeline or increase Total Frames.",
     "tooltip.timeline.frame-rate": "Frame Rate",
     "tooltip.timeline.total-frames": "Total Frames",
@@ -528,5 +528,6 @@
     "progress.orbit-add": "Add Orbit",
     "progress.balance": "Balance",
     "progress.add-keys": "Add as Keys",
-    "status.cancelled": "Cancelled"
+    "status.cancelled": "Cancelled",
+    "status.frame-taken": "Another key is already on that frame"
 }

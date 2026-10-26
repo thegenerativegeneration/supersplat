@@ -7,6 +7,7 @@ import { FixPathControls } from './fix-path-controls';
 import { KeyLingerPopover } from './key-linger-popover';
 import { i18n } from './localization';
 import { OrbitControls } from './orbit-controls';
+import { createStatusLine } from './status-line';
 import { SuggestViewsButton } from './suggest-views-button';
 import { Ticks } from './timeline-ticks';
 import { Tooltips } from './tooltips';
@@ -208,50 +209,16 @@ class TimelinePanel extends Container {
         });
 
         removeKey.on('click', () => {
-            const frame = events.invoke('timeline.frame');
-            events.fire('track.removeKey', frame);
+            events.fire('keys.delete');
         });
 
-        // Helper to check if the current frame has a key
-        const canDeleteKey = () => {
-            const keys = events.invoke('track.keys') as number[] ?? [];
-            const frame = events.invoke('timeline.frame');
-            return keys.includes(frame);
-        };
-
-        // Update key button states
-        const updateKeyButtonStates = () => {
-            removeKey.enabled = canDeleteKey();
-        };
-
-        // Update button states when frame changes
-        events.on('timeline.frame', () => {
-            updateKeyButtonStates();
+        events.on('keys.selectionChanged', (ids: string[]) => {
+            removeKey.enabled = ids.length > 0;
         });
 
-        // Update button states when track keys change
-        events.on('track.keyAdded', () => {
-            updateKeyButtonStates();
-        });
-
-        events.on('track.keyRemoved', () => {
-            updateKeyButtonStates();
-        });
-
-        events.on('track.keyMoved', () => {
-            updateKeyButtonStates();
-        });
-
-        events.on('track.keyUpdated', () => {
-            updateKeyButtonStates();
-        });
-
-        events.on('track.keysLoaded', () => {
-            updateKeyButtonStates();
-        });
-
-        events.on('track.keysCleared', () => {
-            updateKeyButtonStates();
+        const { show: showStatus } = createStatusLine(this, ticks.dom);
+        events.on('track.refused', (reason: string) => {
+            if (reason === 'frameTaken') showStatus(i18n.t('status.frame-taken'));
         });
 
         // cancel animation playback if user interacts with camera
@@ -278,7 +245,7 @@ class TimelinePanel extends Container {
         tooltips.register(play, tooltip('tooltip.timeline.play', 'timeline.togglePlay'), 'top');
         tooltips.register(next, tooltip('tooltip.timeline.next-frame', 'timeline.nextFrame'), 'top');
         tooltips.register(addKey, tooltip('tooltip.timeline.add-key', 'track.addKey'), 'top');
-        tooltips.register(removeKey, tooltip('tooltip.timeline.remove-key', 'track.removeKey'), 'top');
+        tooltips.register(removeKey, tooltip('tooltip.timeline.remove-key'), 'top');
         tooltips.register(speed, () => i18n.t('tooltip.timeline.frame-rate'), 'top');
         tooltips.register(frames, () => i18n.t('tooltip.timeline.total-frames'), 'top');
         tooltips.register(smoothness, () => i18n.t('tooltip.timeline.smoothness'), 'top');

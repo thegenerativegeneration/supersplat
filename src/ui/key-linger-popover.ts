@@ -1,5 +1,6 @@
 import { Container, Label, NumericInput } from '@playcanvas/pcui';
 
+import type { Pose } from '../camera-poses';
 import { Events } from '../events';
 import { i18n } from './localization';
 
@@ -58,7 +59,9 @@ class KeyLingerPopover extends Container {
             }
         });
 
-        events.on('timeline.keyContextMenu', (keyFrame: number, clientX: number, clientY: number) => {
+        events.on('keys.edit', (id: string, clientX: number, clientY: number) => {
+            const keyFrame = (events.invoke('camera.poses') as Pose[]).find(p => p.id === id)?.frame;
+            if (keyFrame === undefined) return;
             frame = keyFrame;
             title.text = i18n.t('timeline.key-at-frame', { frame: keyFrame });
             label.text = i18n.t('timeline.linger');

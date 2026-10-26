@@ -378,7 +378,7 @@
     "tooltip.timeline.next-frame": "Nächstes Bild",
     "tooltip.timeline.add-key": "Key hinzufügen",
     "tooltip.timeline.remove-key": "Key entfernen",
-    "tooltip.timeline.key": "Ziehen zum Verschieben. Umschalt+Ziehen zum Kopieren. Strg+Klick übernimmt die aktuelle Ansicht. Rechtsklick für Verweildauer: bremst die Kamera um diesen Key; am ersten/letzten Key ohne Loop bleibt sie stehen.",
+    "tooltip.timeline.key": "Klick wählt aus. Umschalt+Klick wählt einen Bereich. Strg/Cmd+Klick fügt einen Key hinzu oder entfernt ihn. Ziehen verschiebt die ausgewählten Keys, Alt+Ziehen kopiert. Rechtsklick für Verweildauer: bremst die Kamera um diesen Key; am ersten/letzten Key ohne Loop bleibt sie stehen.",
     "tooltip.timeline.key-out-of-range": "Keyframe {{frame}} liegt hinter dem Ende der Timeline und wird nicht abgespielt. Auf die Timeline ziehen oder die Gesamtanzahl der Frames erhöhen.",
     "tooltip.timeline.frame-rate": "Bildrate",
     "tooltip.timeline.total-frames": "Gesamtanzahl der Frames",
@@ -528,5 +528,6 @@
     "progress.orbit-add": "Orbit hinzufügen",
     "progress.balance": "Ausgleichen",
     "progress.add-keys": "Als Keyframes hinzufügen",
-    "status.cancelled": "Abgebrochen"
+    "status.cancelled": "Abgebrochen",
+    "status.frame-taken": "Auf diesem Frame liegt schon ein anderer Key"
 }

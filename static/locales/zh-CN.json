@@ -378,7 +378,7 @@
     "tooltip.timeline.next-frame": "下一帧",
     "tooltip.timeline.add-key": "添加关键帧",
     "tooltip.timeline.remove-key": "删除关键帧",
-    "tooltip.timeline.key": "拖动以移动。Shift+拖动复制。Ctrl+点击设为当前视图。右键设置停留时间：相机在此关键帧附近减速；未循环时，在首/末关键帧处相机会停止。",
+    "tooltip.timeline.key": "点击选择。Shift+点击选择范围。Ctrl/Cmd+点击添加或移除关键帧。拖动以移动所选关键帧，Alt+拖动复制。右键设置停留时间：相机在此关键帧附近减速；未循环时，在首/末关键帧处相机会停止。",
     "tooltip.timeline.key-out-of-range": "关键帧 {{frame}} 超出时间轴末尾，不会播放。将其拖回时间轴或增加总帧数。",
     "tooltip.timeline.frame-rate": "帧率",
     "tooltip.timeline.total-frames": "总帧数",
@@ -528,5 +528,6 @@
     "progress.orbit-add": "添加轨道",
     "progress.balance": "平衡",
     "progress.add-keys": "添加为关键帧",
-    "status.cancelled": "已取消"
+    "status.cancelled": "已取消",
+    "status.frame-taken": "该帧上已有另一个关键帧"
 }

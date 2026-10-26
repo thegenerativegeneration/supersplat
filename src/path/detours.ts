@@ -2,6 +2,7 @@ import { curveCollisions } from './curve-check';
 import type { NavGrid } from './nav-grid';
 import { buildCameraCurve, type CurveOptions, type CurvePose } from '../anim/camera-curve';
 import type { Vec3Like } from '../candidates/occupancy';
+import type { ProgressFn } from '../compute/protocol';
 
 type PlannedPose = { pose: CurvePose, auto: boolean };
 
@@ -18,7 +19,9 @@ type DetourInput = {
     eyeHeight: number,
     // frames for the poses; the plan's frames are the array of one of these calls
     retime: (poses: CurvePose[]) => number[],
-    curveOpts: CurveOptions
+    curveOpts: CurveOptions,
+    // the detours stage counts rounds up to MAX_ROUNDS
+    onProgress?: ProgressFn
 };
 
 type DetourPlan = { poses: PlannedPose[], frames: number[], blocked: number[] };
@@ -239,7 +242,7 @@ const pruneSegment = (seg: Segment, voxel: number, accept: () => boolean) => {
 // the user segments). For a loop, routes has one entry per key and the last
 // runs back to the first key.
 const planDetours = (input: DetourInput): DetourPlan => {
-    const { keys, routes, grid, eyeHeight, retime, curveOpts } = input;
+    const { keys, routes, grid, eyeHeight, retime, curveOpts, onProgress } = input;
     const fixed = (i: number) => input.fixed?.[i] ?? false;
     const segments = routes.map((r, i): Segment | null => {
         if (!r) return null;
@@ -261,6 +264,7 @@ const planDetours = (input: DetourInput): DetourPlan => {
         return { poses, frames, collisions };
     };
 
+    onProgress?.('detours', 0, MAX_ROUNDS);
     let result = evaluate();
     for (let round = 0; round < MAX_ROUNDS && result.collisions.length > 0; round++) {
         let added = false;
@@ -270,7 +274,9 @@ const planDetours = (input: DetourInput): DetourPlan => {
         }
         if (!added) break;
         result = evaluate();
+        onProgress?.('detours', round + 1, MAX_ROUNDS);
     }
+    onProgress?.('detours', MAX_ROUNDS, MAX_ROUNDS);
 
     // drop crowded detours while no other segment starts colliding
     const colliding = (r: typeof result) => new Set(r.collisions.map(c => c.segment));

@@ -17,6 +17,7 @@ import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
 import { isovistChecks } from './isovist.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
+import { computeHandlerChecks } from './compute-handler.mjs';
 import { fixPlanBalanceChecks } from './fix-plan-balance.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
@@ -88,6 +89,7 @@ const checks = {
     ...candidatesPanelChecks,
     ...isovistChecks,
     ...cameraTrackChecks,
+    ...computeHandlerChecks,
     ...orbitEventsChecks,
     ...orbitKeyChecks,
     ...orbitPathChecks,

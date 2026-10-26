@@ -2,13 +2,13 @@ import { Vec3 } from 'playcanvas';
 
 import type { BalanceResult } from './anim/balance-timing';
 import { Pose } from './camera-poses';
-import { insideBox, looksMetric, type Box } from './candidates/estimate';
-import { buildSceneGrid } from './candidates/generate';
+import { looksMetric, type Box } from './candidates/estimate';
 import type { Vec3Like } from './candidates/occupancy';
 import type { OpaquePoints } from './candidates/read-points';
+import { boxAroundKeys, buildFixGrid } from './compute/fix-path-job';
 import { Events } from './events';
 import { planFixPath, type FixKey, type RouteFn } from './path/fix-plan';
-import { buildNavGrid, clampOpening, navHeadVoxels, type NavGrid } from './path/nav-grid';
+import { clampOpening, type NavGrid } from './path/nav-grid';
 import { finiteOr, showBalanceFailure, snapshotOf, timelineSettings } from './timing-events';
 
 // smallestOpening: in scene units, see clampOpening; eyeHeight: in scene units
@@ -54,24 +54,8 @@ const STALE_EVENTS = [
     'timeline.smoothness', 'timeline.loop', 'timeline.frames'
 ];
 
-// box grown to hold each position outside it with margin on each side;
-// positions inside leave it as it is
-const boxAroundKeys = (box: Box, positions: Vec3Like[], margin: number): Box => {
-    const min = { ...box.min }, max = { ...box.max };
-    for (const p of positions) {
-        if (insideBox(p.x, p.y, p.z, box)) continue;
-        for (const axis of ['x', 'y', 'z'] as const) {
-            min[axis] = Math.min(min[axis], p[axis] - margin);
-            max[axis] = Math.max(max[axis], p[axis] + margin);
-        }
-    }
-    return { min, max };
-};
-
 // Grid from the cached scene points and splat extents, in the estimated area
-// box, at the given eye height or the estimate. The graph stays inside the
-// box; its occupancy also covers the keys outside it plus one eye height, so
-// straight moves from far keys see the geometry on their way.
+// box, at the given eye height or the estimate (see buildFixGrid).
 const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openingAt: OpeningAt, positions: Vec3Like[] = [], userEyeHeight?: number): Promise<SceneGrid | null> => {
     const { points, extents } = await events.invoke('candidates.cloud') as OpaquePoints;
     if (!points || points.length === 0) return null;
@@ -79,8 +63,7 @@ const defaultSceneGrid = (events: Events) => async (allowFlying: boolean, openin
     const { box } = estimate;
     const eyeHeight = userEyeHeight ?? estimate.eyeHeight;
     const opening = openingAt(eyeHeight);
-    const { occ, levels } = buildSceneGrid(points, boxAroundKeys(box, positions, eyeHeight), eyeHeight, navHeadVoxels(eyeHeight, opening), extents);
-    return { grid: buildNavGrid(occ, levels, box, eyeHeight, allowFlying, opening), eyeHeight, box };
+    return { grid: buildFixGrid(points, extents, { box, eyeHeight, opening, allowFlying, positions }), eyeHeight, box };
 };
 
 // estimated: eyeHeight is the estimate, not the user's

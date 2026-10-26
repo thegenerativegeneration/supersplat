@@ -205,4 +205,4 @@ const orbitEventsChecks = {
     }
 };
 
-export { orbitEventsChecks };
+export { BOX, EYE, FAR, orbitEventsChecks, SPEC };

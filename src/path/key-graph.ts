@@ -1,6 +1,7 @@
 import type { Cell, NavGrid } from './nav-grid';
 import { CellHeap, snapCell, straightHits, straightPoints, type Attach } from './route';
 import type { Vec3Like } from '../candidates/occupancy';
+import type { ProgressFn } from '../compute/protocol';
 
 // One connected component of the nav graph as a compressed adjacency:
 // node k is grid cell cells[k], its edges are offsets[k] .. offsets[k + 1]
@@ -108,8 +109,10 @@ const dijkstra = (c: Component, source: number, goals: number[]): Int32Array => 
 // component. A key that does not snap moves straight down when that hit's
 // component holds another key's cell (a crane move); else it tries its
 // straight hits towards the other keys, nearest first, and takes the first
-// whose component holds another key's cell, else the nearest.
-const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
+// whose component holds another key's cell, else the nearest. Progress
+// counts the keys whose Dijkstra ran.
+const keyRoutes = (grid: NavGrid, positions: Vec3Like[], onProgress?: ProgressFn): KeyRoutes => {
+    onProgress?.('routes', 0, positions.length);
     const comps: Component[] = [];
     // cell -> node of each component, dropped once the keys are placed
     const indexes: Map<Cell, number>[] = [];
@@ -159,6 +162,7 @@ const keyRoutes = (grid: NavGrid, positions: Vec3Like[]): KeyRoutes => {
         if (!trees.has(i)) {
             const goals = positions.map((_, j) => j).filter(j => compOf[j] === compOf[i]).map(j => nodeOf[j]);
             trees.set(i, dijkstra(comps[compOf[i]], nodeOf[i], goals));
+            onProgress?.('routes', trees.size, positions.length);
         }
         return trees.get(i);
     };

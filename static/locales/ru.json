@@ -521,6 +521,7 @@
     "progress.detours": "Расстановка обходов",
     "progress.timing": "Выравнивание тайминга",
     "progress.measuring": "Измерение видов",
+    "progress.scene": "Построение карты сцены",
     "progress.orbit": "Подбор орбиты",
     "progress.checking": "Проверка орбиты",
     "progress.orbit-add": "Добавить орбиту",

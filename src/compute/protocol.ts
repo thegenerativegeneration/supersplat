@@ -7,7 +7,7 @@ import type { Vec3Like } from '../candidates/occupancy';
 import type { OrbitSpec } from '../orbit/orbit-path';
 import type { FixKey, FixPlan } from '../path/fix-plan';
 
-type Stage = 'reading' | 'estimate' | 'grid' | 'routes' | 'detours' | 'timing' | 'measuring' | 'orbit' | 'checking';
+type Stage = 'reading' | 'estimate' | 'grid' | 'routes' | 'detours' | 'timing' | 'measuring' | 'scene' | 'orbit' | 'checking';
 
 // done and total are absent while a stage cannot count its work
 type ProgressFn = (stage: Stage, done?: number, total?: number) => void;

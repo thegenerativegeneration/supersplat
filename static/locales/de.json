@@ -521,6 +521,7 @@
     "progress.detours": "Umwege werden gesetzt",
     "progress.timing": "Timing wird ausgeglichen",
     "progress.measuring": "Ansichten werden vermessen",
+    "progress.scene": "Szene wird erfasst",
     "progress.orbit": "Orbit wird angepasst",
     "progress.checking": "Orbit wird geprüft",
     "progress.orbit-add": "Orbit hinzufügen",

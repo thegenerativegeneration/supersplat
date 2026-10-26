@@ -76,7 +76,7 @@ const createOccupancyCache = () => {
         const boxKey = JSON.stringify(box);
         if (cached?.points !== points || cached.box !== boxKey || cached.eyeHeight !== eyeHeight) {
             cached = null;
-            onProgress?.('grid');
+            onProgress?.('scene');
             const { occ } = buildSceneGrid(points, box, eyeHeight, undefined, extents);
             cached = { points, box: boxKey, eyeHeight, occ };
         }

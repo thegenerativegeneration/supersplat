@@ -521,6 +521,7 @@
     "progress.detours": "迂回路を配置中",
     "progress.timing": "タイミングを調整中",
     "progress.measuring": "ビューを計測中",
+    "progress.scene": "シーンをマッピング中",
     "progress.orbit": "オービットをフィット中",
     "progress.checking": "オービットを確認中",
     "progress.orbit-add": "オービットを追加",

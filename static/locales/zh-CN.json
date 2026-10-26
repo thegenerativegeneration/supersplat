@@ -521,6 +521,7 @@
     "progress.detours": "正在放置绕行点",
     "progress.timing": "正在平衡时间",
     "progress.measuring": "正在测量视图",
+    "progress.scene": "正在构建场景地图",
     "progress.orbit": "正在拟合轨道",
     "progress.checking": "正在检查轨道",
     "progress.orbit-add": "添加轨道",

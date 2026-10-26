@@ -521,6 +521,7 @@
     "progress.detours": "Colocando desvíos",
     "progress.timing": "Equilibrando el tiempo",
     "progress.measuring": "Midiendo vistas",
+    "progress.scene": "Mapeando la escena",
     "progress.orbit": "Ajustando la órbita",
     "progress.checking": "Comprobando la órbita",
     "progress.orbit-add": "Añadir órbita",

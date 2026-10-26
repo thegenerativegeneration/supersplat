@@ -105,10 +105,13 @@ const computeHandlerChecks = {
 
     'compute: caches belong to one handler and go with its points'() {
         // the same points object, so only the cache owner and clearing decide
+        // builds of the walkable grid (fixPlan) or the orbit's scene map
         const grids = (handle, id, op, args) => {
             const posts = [];
             handle({ id, op, args }, reply => posts.push(reply));
-            return posts.filter(r => r.progress?.stage === 'grid').length;
+            const stage = op === 'orbitPlan' ? 'scene' : 'grid';
+            if (op === 'orbitPlan') assert.ok(!posts.some(r => r.progress?.stage === 'grid'), 'an orbit builds no walkable grid');
+            return posts.filter(r => r.progress?.stage === stage).length;
         };
         const points = { version: 1, points: BAND.points, extents: undefined };
         const a = createComputeHandler(), b = createComputeHandler();

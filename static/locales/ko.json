@@ -521,6 +521,7 @@
     "progress.detours": "우회로 배치 중",
     "progress.timing": "타이밍 균형 조정 중",
     "progress.measuring": "뷰 측정 중",
+    "progress.scene": "씬 매핑 중",
     "progress.orbit": "오빗 맞추는 중",
     "progress.checking": "오빗 확인 중",
     "progress.orbit-add": "오빗 추가",

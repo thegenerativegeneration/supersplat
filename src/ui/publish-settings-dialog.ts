@@ -1,5 +1,6 @@
 import { BooleanInput, Button, ColorPicker, Container, Element, Label, SelectInput, SliderInput, TextAreaInput, TextInput } from '@playcanvas/pcui';
 
+import { cameraKeyframes } from '../camera-keyframes';
 import { Pose } from '../camera-poses';
 import { Events } from '../events';
 import { i18n } from './localization';
@@ -436,18 +437,6 @@ class PublishSettingsDialog extends Container {
                     const animTracks: AnimTrack[] = [];
 
                     if (includeAnimation && orderedPoses.length > 0) {
-                        const times: number[] = [];
-                        const position: number[] = [];
-                        const target: number[] = [];
-                        const fovKeys: number[] = [];
-                        for (let i = 0; i < orderedPoses.length; ++i) {
-                            const op = orderedPoses[i];
-                            times.push(op.frame);
-                            position.push(op.position.x, op.position.y, op.position.z);
-                            target.push(op.target.x, op.target.y, op.target.z);
-                            fovKeys.push(op.fov);
-                        }
-
                         animTracks.push({
                             name: 'cameraAnim',
                             duration: frames / frameRate,
@@ -455,10 +444,7 @@ class PublishSettingsDialog extends Container {
                             loopMode: loopSelect.value as 'none' | 'repeat' | 'pingpong',
                             interpolation: 'spline',
                             smoothness,
-                            keyframes: {
-                                times,
-                                values: { position, target, fov: fovKeys }
-                            }
+                            keyframes: cameraKeyframes(orderedPoses, { frames, frameRate, smoothness, loop: loopSelect.value === 'repeat', fov: fovSlider.value })
                         });
                     }
 

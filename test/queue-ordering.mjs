@@ -13,6 +13,7 @@ import { EditorError } from './.build/src/editor-command.js';
 import { Events } from './.build/src/events.js';
 import { runSelectionGesture } from './.build/src/selection-gesture.js';
 import { balanceTimingChecks } from './balance-timing.mjs';
+import { cameraKeyframesChecks } from './camera-keyframes.mjs';
 import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
 import { keyMarkerGesturesChecks } from './key-marker-gestures.mjs';
@@ -98,6 +99,7 @@ const checks = {
     ...keyMarkerGesturesChecks,
     ...keySelectionChecks,
     ...lookAheadChecks,
+    ...cameraKeyframesChecks,
     ...computeHandlerChecks,
     ...computeClientChecks,
     ...orbitEventsChecks,

@@ -514,6 +514,7 @@
     "orbit.tooFewFrames": "Il y a trop peu de frames pour vos clés et les clés de l’orbite. Augmentez le nombre total de frames et réessayez.",
     "orbit.rejected": "Les clés de caméra n’ont pas pu être mises à jour. Réessayez.",
     "orbit.checking": "Vérification…",
+    "orbit.estimating": "Estimation…",
     "progress.reading": "Lecture de la scène",
     "progress.estimate": "Estimation de la zone",
     "progress.grid": "Construction de la grille praticable",

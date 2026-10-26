@@ -514,6 +514,7 @@
     "orbit.tooFewFrames": "키와 오빗 키에 비해 프레임이 너무 적습니다. 총 프레임 수를 늘린 뒤 다시 시도하세요.",
     "orbit.rejected": "카메라 키를 업데이트할 수 없습니다. 다시 시도하세요.",
     "orbit.checking": "확인 중…",
+    "orbit.estimating": "추정 중…",
     "progress.reading": "씬 읽는 중",
     "progress.estimate": "영역 추정 중",
     "progress.grid": "이동 가능 그리드 생성 중",

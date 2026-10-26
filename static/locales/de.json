@@ -514,6 +514,7 @@
     "orbit.tooFewFrames": "Für Ihre Keyframes und die Orbit-Keyframes gibt es zu wenige Frames. Erhöhen Sie die Gesamtanzahl der Frames und versuchen Sie es erneut.",
     "orbit.rejected": "Die Kamera-Keyframes konnten nicht aktualisiert werden. Bitte erneut versuchen.",
     "orbit.checking": "Wird geprüft…",
+    "orbit.estimating": "Wird geschätzt…",
     "progress.reading": "Szene wird gelesen",
     "progress.estimate": "Bereich wird geschätzt",
     "progress.grid": "Begehbares Raster wird aufgebaut",

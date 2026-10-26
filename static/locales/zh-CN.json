@@ -514,6 +514,7 @@
     "orbit.tooFewFrames": "帧数太少，无法容纳你的关键帧和环绕关键帧。请增加总帧数后重试。",
     "orbit.rejected": "无法更新相机关键帧。请重试。",
     "orbit.checking": "正在检查…",
+    "orbit.estimating": "正在估算…",
     "progress.reading": "正在读取场景",
     "progress.estimate": "正在估算区域",
     "progress.grid": "正在构建可行走网格",

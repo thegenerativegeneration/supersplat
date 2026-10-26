@@ -94,4 +94,23 @@ const application = {
     cache: false
 };
 
-export default application;
+// the scene compute worker: pure modules only, no engine, no styles
+const worker = {
+    input: 'src/compute/worker-entry.ts',
+    output: {
+        file: 'dist/scene-compute-worker.js',
+        format: 'esm',
+        sourcemap: true
+    },
+    plugins: [
+        typescript({
+            tsconfig: './tsconfig.json'
+        }),
+        resolve(),
+        BUILD_TYPE !== 'debug' && terser()
+    ],
+    treeshake: 'smallest',
+    cache: false
+};
+
+export default [application, worker];

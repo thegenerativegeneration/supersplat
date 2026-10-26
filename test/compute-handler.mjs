@@ -165,4 +165,4 @@ const computeHandlerChecks = {
     }
 };
 
-export { computeHandlerChecks };
+export { BAND, computeHandlerChecks, fixRequest };

@@ -4,6 +4,9 @@ import { Color, createGraphicsDevice } from 'playcanvas';
 import { registerCameraPosesEvents } from './camera-poses';
 import { registerCandidateEvents } from './candidate-events';
 import { CommandQueue } from './command-queue';
+import { inlineTransport } from './compute/inline-transport';
+import { createSceneCompute } from './compute/scene-compute';
+import { workerTransport } from './compute/worker-transport';
 import { registerDocEvents } from './doc';
 import { EditHistory } from './edit-history';
 import { registerEditorEvents } from './editor';
@@ -117,6 +120,13 @@ const main = async () => {
     // spawn a worker that 404s; under SOG's parallel task load it then hangs
     // instead of falling back, producing an empty export.
     WorkerQueue.maxWorkers = 0;
+
+    // CPU-heavy scene work runs in a worker, or inline when it cannot start
+    const compute = createSceneCompute([
+        () => workerTransport(new URL('./scene-compute-worker.js', import.meta.url)),
+        () => inlineTransport()
+    ]);
+    events.function('compute', () => compute);
 
     // register events that only need the events object (before UI is created)
     registerTimelineEvents(events);

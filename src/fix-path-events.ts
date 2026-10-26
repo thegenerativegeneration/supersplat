@@ -30,7 +30,8 @@ type FixPathResult = {
     metric?: boolean
 };
 
-type PathMarkers = { blocked: number[], unreachable: string[], insideGeometry: string[] };
+// before: the keys as they were before the run, for the old route in 3D
+type PathMarkers = { blocked: number[], unreachable: string[], insideGeometry: string[], before?: Pose[] };
 
 // box: the area the graph covers
 type SceneGrid = { grid: NavGrid, eyeHeight: number, box?: Box };
@@ -149,6 +150,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
         clearMarkers();
 
         const all = (events.invoke('camera.poses') as Pose[]).slice().sort((a, b) => a.frame - b.frame);
+        const before = all.map(p => ({ ...p, position: p.position.clone(), target: p.target.clone() }));
         const userPoses = all.filter(p => !p.auto);
         if (userPoses.length < 2) return { ok: false, reason: 'tooFewKeys', ...empty };
         const snapshot = snapshotOf(events);
@@ -215,7 +217,7 @@ const registerFixPathEvents = (events: Events, deps: FixPathDeps = {}) => {
         const { blocked, unreachable, detours, balance, times, graph } = plan;
         const { box } = scene;
         const { insideGeometry } = plan;
-        setMarkers({ blocked, unreachable, insideGeometry });
+        setMarkers({ blocked, unreachable, insideGeometry, before });
         const ms = (t: number) => t.toFixed(0);
         console.debug(`path.fix: ${keys.length} keys, ${detours} detours in ${ms(performance.now() - start)} ms ` +
             `(grid ${ms(gridMs)}, distances ${ms(sampleMs)}, routes ${ms(times.routes)}, detours ${ms(times.detours)}, ` +

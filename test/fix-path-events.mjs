@@ -326,6 +326,16 @@ const fixPathEventsChecks = {
         assert.deepEqual(result.insideGeometry, []);
     },
 
+    async 'path: the markers carry the route before the run until the keys change'() {
+        const { events, markers } = setup([pose('camera_0', 0, 0), pose('camera_1', 30, 4), pose('old', 45, 5, true), pose('camera_2', 60, 8)]);
+        await events.invoke('path.fix', FIX);
+        const { before } = markers[markers.length - 1];
+        assert.deepEqual(before.map(p => `${p.name}@${p.frame}`), ['camera_0@0', 'camera_1@30', 'old@45', 'camera_2@60']);
+        assert.equal(before[0].position.x, 0);
+        events.fire('track.moveKey', events.invoke('camera.poses').find(p => p.name === 'camera_2').frame, 170);
+        assert.equal(markers[markers.length - 1].before, undefined, 'cleared with the other marks');
+    },
+
     async 'path: settings default to reorder and flying'() {
         const { events } = setup([]);
         assert.deepEqual(events.invoke('path.settings'), { keepOrder: false, allowFlying: true, smallestOpening: 0.8, eyeHeight: 1.6 });

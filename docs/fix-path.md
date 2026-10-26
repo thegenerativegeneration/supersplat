@@ -74,6 +74,8 @@ With camera poses shown, the camera path is drawn as a line.
 - The line follows keys, smoothness, loop and length.
 - Red camera: a key that could not be reached (parked).
 - Light blue camera: a detour key.
+- Short pale yellow ticks, 4 per second of the shot: where the camera looks at that moment. A fan of ticks means a fast turn.
+- Dashed light grey line: the route before the last Fix Path run, to compare with the new one. It disappears with the detour colours.
 
 ## Parked keys
 

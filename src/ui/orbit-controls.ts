@@ -157,6 +157,7 @@ class OrbitOptions extends Container {
         const fill = async () => {
             const id = ++planId;
             add.enabled = false;
+            showLine(hint, 'fix-path.estimating');
             const spanDeg = fields().spanDeg;
             let d: OrbitDefaults | null = null;
             try {

@@ -1,10 +1,91 @@
 import assert from 'node:assert/strict';
 
+import { createOpening } from './.build/src/candidates/opening.js';
 import {
     PAGE_SIZE, busyInputAction, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems
 } from './.build/src/candidates/panel-model.js';
 
+const deferred = () => {
+    const d = {};
+    d.promise = new Promise((resolve, reject) => Object.assign(d, { resolve, reject }));
+    return d;
+};
+
+const openingHarness = () => {
+    const wait = deferred();
+    const log = { prepares: 0, loading: 0, filled: [], failed: [], progress: [] };
+    const opening = createOpening({
+        prepare: (onProgress) => {
+            log.prepares++;
+            onProgress('reading', 1, 2);
+            return wait.promise;
+        },
+        onProgress: (...args) => log.progress.push(args),
+        onLoading: () => log.loading++,
+        onReady: v => log.filled.push(v),
+        onFailed: e => log.failed.push(e)
+    });
+    return { wait, log, opening };
+};
+
 const candidatesPanelChecks = {
+    'panel: opens before the estimate resolves and shows reading': async () => {
+        const { wait, log, opening } = openingHarness();
+        const opened = opening.open();
+        assert.equal(log.loading, 1);
+        assert.equal(opening.ready(), false);
+        assert.deepEqual(log.progress, [['reading', 1, 2]]);
+        assert.equal(log.filled.length, 0);
+        wait.resolve({ points: 3 });
+        await opened;
+        assert.deepEqual(log.filled, [{ points: 3 }]);
+        assert.equal(opening.ready(), true);
+    },
+
+    'panel: closing while reading detaches and a late estimate fills nothing': async () => {
+        const { wait, log, opening } = openingHarness();
+        const opened = opening.open();
+        opening.close();
+        wait.resolve({ points: 3 });
+        await opened;
+        assert.equal(log.filled.length, 0);
+        assert.equal(log.failed.length, 0);
+    },
+
+    'panel: reopening after close reuses the pending estimate': async () => {
+        const { wait, log, opening } = openingHarness();
+        const first = opening.open();
+        opening.close();
+        const second = opening.open();
+        wait.resolve({ points: 3 });
+        await Promise.all([first, second]);
+        assert.equal(log.prepares, 1);
+        assert.deepEqual(log.filled, [{ points: 3 }]);
+        await opening.open();
+        assert.equal(log.prepares, 1);
+        assert.equal(log.filled.length, 2);
+    },
+
+    'panel: a failed estimate is reported and the next open prepares again': async () => {
+        const { wait, log, opening } = openingHarness();
+        const opened = opening.open();
+        wait.reject(new Error('boom'));
+        await opened;
+        assert.equal(log.failed.length, 1);
+        await opening.open().catch(() => {});
+        assert.equal(log.prepares, 2);
+    },
+
+    'panel: a forgotten estimate is prepared again': async () => {
+        const { wait, log, opening } = openingHarness();
+        wait.resolve({ points: 3 });
+        await opening.open();
+        opening.forget();
+        assert.equal(opening.ready(), false);
+        await opening.open();
+        assert.equal(log.prepares, 2);
+    },
+
     'candidates panel: picks keep click order and toggle off': async () => {
         let picks = [];
         for (const id of ['b', 'a', 'c', 'a', 'd']) picks = togglePick(picks, id);

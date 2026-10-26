@@ -96,6 +96,7 @@ class FixPathOptions extends Container {
         // the opening range and unit that follow from it
         const showEyeHeight = async () => {
             let info: EyeHeightInfo | null = null;
+            eyeHint.text = i18n.t('fix-path.estimating');
             try {
                 info = await events.invoke('path.eyeHeight') as EyeHeightInfo | null;
             } catch {

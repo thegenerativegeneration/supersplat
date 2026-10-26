@@ -3,7 +3,7 @@ import { Button, Container, Label, SelectInput } from '@playcanvas/pcui';
 import type { BalanceResult } from '../anim/balance-timing';
 import type { LevelInfo } from '../candidates/generate';
 import { createOpening } from '../candidates/opening';
-import { PAGE_SIZE, busyInputAction, candidatePose, levelOptions, togglePick, visibleItems, type ViewPose } from '../candidates/panel-model';
+import { PAGE_SIZE, barPercent, busyInputAction, candidatePose, levelOptions, togglePick, visibleItems, type ViewPose } from '../candidates/panel-model';
 import type { Scored } from '../candidates/score';
 import type { Stage } from '../compute/protocol';
 import { Events } from '../events';
@@ -57,6 +57,11 @@ class CandidatesPanel extends Container {
         const barFill = document.createElement('div');
         barFill.className = 'candidates-bar-fill';
         bar.appendChild(barFill);
+        // percent filled, or null to pulse
+        const setBar = (percent: number | null) => {
+            bar.classList.toggle('pulsate', percent === null);
+            barFill.style.width = `${percent ?? 0}%`;
+        };
         const progressText = new Label({ class: 'candidates-progress-text' });
         const cancelButton = new Button({ class: 'candidates-small-button' });
         i18n.bindText(cancelButton, 'candidates.cancel');
@@ -255,7 +260,7 @@ class CandidatesPanel extends Container {
             pages = 1;
             thumbs.clear();
             setMessage(null);
-            barFill.style.width = '0%';
+            setBar(0);
             progressText.text = '';
             progressRow.hidden = false;
             editSetupButton.hidden = true;
@@ -301,7 +306,7 @@ class CandidatesPanel extends Container {
         };
 
         const showLoading = () => {
-            barFill.style.width = '0%';
+            setBar(null);
             progressText.text = i18n.t('candidates.reading');
             cancelButton.hidden = true;
             progressRow.hidden = false;
@@ -312,8 +317,7 @@ class CandidatesPanel extends Container {
         };
         const showReadProgress = (stage: Stage, done?: number, total?: number) => {
             if (!progressRow.hidden && !running) {
-                const known = stage === 'reading' && total > 0;
-                barFill.style.width = known ? `${Math.round(100 * done / total)}%` : '100%';
+                setBar(barPercent(done, total));
                 progressText.text = i18n.t(stage === 'reading' ? 'candidates.reading' : `progress.${stage}`);
             }
         };
@@ -387,7 +391,7 @@ class CandidatesPanel extends Container {
             levels = l;
         });
         events.on('candidates.progress', (done: number, total: number) => {
-            barFill.style.width = `${total > 0 ? Math.round(100 * done / total) : 0}%`;
+            setBar(barPercent(done, total) ?? 0);
             progressText.text = i18n.t('candidates.progress', { done, total });
         });
         events.on('candidates.added', (item: Scored, thumbnail: HTMLCanvasElement) => {

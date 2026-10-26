@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 
 import { createOpening } from './.build/src/candidates/opening.js';
 import {
-    PAGE_SIZE, busyInputAction, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems
+    PAGE_SIZE, barPercent, busyInputAction, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems
 } from './.build/src/candidates/panel-model.js';
 
 const deferred = () => {
@@ -29,6 +29,14 @@ const openingHarness = () => {
 };
 
 const candidatesPanelChecks = {
+    'panel: the bar fills for a known total and pulses for an unknown one': async () => {
+        assert.equal(barPercent(1, 4), 25);
+        assert.equal(barPercent(0, 10), 0);
+        assert.equal(barPercent(10, 10), 100);
+        assert.equal(barPercent(), null);
+        assert.equal(barPercent(0, 0), null);
+    },
+
     'panel: opens before the estimate resolves and shows reading': async () => {
         const { wait, log, opening } = openingHarness();
         const opened = opening.open();

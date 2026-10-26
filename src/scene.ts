@@ -645,7 +645,11 @@ class Scene {
 
         this.projectedSplatRenderer.render();
 
-        this.events.fire('prerender', this.camera.displayTransform);
+        // a frame rendered from an overridden pose (a view capture) is not the
+        // viewport's, so overlays keep their layout from the live view
+        if (!this.camera.poseOverride) {
+            this.events.fire('prerender', this.camera.displayTransform);
+        }
 
         // debug - display scene bound
         if (this.config.debug.showBound) {

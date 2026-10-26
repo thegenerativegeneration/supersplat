@@ -4,6 +4,7 @@ import type { Pose } from './camera-poses';
 import { ElementType } from './element';
 import { Events } from './events';
 import { Scene } from './scene';
+import type { Splat } from './splat';
 import { canvasOf, createViewCapture } from './view-capture';
 
 // quiet time after the last input before a tile renders
@@ -125,6 +126,7 @@ const registerKeyThumbnailEvents = (events: Events, scene: Scene) => {
             capturing = new Promise((resolve) => {
                 done = resolve;
             });
+            events.fire('thumbs.capture', true);
             return true;
         }).finally(() => {
             if (!done) return;
@@ -132,6 +134,7 @@ const registerKeyThumbnailEvents = (events: Events, scene: Scene) => {
                 capture.restore();
             } finally {
                 capturing = null;
+                events.fire('thumbs.capture', false);
                 done();
             }
         });
@@ -145,14 +148,16 @@ const registerKeyThumbnailEvents = (events: Events, scene: Scene) => {
         onTile: (id, canvas) => events.fire('keys.thumbnail', id, canvas)
     });
 
-    events.function('thumbs.capturing', () => capturing !== null);
-
     // the claim's counter rises first, so a tile queued behind it steps aside
     events.function('render.claim', () => (capturing ?? Promise.resolve()).then(() => {
         counts.claims++;
     }));
 
-    const poses = () => events.invoke('camera.poses') as Pose[] ?? [];
+    // keys without a fov show the live one
+    const poses = () => {
+        const fov = scene.camera.fov;
+        return (events.invoke('camera.poses') as Pose[] ?? []).map(p => (p.fov === undefined ? { ...p, fov } : p));
+    };
     const keysChanged = () => {
         queue.input();
         queue.invalidate(poses());
@@ -169,9 +174,21 @@ const registerKeyThumbnailEvents = (events: Events, scene: Scene) => {
     for (const name of ['scene.elementAdded', 'scene.elementRemoved']) {
         events.on(name, (element: { type: ElementType }) => element?.type === ElementType.splat && sceneChanged());
     }
-    for (const name of ['splat.moved', 'splat.visibility', 'splat.stateChanged', 'splat.positionsChanged', 'splat.replaced']) {
+    for (const name of ['splat.moved', 'splat.visibility', 'splat.colorsChanged', 'splat.positionsChanged', 'splat.replaced']) {
         events.on(name, sceneChanged);
     }
+    // tiles show the clean shot: selecting changes nothing in them, hiding
+    // and deleting do
+    const hiddenCounts = new Map<Splat, string>();
+    const hiddenOf = (splat: Splat) => `${splat.numDeleted} ${splat.numLocked}`;
+    events.on('scene.elementAdded', (element: Splat) => element?.type === ElementType.splat && hiddenCounts.set(element, hiddenOf(element)));
+    events.on('scene.elementRemoved', (element: Splat) => hiddenCounts.delete(element));
+    events.on('splat.stateChanged', (splat: Splat) => {
+        if (hiddenCounts.get(splat) === hiddenOf(splat)) return;
+        hiddenCounts.set(splat, hiddenOf(splat));
+        sceneChanged();
+    });
+    events.on('camera.fov', () => queue.invalidate(poses()));
 
     events.on('timeline.frame', () => queue.input());
     events.on('timeline.keyStrip', (shown: boolean) => {

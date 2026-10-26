@@ -44,6 +44,7 @@ import { pathLineChecks } from './path-line.mjs';
 import { progressHandleChecks } from './progress-handle.mjs';
 import { pathMarkersChecks } from './path-markers.mjs';
 import { timingEventsChecks } from './timing-events.mjs';
+import { viewCaptureChecks } from './view-capture.mjs';
 import { webmcpChecks } from './webmcp.mjs';
 
 const barrier = () => {
@@ -127,6 +128,7 @@ const checks = {
     ...pathMarkersChecks,
     ...progressHandleChecks,
     ...timingEventsChecks,
+    ...viewCaptureChecks,
     ...webmcpChecks,
 
     async 'enqueue is strictly FIFO'() {

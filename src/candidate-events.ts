@@ -10,7 +10,7 @@ import { ElementType } from './element';
 import { Events } from './events';
 import { Scene } from './scene';
 import { Splat } from './splat';
-import { canvasOf, createViewCapture } from './view-capture';
+import { canvasOf, claimRendering, createViewCapture } from './view-capture';
 
 const copyPrepared = (p: Estimate): Estimate => ({ ...p, box: { min: { ...p.box.min }, max: { ...p.box.max } } });
 
@@ -91,7 +91,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     // the last finished estimate, null before one or after the splats changed
     events.function('candidates.estimated', () => (lastEstimate && estimate?.points === points ? copyPrepared(lastEstimate) : null));
 
-    events.function('candidates.generate', async (opts: GenerateOptions, signal: AbortSignal): Promise<Scored[]> => {
+    events.function('candidates.generate', (opts: GenerateOptions, signal: AbortSignal): Promise<Scored[]> => claimRendering(events, async () => {
         if (running || scene.lockedRenderMode) throw new Error('candidates.generate: the editor is already rendering');
         running = true;
         try {
@@ -127,7 +127,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         } finally {
             running = false;
         }
-    });
+    }));
 };
 
 export { registerCandidateEvents };

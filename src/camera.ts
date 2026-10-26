@@ -147,6 +147,10 @@ class Camera extends Element {
 
     // overridden target size
     targetSizeOverride: { width: number, height: number } = null;
+    // the size the last camera.resize announced
+    private announcedSize: { width: number, height: number } = null;
+    // the viewport's view as change detection last saw it
+    private viewState: (number | string)[] = [];
 
     // when set, overrides the tween-driven pose, fov and clipping planes each
     // update (used by 360 capture to render arbitrary face orientations that
@@ -544,14 +548,15 @@ class Camera extends Element {
         this.setDistance(prevDistance / this.sceneRadius, 0);
     }
 
+    // A view capture (pose override, offscreen size) renders from elsewhere
+    // without moving the viewport's camera, so change detection sees the
+    // viewport's view and size and the frame after a capture isn't motion.
     serialize(serializer: Serializer) {
-        serializer.packa(this.worldTransform.data);
-        serializer.pack(
-            this.fov,
-            this.tonemapping,
-            this.targetSize.width,
-            this.targetSize.height
-        );
+        if (!this.poseOverride) {
+            const { width, height } = this.scene.targetSize;
+            this.viewState = [...this.worldTransform.data, this.fov, this.tonemapping, width, height];
+        }
+        serializer.packa(this.viewState);
     }
 
     // handle the viewer canvas resizing
@@ -685,7 +690,12 @@ class Camera extends Element {
 
         this.camera.horizontalFov = width > height;
         this.camera.aspectRatio = width / height;
-        scene.events.fire('camera.resize', { width, height });
+        // offscreen captures resize only for themselves; tools hear the viewport's size
+        const announced = this.announcedSize;
+        if (!this.targetSizeOverride && (announced?.width !== width || announced?.height !== height)) {
+            this.announcedSize = { width, height };
+            scene.events.fire('camera.resize', { width, height });
+        }
     }
 
     onUpdate(deltaTime: number) {

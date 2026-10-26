@@ -12,6 +12,7 @@ import { injectSphericalMetadata } from './spherical-metadata';
 import { Splat } from './splat';
 import { i18n } from './ui/localization';
 import { buildVideoEncoderConfig, getVideoCodecType, VideoSettings } from './video-config';
+import { claimRendering } from './view-capture';
 
 const nullClr = new Color(0, 0, 0, 0);
 
@@ -154,14 +155,7 @@ const registerRenderEvents = (scene: Scene, events: Events) => {
     const busy = () => new EditorError('busy', 'The editor is already rendering. Wait for it to finish.');
 
     // background captures (key thumbnails) finish first and stay off while the render runs
-    const claimed = <A extends unknown[], R>(render: (...args: A) => Promise<R>) => async (...args: A) => {
-        await events.invoke('render.claim');
-        try {
-            return await render(...args);
-        } finally {
-            events.fire('render.release');
-        }
-    };
+    const claimed = <A extends unknown[], R>(render: (...args: A) => Promise<R>) => (...args: A) => claimRendering(events, () => render(...args));
 
     events.function('render.image', claimed(async (imageSettings: ImageSettings, fileStream?: FileSystemWritableFileStream) => {
         if (scene.lockedRenderMode) throw busy();

@@ -91,7 +91,7 @@ const GEN_OPTS = { box: BIG_BOX, eyeHeight: 1.6, budget: 12, seed: 1, fov: 60 };
 
 // a splat-shaped object over one source chunk; rows are [x, y, z, opacityLogit],
 // geometricRows optionally gives whole 8-float geometric rows
-const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true, geometricRows = [] } = {}) => {
+const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true, geometricRows = [], chunkSize = 64 } = {}) => {
     const n = rows.length;
     const layouts = { position: { stride: 12, fields: {} }, geometric: { stride: 32, fields: {} } };
     return {
@@ -107,7 +107,7 @@ const fakeSplat = (rows, { flags = [], world = new Mat4(), visible = true, geome
         },
         resource: {
             source: {
-                meta: { chunkSize: 64, numChunks: [1], numGaussians: n, layouts },
+                meta: { chunkSize, numChunks: [1], numGaussians: n, layouts },
                 read: async ({ position, geometric }) => {
                     const pos = new Float32Array(position.data);
                     const geo = new Float32Array(geometric.data);
@@ -364,12 +364,48 @@ const candidatesChecks = {
         assert.ok(out[3 * 9] > 30, `${out}`);
     },
 
-    'candidates: point readback reports the chunks read': async () => {
+    'candidates: point readback reports the instances read': async () => {
         const seen = [];
         const layers = [fakeSplat([[1, 2, 3, 5]]), fakeSplat([[4, 5, 6, 5]])];
         await readOpaquePoints(layers, undefined, (stage, done, total) => seen.push([stage, done, total]));
         assert.deepEqual(seen[0], ['reading', 0, 2]);
         assert.deepEqual(seen[seen.length - 1], ['reading', 2, 2]);
+    },
+
+    'candidates: point readback yields inside one big chunk with the same result': async () => {
+        // 5000 splats in one chunk, every third transparent, every seventh locked
+        const rows = Array.from({ length: 5000 }, (v, i) => [i * 0.01, (i % 13) * 0.1, -i * 0.02, i % 3 === 0 ? -5 : 5]);
+        const flags = rows.map((r, i) => (i % 7 === 0 ? 2 : 0));
+        const geometricRows = rows.map((r, i) => [1, 0, 0, 0, Math.log(0.01 + (i % 5) * 0.01), Math.log(0.02), Math.log(0.03), 0]);
+        const read = async (clock, onProgress) => {
+            const realTimeout = globalThis.setTimeout;
+            let pauses = 0;
+            globalThis.setTimeout = (fn, ms) => {
+                pauses++;
+                return realTimeout(fn, ms);
+            };
+            performance.now = clock;
+            try {
+                const splat = fakeSplat(rows, { flags, geometricRows, chunkSize: 8192 });
+                return { ...(await readOpaquePoints([splat], undefined, onProgress)), pauses };
+            } finally {
+                delete performance.now;
+                globalThis.setTimeout = realTimeout;
+            }
+        };
+        // a clock that never moves never pauses; one that moves 5 ms per look pauses often
+        const still = await read(() => 0);
+        let t = 0;
+        const seen = [];
+        const paced = await read(() => (t += 5), (stage, done, total) => seen.push([stage, done, total]));
+        assert.equal(still.pauses, 0);
+        assert.ok(paced.pauses >= 1, `${paced.pauses} pauses`);
+        assert.deepEqual([...paced.points], [...still.points]);
+        assert.deepEqual([...paced.extents], [...still.extents]);
+        const eligible = rows.length - flags.filter(f => f).length;
+        assert.deepEqual(seen[0], ['reading', 0, eligible]);
+        assert.ok(seen.some(([, done]) => done > 0 && done < eligible), JSON.stringify(seen));
+        assert.deepEqual(seen[seen.length - 1], ['reading', eligible, eligible]);
     },
 
     'candidates: image and video renders refuse while a locked render runs': async () => {

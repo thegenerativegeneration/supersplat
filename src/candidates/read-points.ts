@@ -41,6 +41,16 @@ const transformsOf = (splat: Splat) => {
     };
 };
 
+// resolves once the browser painted a frame, so a caller's "reading" shows
+// before the first chunk; a plain task where nothing paints
+const afterPaint = () => new Promise<void>((resolve) => {
+    if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => setTimeout(resolve, 0));
+    } else {
+        setTimeout(resolve, 0);
+    }
+});
+
 // Pauses for the browser once YIELD_MS passed since the last pause, reporting
 // the instances read so far out of total. due() is cheap enough to call every
 // CHECK_EVERY slots.
@@ -62,12 +72,13 @@ const pacer = (total: number, onProgress?: ProgressFn) => {
 // of opaque (sigmoid(opacity) > 0.5), finite splats of visible layers,
 // skipping hidden instances. Every stride-th unhidden instance is read, then
 // the opaque ones are thinned evenly to at most maxPoints. Yields to the
-// browser every YIELD_MS, also inside a chunk, and reports the unhidden
-// instances read then, at the start and at the end.
+// browser first and then every YIELD_MS, also inside a chunk, and reports
+// the unhidden instances read then, at the start and at the end.
 const readOpaquePoints = async (splats: Splat[], maxPoints = 500000, onProgress?: ProgressFn): Promise<OpaquePoints> => {
     const layers = splats.filter(s => s.visible);
     const eligible = layers.reduce((n, s) => n + s.instances.count - s.instances.numLocked, 0);
     onProgress?.('reading', 0, eligible);
+    await afterPaint();
     const pace = pacer(eligible, onProgress);
     const stride = Math.max(1, Math.floor(eligible / (2 * maxPoints)));
     const out = new Float32Array(Math.ceil(eligible / stride) * 3);

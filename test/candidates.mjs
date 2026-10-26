@@ -393,13 +393,14 @@ const candidatesChecks = {
                 globalThis.setTimeout = realTimeout;
             }
         };
-        // a clock that never moves never pauses; one that moves 5 ms per look pauses often
+        // a clock that never moves never pauses inside the chunk; one that moves 5 ms per look does
         const still = await read(() => 0);
         let t = 0;
         const seen = [];
         const paced = await read(() => (t += 5), (stage, done, total) => seen.push([stage, done, total]));
-        assert.equal(still.pauses, 0);
-        assert.ok(paced.pauses >= 1, `${paced.pauses} pauses`);
+        // one pause before reading, more inside the chunk when the clock moves
+        assert.equal(still.pauses, 1);
+        assert.ok(paced.pauses >= 2, `${paced.pauses} pauses`);
         assert.deepEqual([...paced.points], [...still.points]);
         assert.deepEqual([...paced.extents], [...still.extents]);
         const eligible = rows.length - flags.filter(f => f).length;

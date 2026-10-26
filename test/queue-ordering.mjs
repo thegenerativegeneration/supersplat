@@ -22,6 +22,7 @@ import { computeHandlerChecks } from './compute-handler.mjs';
 import { fixPlanBalanceChecks } from './fix-plan-balance.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
+import { fixPathCancelChecks } from './fix-path-cancel.mjs';
 import { fixPathEventsChecks } from './fix-path-events.mjs';
 import { fixPathOrbitChecks } from './fix-path-orbit.mjs';
 import { fixPathOverviewChecks } from './fix-path-overview.mjs';
@@ -102,6 +103,7 @@ const checks = {
     ...editorCommandChecks,
     ...fixPathChecks,
     ...fixPathEventsChecks,
+    ...fixPathCancelChecks,
     ...fixPathOrbitChecks,
     ...fixPathOverviewChecks,
     ...fixPathQualityChecks,

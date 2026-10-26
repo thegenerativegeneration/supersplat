@@ -9,6 +9,7 @@ import { Events } from './.build/src/events.js';
 import { registerOrbitEvents } from './.build/src/orbit-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
 import { i18n } from './.build/src/ui/localization.js';
+import { progressCounts } from './progress-counts.mjs';
 
 const EYE = 1.6;
 const BOX = { min: { x: -20, y: -1, z: -20 }, max: { x: 20, y: 6, z: 20 } };
@@ -82,14 +83,6 @@ const setup = (points, poses = [], opts = {}) => {
     events.on('edit.add', op => ops.push(op));
     events.fire('camera.loadPoses', poses);
     return { events, ops, popups };
-};
-
-// counts of progressStart and progressEnd
-const progressCounts = (events) => {
-    const counts = { start: 0, end: 0 };
-    events.on('progressStart', () => counts.start++);
-    events.on('progressEnd', () => counts.end++);
-    return counts;
 };
 
 const byFrame = events => events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame);

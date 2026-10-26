@@ -7,6 +7,7 @@ import { Events } from './.build/src/events.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
 import { fallbackAppendFrames, registerViewKeyEvents } from './.build/src/view-keys.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
+import { progressCounts } from './progress-counts.mjs';
 
 const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) => (i === 1 ? null : 1)), poseAt = null, total = 181) => {
     const events = new Events();
@@ -41,14 +42,6 @@ const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) =>
         ...(lingers[i] ? { linger: lingers[i] } : {})
     })));
     return { events, ops, popups };
-};
-
-// counts of progressStart and progressEnd
-const progressCounts = (events) => {
-    const counts = { start: 0, end: 0 };
-    events.on('progressStart', () => counts.start++);
-    events.on('progressEnd', () => counts.end++);
-    return counts;
 };
 
 const sortedKeys = events => [...events.invoke('track.keys')].sort((a, b) => a - b);

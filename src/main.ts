@@ -16,6 +16,7 @@ import { initFileHandler } from './file-handler';
 import { registerFixPathEvents } from './fix-path-events';
 import { registerIframeApi } from './iframe-api';
 import { registerKeyPickEvents } from './key-pick';
+import { registerKeyPick3dEvents } from './key-pick-3d';
 import { registerKeySelectionEvents } from './key-selection';
 import { registerKeyThumbnailEvents } from './key-thumbnails';
 import { registerOrbitEvents } from './orbit-events';
@@ -319,6 +320,7 @@ const main = async () => {
     registerRenderEvents(scene, events);
     registerCandidateEvents(events, scene);
     registerKeyPickEvents(events, scene);
+    registerKeyPick3dEvents(events, scene);
     registerKeyThumbnailEvents(events, scene);
     initFileHandler(scene, events, editorUI.appContainer.dom);
 

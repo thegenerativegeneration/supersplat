@@ -18,6 +18,7 @@ import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
 import { keyEditorModelChecks } from './key-editor-model.mjs';
 import { keyMarkerGesturesChecks } from './key-marker-gestures.mjs';
+import { keyPick3dChecks } from './key-pick-3d.mjs';
 import { keyPickChecks } from './key-pick.mjs';
 import { keySelectionChecks } from './key-selection.mjs';
 import { keyThumbnailsChecks } from './key-thumbnails.mjs';
@@ -102,6 +103,7 @@ const checks = {
     ...cameraTrackChecks,
     ...keyEditorModelChecks,
     ...keyMarkerGesturesChecks,
+    ...keyPick3dChecks,
     ...keyPickChecks,
     ...keySelectionChecks,
     ...keyThumbnailsChecks,

@@ -13,7 +13,7 @@ import { buildCameraCurve } from './anim/camera-curve';
 import { Pose } from './camera-poses';
 import { Element, ElementType } from './element';
 import type { PathMarkers } from './fix-path-events';
-import { BEFORE_PATH_COLOR, LOOK_TICK_COLOR, type Rgb } from './path/colors';
+import { BEFORE_PATH_COLOR, LOOK_TICK_COLOR, USER_KEY_COLOR, type Rgb } from './path/colors';
 import { lookTickLength, poseColors, sampleLookTicks, samplePathLine } from './path-line';
 import { vertexShader, fragmentShader } from './shaders/debug-shader';
 
@@ -120,6 +120,7 @@ class CameraPoseGizmos extends Element {
         events.on('timeline.smoothness', markDirty);
         events.on('timeline.loop', markDirty);
         events.on('timeline.frames', markDirty);
+        events.on('keys.selectionChanged', markDirty);
         events.on('timeline.frameRate', markDirty);
         events.on('path.markers', (markers: PathMarkers) => {
             this.blocked = markers.blocked;
@@ -285,8 +286,11 @@ class CameraPoseGizmos extends Element {
             pushLine(tmpTR, tmpUpTip);
         }
 
-        // per camera: unreachable and parked keys red, detour keys in the auto colour
-        poseColors(poses, this.unreachable, this.scene.events.invoke('timeline.frames')).forEach((rgb, p) => {
+        // per camera: unreachable and parked keys red, detour keys in the auto
+        // colour, selected keys in the user-key orange
+        const selected = new Set(this.scene.events.invoke('keys.selected') as string[]);
+        poseColors(poses, this.unreachable, this.scene.events.invoke('timeline.frames')).forEach((color, p) => {
+            const rgb = selected.has(poses[p].id) ? USER_KEY_COLOR : color;
             for (let i = p * VERTS_PER_CAMERA; i < (p + 1) * VERTS_PER_CAMERA; i++) {
                 for (let c = 0; c < 3; c++) colors[i * 4 + c] = Math.round(rgb[c] * 255);
                 colors[i * 4 + 3] = 255;

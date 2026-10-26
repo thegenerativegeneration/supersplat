@@ -4,7 +4,7 @@ import { Events } from '../events';
 import { ShortcutManager } from '../shortcut-manager';
 import { BalanceControls } from './balance-controls';
 import { FixPathControls } from './fix-path-controls';
-import { KeyLingerPopover } from './key-linger-popover';
+import { KeyEditor } from './key-editor';
 import { i18n } from './localization';
 import { OrbitControls } from './orbit-controls';
 import { createStatusLine } from './status-line';
@@ -171,7 +171,7 @@ class TimelinePanel extends Container {
 
         this.append(controlsWrap);
         this.append(ticks);
-        this.append(new KeyLingerPopover(events));
+        this.append(new KeyEditor(events, tooltips));
 
         // ui handlers
 
@@ -219,6 +219,7 @@ class TimelinePanel extends Container {
         const { show: showStatus } = createStatusLine(this, ticks.dom);
         events.on('track.refused', (reason: string) => {
             if (reason === 'frameTaken') showStatus(i18n.t('status.frame-taken'));
+            if (reason === 'outOfRange') showStatus(i18n.t('status.out-of-range'));
         });
 
         // cancel animation playback if user interacts with camera

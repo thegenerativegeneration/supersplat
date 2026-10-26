@@ -16,7 +16,9 @@ import { balanceTimingChecks } from './balance-timing.mjs';
 import { cameraKeyframesChecks } from './camera-keyframes.mjs';
 import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
+import { keyEditorModelChecks } from './key-editor-model.mjs';
 import { keyMarkerGesturesChecks } from './key-marker-gestures.mjs';
+import { keyPickChecks } from './key-pick.mjs';
 import { keySelectionChecks } from './key-selection.mjs';
 import { lookAheadChecks } from './look-ahead.mjs';
 import { isovistChecks } from './isovist.mjs';
@@ -96,7 +98,9 @@ const checks = {
     ...candidatesPanelChecks,
     ...isovistChecks,
     ...cameraTrackChecks,
+    ...keyEditorModelChecks,
     ...keyMarkerGesturesChecks,
+    ...keyPickChecks,
     ...keySelectionChecks,
     ...lookAheadChecks,
     ...cameraKeyframesChecks,

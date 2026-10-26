@@ -66,11 +66,12 @@ const applyKeyChange = (pose: Pose, c: KeyChange): boolean => {
         (c.frame !== undefined && c.frame !== pose.frame) ||
         (c.linger !== undefined && clamp(c.linger, 0, MAX_LINGER) !== (pose.linger ?? 0)) ||
         (c.lookAhead !== undefined && c.lookAhead !== !!pose.lookAhead) ||
-        (c.turnIn !== undefined && clamp(c.turnIn, 0.1, 10) !== pose.turnIn);
+        (c.turnIn !== undefined && clamp(c.turnIn, 0.1, 10) !== pose.turnIn) ||
+        (c.fov !== undefined && c.fov !== pose.fov);
+    // a new position or target leaves the orbit; a new fov keeps it
     const viewDiffers =
         (c.position !== undefined && !c.position.equals(pose.position)) ||
-        (c.target !== undefined && !c.target.equals(pose.target)) ||
-        (c.fov !== undefined && c.fov !== pose.fov);
+        (c.target !== undefined && !c.target.equals(pose.target));
     if (!differs && !viewDiffers) return false;
 
     if (c.frame !== undefined) pose.frame = c.frame;

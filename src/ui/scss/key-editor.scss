@@ -1,0 +1,133 @@
+@use 'colors.scss' as *;
+
+// popover that edits the selected camera keys (see key-editor.ts)
+.key-editor {
+    position: fixed;
+    z-index: 100;
+    width: 240px;
+    padding: 8px;
+    flex-direction: column;
+    gap: 4px;
+    background-color: $bcg-primary;
+    border: 1px solid $bcg-darker;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+
+    &:not(.pcui-hidden) {
+        display: flex;
+    }
+
+    .pcui-label {
+        margin: 0;
+    }
+
+    > .key-editor-header {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        margin-bottom: 2px;
+
+        > .key-editor-title {
+            flex-grow: 1;
+            font-weight: bold;
+            color: $clr-active;
+        }
+
+        > .key-editor-close {
+            width: 20px;
+            height: 20px;
+            min-width: 0;
+            margin: 0;
+            padding: 0;
+            line-height: 18px;
+            font-size: 16px;
+            border: none;
+            background: none;
+        }
+    }
+
+    > .key-editor-row,
+    > .key-editor-more > .key-editor-vector {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
+
+        > .key-editor-label {
+            flex-grow: 1;
+        }
+
+        > .key-editor-input {
+            width: 70px;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        > .key-editor-toggle {
+            margin: 0;
+            flex-shrink: 0;
+        }
+    }
+
+    > .key-editor-more {
+        flex-direction: column;
+        gap: 4px;
+
+        &:not(.pcui-hidden) {
+            display: flex;
+        }
+
+        > .key-editor-vector > .key-editor-label {
+            width: 52px;
+            flex-grow: 0;
+            flex-shrink: 0;
+        }
+
+        > .key-editor-vector > .key-editor-input {
+            width: 0;
+            flex-grow: 1;
+        }
+    }
+
+    > .key-editor-buttons {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 4px;
+
+        > .key-editor-button {
+            flex: 1 1 auto;
+            margin: 0;
+            padding: 0 6px;
+            height: 24px;
+            line-height: 22px;
+            font-size: 12px;
+
+            &.active {
+                color: $clr-hilight;
+                border-color: $clr-hilight;
+            }
+        }
+
+        // Update to view on its own line, the two picks below it
+        &.key-editor-view > .key-editor-button:first-child {
+            flex-basis: 100%;
+        }
+    }
+
+    > .key-editor-hint {
+        font-size: 11px;
+        white-space: normal;
+        color: $clr-disabled;
+    }
+}
+
+// a Pick of the key editor waits for a click on the scene
+body.key-picking {
+    #canvas,
+    #tools-container,
+    #tools-container * {
+        cursor: crosshair !important;
+    }
+}

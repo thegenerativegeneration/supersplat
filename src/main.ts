@@ -15,6 +15,7 @@ import { Events } from './events';
 import { initFileHandler } from './file-handler';
 import { registerFixPathEvents } from './fix-path-events';
 import { registerIframeApi } from './iframe-api';
+import { registerKeyPickEvents } from './key-pick';
 import { registerKeySelectionEvents } from './key-selection';
 import { registerOrbitEvents } from './orbit-events';
 import { registerPreferences } from './preferences';
@@ -316,6 +317,7 @@ const main = async () => {
     registerDocEvents(scene, events);
     registerRenderEvents(scene, events);
     registerCandidateEvents(events, scene);
+    registerKeyPickEvents(events, scene);
     initFileHandler(scene, events, editorUI.appContainer.dom);
 
     // apply stored user preferences and start capturing changes to them.

@@ -311,48 +311,6 @@
     }
 }
 
-// opened by right-clicking a key marker (see key-linger-popover.ts)
-.key-linger-popover {
-    position: fixed;
-    z-index: 100;
-    min-width: 180px;
-    padding: 8px;
-    flex-direction: column;
-    gap: 6px;
-    background-color: $bcg-primary;
-    border: 1px solid $bcg-darker;
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-
-    &:not(.pcui-hidden) {
-        display: flex;
-    }
-
-    > .key-linger-title {
-        margin: 0;
-        font-weight: bold;
-        color: $clr-active;
-    }
-
-    > .key-linger-row {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 8px;
-
-        > .key-linger-label {
-            margin: 0;
-            flex-grow: 1;
-        }
-
-        > .key-linger-input {
-            margin: 0;
-            width: 70px;
-            flex-shrink: 0;
-        }
-    }
-}
-
 // brief status after a clean Balance or Fix Path run (see status-line.ts)
 .status-line {
     position: fixed;

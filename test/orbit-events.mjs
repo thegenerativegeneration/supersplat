@@ -61,14 +61,16 @@ const setup = (points, poses = [], opts = {}) => {
         return Promise.resolve({ action: 'ok' });
     });
 
-    if (opts.onRun) {
-        // the inline compute, calling onRun once each run is on its way
+    if (opts.onRun || opts.failOp) {
+        // the inline compute, calling onRun once each run is on its way;
+        // runs of failOp reject
         const base = createSceneCompute([() => inlineTransport()]);
         const compute = {
             pointsVersion: cloud => base.pointsVersion(cloud),
             run: (op, args, runOpts) => {
+                if (op === opts.failOp) return Promise.reject(new Error(`${op} failed`));
                 const pending = base.run(op, args, runOpts);
-                opts.onRun(op, events);
+                opts.onRun?.(op, events);
                 return pending;
             }
         };
@@ -220,6 +222,29 @@ const orbitEventsChecks = {
         assert.equal(result.reason, 'blocked');
         assert.equal(result.added, 0);
         assert.equal(ops.length, 0);
+    },
+
+    async 'orbit: a failed curve check keeps the added keys and reports no blocks'() {
+        const { events, ops, popups } = setup(WALL, [pose('camera_0', 0, 6), pose('camera_1', 30, 5)], { failOp: 'orbitCheck' });
+        const counts = progressCounts(events);
+        const warn = console.warn;
+        const warns = [];
+        console.warn = (...args) => warns.push(args);
+        let result;
+        try {
+            result = await events.invoke('orbit.add', SPEC);
+        } finally {
+            console.warn = warn;
+        }
+        assert.equal(result.ok, true);
+        assert.equal(result.added, 17);
+        assert.equal(result.orbitBlocked, false);
+        assert.equal(result.joinBlocked, false, 'not checked, so not reported');
+        assert.equal(byFrame(events).length, 19);
+        assert.equal(ops.length, 1);
+        assert.equal(popups.length, 0);
+        assert.equal(warns.length, 1);
+        assert.deepEqual(counts, { start: 1, end: 1 });
     },
 
     async 'orbit: add cancelled during planning adds nothing and no undo op'() {

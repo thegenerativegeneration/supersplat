@@ -136,7 +136,13 @@ const addWith = async (events: Events, h: ProgressHandle, spec: OrbitSpec): Prom
     const added = (events.invoke('camera.poses') as Pose[]).filter(p => p.orbit === id).length;
     if (added !== keys.length) return { result: { ok: false, reason: 'rejected', radius, reduced, balance, ...NONE }, popup };
 
-    const check = await checkOrbitCurve(events, id, scene, h.update);
+    // the keys stay added when the check fails; it then reports no blocks
+    let check = { orbitBlocked: false, joinBlocked: false };
+    try {
+        check = await checkOrbitCurve(events, id, scene, h.update);
+    } catch (error) {
+        console.warn('orbit.add: the curve check failed', error);
+    }
     return { result: { ok: true, added, radius, reduced, balance, ...check }, popup };
 };
 

@@ -28,6 +28,8 @@ Fix Path repairs a camera shot in one click. It puts the keys in a good order, r
 
 The button is disabled with fewer than two keys. Detour keys are not counted.
 
+A longer run shows a progress bar with **Cancel**. Cancel leaves the keys as they were.
+
 ## Options
 
 Click the gear next to **Fix Path**.

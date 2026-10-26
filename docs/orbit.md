@@ -12,6 +12,7 @@ Orbit adds camera keys on a circle around a point in one click: a fountain, a st
 
 - The orbit keys go after your existing keys. Then the timing is balanced, like [Balance](balance-timing.md).
 - One Ctrl+Z removes the whole orbit.
+- A longer run shows a progress bar with **Cancel**. Cancel leaves the keys as they were. Once the keys are added, Cancel is gone for the final check ("Checking the orbit").
 - Splat files only. Hidden and locked splats are ignored.
 
 ## Fields

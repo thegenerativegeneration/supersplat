@@ -147,6 +147,8 @@ class Camera extends Element {
 
     // overridden target size
     targetSizeOverride: { width: number, height: number } = null;
+    // the size the last camera.resize announced
+    private announcedSize: { width: number, height: number } = null;
 
     // when set, overrides the tween-driven pose, fov and clipping planes each
     // update (used by 360 capture to render arbitrary face orientations that
@@ -685,7 +687,12 @@ class Camera extends Element {
 
         this.camera.horizontalFov = width > height;
         this.camera.aspectRatio = width / height;
-        scene.events.fire('camera.resize', { width, height });
+        // offscreen captures resize only for themselves; tools hear the viewport's size
+        const announced = this.announcedSize;
+        if (!this.targetSizeOverride && (announced?.width !== width || announced?.height !== height)) {
+            this.announcedSize = { width, height };
+            scene.events.fire('camera.resize', { width, height });
+        }
     }
 
     onUpdate(deltaTime: number) {

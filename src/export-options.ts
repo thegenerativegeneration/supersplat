@@ -1,3 +1,4 @@
+import { cameraKeyframes } from './camera-keyframes';
 import type { Pose } from './camera-poses';
 import { Events } from './events';
 import type { WriteTarget } from './io';
@@ -80,18 +81,6 @@ const buildViewerSettings = (events: Events, choices: ExportChoices): ViewerExpo
         .sort((a, b) => a.frame - b.frame);
 
         if (orderedPoses.length > 0) {
-            const times: number[] = [];
-            const position: number[] = [];
-            const target: number[] = [];
-            const fovKeys: number[] = [];
-            for (let i = 0; i < orderedPoses.length; ++i) {
-                const op = orderedPoses[i];
-                times.push(op.frame);
-                position.push(op.position.x, op.position.y, op.position.z);
-                target.push(op.target.x, op.target.y, op.target.z);
-                fovKeys.push(op.fov ?? fov);
-            }
-
             animTracks.push({
                 name: 'cameraAnim',
                 duration: frames / frameRate,
@@ -99,10 +88,7 @@ const buildViewerSettings = (events: Events, choices: ExportChoices): ViewerExpo
                 loopMode: choices.loopMode,
                 interpolation: 'spline',
                 smoothness,
-                keyframes: {
-                    times,
-                    values: { position, target, fov: fovKeys }
-                }
+                keyframes: cameraKeyframes(orderedPoses, { frames, frameRate, smoothness, loop: choices.loopMode === 'repeat', fov })
             });
         }
     }

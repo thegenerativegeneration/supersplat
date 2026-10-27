@@ -1,12 +1,16 @@
 import { Button, Container, Label, SelectInput } from '@playcanvas/pcui';
 
+import type { BalanceResult } from '../anim/balance-timing';
 import type { LevelInfo } from '../candidates/generate';
-import { PAGE_SIZE, busyInputAction, candidatePose, levelOptions, togglePick, visibleItems, type ViewPose } from '../candidates/panel-model';
+import { createOpening } from '../candidates/opening';
+import { PAGE_SIZE, barPercent, busyInputAction, candidatePose, levelOptions, togglePick, visibleItems, type ViewPose } from '../candidates/panel-model';
 import type { Scored } from '../candidates/score';
+import type { Stage } from '../compute/protocol';
 import { Events } from '../events';
 import { Scene } from '../scene';
 import { CandidatesSetup, type Prepared } from './candidates-setup';
 import { i18n } from './localization';
+import { createStatusLine } from './status-line';
 import { Tooltips } from './tooltips';
 
 const BUDGET = 240;
@@ -53,6 +57,11 @@ class CandidatesPanel extends Container {
         const barFill = document.createElement('div');
         barFill.className = 'candidates-bar-fill';
         bar.appendChild(barFill);
+        // percent filled, or null to pulse
+        const setBar = (percent: number | null) => {
+            bar.classList.toggle('pulsate', percent === null);
+            barFill.style.width = `${percent ?? 0}%`;
+        };
         const progressText = new Label({ class: 'candidates-progress-text' });
         const cancelButton = new Button({ class: 'candidates-small-button' });
         i18n.bindText(cancelButton, 'candidates.cancel');
@@ -91,11 +100,10 @@ class CandidatesPanel extends Container {
         this.dom.appendChild(grid);
         this.append(moreButton);
         this.append(footer);
+        const { show: showStatus } = createStatusLine(this, addButton.dom);
 
         // state
-        let prepared: Prepared | null = null;
         let running = false;
-        let preparing = false;
         let abort: AbortController | null = null;
         let items: Scored[] = [];
         let streamed: Scored[] = [];
@@ -252,7 +260,7 @@ class CandidatesPanel extends Container {
             pages = 1;
             thumbs.clear();
             setMessage(null);
-            barFill.style.width = '0%';
+            setBar(0);
             progressText.text = '';
             progressRow.hidden = false;
             editSetupButton.hidden = true;
@@ -297,52 +305,75 @@ class CandidatesPanel extends Container {
             }
         };
 
+        const showLoading = () => {
+            setBar(null);
+            progressText.text = i18n.t('candidates.reading');
+            cancelButton.hidden = true;
+            progressRow.hidden = false;
+        };
+        const hideLoading = () => {
+            cancelButton.hidden = false;
+            progressRow.hidden = true;
+        };
+        const showReadProgress = (stage: Stage, done?: number, total?: number) => {
+            if (!progressRow.hidden && !running) {
+                setBar(barPercent(done, total));
+                progressText.text = i18n.t(stage === 'reading' ? 'candidates.reading' : `progress.${stage}`);
+            }
+        };
+
+        let loaded: Prepared | null = null;
+        const opening = createOpening<Prepared>({
+            prepare: onProgress => events.invoke('candidates.prepare', onProgress),
+            onProgress: showReadProgress,
+            onLoading: showLoading,
+            onReady: (value) => {
+                hideLoading();
+                if (value.points === 0) {
+                    opening.forget();
+                    this.hidden = true;
+                    events.invoke('showPopup', {
+                        type: 'error',
+                        header: i18n.t('candidates.failed'),
+                        message: i18n.t('candidates.no-points')
+                    });
+                    return;
+                }
+                // the user's edits of the area stay while the same estimate is shown
+                if (loaded !== value) setup.load(value);
+                loaded = value;
+                openSetup();
+            },
+            onFailed: (error: any) => {
+                hideLoading();
+                this.hidden = true;
+                events.invoke('showPopup', {
+                    type: 'error',
+                    header: i18n.t('candidates.failed'),
+                    message: String(error?.message ?? error)
+                });
+            }
+        });
+
+        // closing while the scene is read only detaches: the shared read goes on
         const close = () => {
-            if (running || preparing) return;
+            if (running) return;
+            opening.close();
+            hideLoading();
             endPreview();
             closeSetup();
             this.hidden = true;
         };
 
         const open = async () => {
-            if (running || preparing) return;
+            if (running) return;
             this.hidden = false;
-            if (!prepared) {
-                preparing = true;
-                events.fire('startSpinner');
-                try {
-                    prepared = await events.invoke('candidates.prepare');
-                } catch (error) {
-                    prepared = null;
-                    await events.invoke('showPopup', {
-                        type: 'error',
-                        header: i18n.t('candidates.failed'),
-                        message: String(error?.message ?? error)
-                    });
-                } finally {
-                    preparing = false;
-                    events.fire('stopSpinner');
-                }
-                if (!prepared || prepared.points === 0) {
-                    if (prepared) {
-                        await events.invoke('showPopup', {
-                            type: 'error',
-                            header: i18n.t('candidates.failed'),
-                            message: i18n.t('candidates.no-points')
-                        });
-                    }
-                    prepared = null;
-                    this.hidden = true;
-                    return;
-                }
-                setup.load(prepared);
-            }
-            openSetup();
+            await opening.open();
         };
 
         // a changed scene needs a new proposal next time the panel opens
         const forget = () => {
-            if (!running) prepared = null;
+            if (!running) opening.forget();
         };
         ['scene.elementAdded', 'scene.elementRemoved', 'splat.moved'].forEach(name => events.on(name, (element?: { type?: string }) => {
             if (!element?.type || element.type === 'splat') forget();
@@ -360,7 +391,7 @@ class CandidatesPanel extends Container {
             levels = l;
         });
         events.on('candidates.progress', (done: number, total: number) => {
-            barFill.style.width = `${total > 0 ? Math.round(100 * done / total) : 0}%`;
+            setBar(barPercent(done, total) ?? 0);
             progressText.text = i18n.t('candidates.progress', { done, total });
         });
         events.on('candidates.added', (item: Scored, thumbnail: HTMLCanvasElement) => {
@@ -408,9 +439,10 @@ class CandidatesPanel extends Container {
             addButton.enabled = false;
             try {
                 const before = (events.invoke('camera.poses') as unknown[]).length;
-                await events.invoke('views.addKeys', views);
-                // keep the picks when nothing was appended (keys changed meanwhile)
+                const result = await events.invoke('views.addKeys', views) as BalanceResult;
+                // keep the picks when nothing was appended (keys changed meanwhile or cancelled)
                 if ((events.invoke('camera.poses') as unknown[]).length > before) picks = [];
+                if ('reason' in result && result.reason === 'cancelled') showStatus(i18n.t('status.cancelled'));
             } catch (error) {
                 await events.invoke('showPopup', {
                     type: 'error',

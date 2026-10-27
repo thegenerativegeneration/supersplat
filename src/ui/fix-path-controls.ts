@@ -8,12 +8,9 @@ import { fixReport } from '../path/markers';
 
 const MIN_KEYS = 2;
 
-// runs shorter than this finish without a spinner
-const SPINNER_DELAY_MS = 300;
+type Options = { keepOrder: boolean, allowFlying: boolean, smallestOpening: number, eyeHeight: number };
 
-type Options = { keepOrder: boolean, allowFlying: boolean, smallestOpening: number };
-
-type EyeHeightInfo = { eyeHeight: number, estimated: boolean, metric: boolean };
+type EyeHeightInfo = { eyeHeight: number, estimate: number, estimated: boolean, metric: boolean };
 
 // range of the smallest opening, as a fraction of eye height (see clampOpening)
 const OPENING_MIN = 0.25;
@@ -49,63 +46,89 @@ class FixPathOptions extends Container {
         const keepOrder = toggle('keepOrder', 'fix-path.keep-order', 'tooltip.fix-path.keep-order');
         const allowFlying = toggle('allowFlying', 'fix-path.allow-flying', 'tooltip.fix-path.allow-flying');
 
-        const openingRow = new Container({ class: 'fix-path-opening' });
-        const openingLabel = new Label({ class: 'fix-path-opening-label' });
-        i18n.bindText(openingLabel, 'fix-path.smallest-opening');
-        const openingInput = new NumericInput({ class: 'fix-path-opening-input', step: 0.4, precision: 2 });
-        const openingUnit = new Label({ class: 'fix-path-opening-unit' });
-        openingRow.append(openingLabel);
-        openingRow.append(openingInput);
-        openingRow.append(openingUnit);
-        this.append(openingRow);
-        tooltips.register(openingRow, () => i18n.t('tooltip.fix-path.smallest-opening'), 'right');
+        // a labelled number field with a unit
+        const numberRow = (text: string, tooltip: string, input: NumericInput) => {
+            const row = new Container({ class: 'fix-path-number' });
+            const label = new Label({ class: 'fix-path-number-label' });
+            i18n.bindText(label, text);
+            const unit = new Label({ class: 'fix-path-number-unit' });
+            row.append(label);
+            row.append(input);
+            row.append(unit);
+            this.append(row);
+            tooltips.register(row, () => i18n.t(tooltip), 'right');
+            return unit;
+        };
 
-        // set while the input shows the current setting, so the default stays a default
+        const eyeInput = new NumericInput({ class: 'fix-path-number-input', min: 0.01, step: 0.05, precision: 2, value: 1.6 });
+        const eyeUnit = numberRow('fix-path.eye-height', 'tooltip.fix-path.eye-height', eyeInput);
+        const eyeHint = new Label({ class: 'fix-path-hint' });
+        this.append(eyeHint);
+
+        const openingInput = new NumericInput({ class: 'fix-path-number-input', step: 0.4, precision: 2 });
+        const openingUnit = numberRow('fix-path.smallest-opening', 'tooltip.fix-path.smallest-opening', openingInput);
+
+        // set while the inputs show the current settings, so defaults stay defaults
         let syncing = false;
-        openingInput.on('change', (value: number) => {
-            if (!syncing && Number.isFinite(value)) events.fire('path.setSettings', { smallestOpening: value });
-        });
+        let metric = false;
 
-        const showOpening = (eye: number, metric: boolean) => {
+        const formatHeight = (height: number) => (Number.isFinite(height) ? height.toFixed(2) : '–');
+
+        const showOpening = (eye: number) => {
             syncing = true;
             openingInput.min = Number((OPENING_MIN * eye).toFixed(2));
             openingInput.max = Number((OPENING_MAX * eye).toFixed(2));
             openingInput.step = Number((OPENING_STEP * eye).toFixed(2));
             openingInput.value = Number((events.invoke('path.settings') as Options).smallestOpening.toFixed(2));
             syncing = false;
-            openingUnit.text = i18n.t(metric ? 'fix-path.unit-metres' : 'fix-path.unit-scene');
+            const unit = i18n.t(metric ? 'fix-path.unit-metres' : 'fix-path.unit-scene');
+            openingUnit.text = unit;
+            eyeUnit.text = unit;
         };
 
-        const eyeHeight = new Label({ class: 'fix-path-eye-height' });
-        const hint = new Label({ class: 'fix-path-hint' });
-        i18n.bindText(hint, 'fix-path.eye-height-hint');
-        this.append(eyeHeight);
-        this.append(hint);
+        const showHint = (info: EyeHeightInfo | null) => {
+            eyeHint.text = !info ? '' : info.estimated ?
+                i18n.t('fix-path.eye-height-estimated') :
+                i18n.t('fix-path.eye-height-estimate', { height: formatHeight(info.estimate) });
+        };
 
-        const formatHeight = (height: number) => (Number.isFinite(height) ? height.toFixed(2) : '–');
-
-        // the eye height Fix path will use (the last Suggest Views value, else
-        // the estimate) and the opening range and unit that follow from it
+        // the eye height Fix path will use (the user's, else the estimate),
+        // the opening range and unit that follow from it
         const showEyeHeight = async () => {
-            eyeHeight.text = i18n.t('fix-path.eye-height', { height: '…' });
             let info: EyeHeightInfo | null = null;
+            eyeHint.text = i18n.t('fix-path.estimating');
             try {
                 info = await events.invoke('path.eyeHeight') as EyeHeightInfo | null;
             } catch {
                 // no splats to estimate from
             }
             if (this.hidden) return;
-            const key = info && !info.estimated ? 'fix-path.eye-height' : 'fix-path.eye-height-estimated';
-            eyeHeight.text = i18n.t(key, { height: formatHeight(info?.eyeHeight ?? NaN) });
-            showOpening(info?.eyeHeight ?? 1.6, info?.metric ?? false);
+            metric = info?.metric ?? false;
+            syncing = true;
+            eyeInput.value = Number((info?.eyeHeight ?? 1.6).toFixed(2));
+            syncing = false;
+            showHint(info);
+            showOpening(info?.eyeHeight ?? 1.6);
         };
+
+        eyeInput.on('change', (value: number) => {
+            if (syncing || !Number.isFinite(value) || value <= 0) return;
+            events.fire('path.setSettings', { eyeHeight: value });
+            showEyeHeight();
+        });
+        openingInput.on('change', (value: number) => {
+            if (!syncing && Number.isFinite(value)) events.fire('path.setSettings', { smallestOpening: value });
+        });
 
         let anchorEl: HTMLElement | null = null;
 
         const close = () => {
-            // blur first: a typed opening only commits on blur, and must do so
+            // blur first: a typed number only commits on blur, and must do so
             // before a click on Fix Path runs
-            if (!this.hidden) openingInput.blur();
+            if (!this.hidden) {
+                eyeInput.blur();
+                openingInput.blur();
+            }
             this.hidden = true;
         };
         this.close = close;
@@ -116,8 +139,10 @@ class FixPathOptions extends Container {
             keepOrder.value = settings.keepOrder;
             allowFlying.value = settings.allowFlying;
             syncing = true;
+            eyeInput.value = Number(settings.eyeHeight.toFixed(2));
             openingInput.value = Number(settings.smallestOpening.toFixed(2));
             syncing = false;
+            eyeHint.text = '';
             this.hidden = false;
             showEyeHeight();
 
@@ -187,11 +212,6 @@ class FixPathControls extends Container {
             busy = true;
             hideStatus();
             updateEnabled();
-            let spinning = false;
-            const timer = setTimeout(() => {
-                spinning = true;
-                events.fire('startSpinner');
-            }, SPINNER_DELAY_MS);
             let result = null;
             let failure = null;
             try {
@@ -199,8 +219,6 @@ class FixPathControls extends Container {
             } catch (error) {
                 failure = error;
             } finally {
-                clearTimeout(timer);
-                if (spinning) events.fire('stopSpinner');
                 busy = false;
                 updateEnabled();
             }
@@ -210,6 +228,8 @@ class FixPathControls extends Container {
                     header: i18n.t('fix-path.failed'),
                     message: String(failure?.message ?? failure)
                 });
+            } else if (result?.reason === 'cancelled') {
+                showStatus(i18n.t('status.cancelled'));
             } else if (result) {
                 await showReport(result);
             }

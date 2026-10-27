@@ -20,6 +20,7 @@ import { PerfOverlay } from './perf-overlay';
 import logo from './playcanvas-logo.png';
 import { Popup, ShowOptions } from './popup';
 import { Progress } from './progress';
+import { registerProgressEvents } from './progress-events';
 import { PublishSettingsDialog } from './publish-settings-dialog';
 import { RightToolbar } from './right-toolbar';
 import { ScenePanel } from './scene-panel';
@@ -424,29 +425,7 @@ class EditorUI {
 
         topContainer.append(progress);
 
-        events.on('progressStart', (header: string, cancellable?: boolean) => {
-            progress.hidden = false;
-            progress.setHeader(header);
-            progress.setText('');
-            progress.setProgress(0);
-            progress.showCancelButton(!!cancellable);
-            progress.onCancel = cancellable ? () => events.fire('progressCancel') : null;
-        });
-
-        events.on('progressUpdate', (options: { text?: string, progress?: number }) => {
-            if (options.text !== undefined) {
-                progress.setText(options.text);
-            }
-            if (options.progress !== undefined) {
-                progress.setProgress(options.progress);
-            }
-        });
-
-        events.on('progressEnd', () => {
-            progress.hidden = true;
-            progress.showCancelButton(false);
-            progress.onCancel = null;
-        });
+        registerProgressEvents(events, progress);
 
         // initialize canvas to correct size before creating graphics device etc
         const pixelRatio = window.devicePixelRatio;

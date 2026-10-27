@@ -1,6 +1,6 @@
 import { path, Quat, Vec3 } from 'playcanvas';
 
-import type { Pose } from './camera-poses';
+import { newKeyId, type Pose } from './camera-poses';
 import { CreateDropHandler, resolveHandleFiles } from './drop-handler';
 import { checkCancelled, CommandOptions } from './editor-command';
 import { ElementType } from './element';
@@ -204,6 +204,7 @@ const loadCameraPoses = async (file: ImportFile, events: Events) => {
                 }
 
                 poses.push({
+                    id: newKeyId(),
                     name: pose.img_name ?? `${file.filename}_${i}`,
                     frame: i,
                     position: new Vec3(-p.x, -p.y, p.z),

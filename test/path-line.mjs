@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Vec3 } from 'playcanvas';
 
 import { buildCameraCurve } from './.build/src/anim/camera-curve.js';
-import { poseColors, samplePathLine } from './.build/src/path-line.js';
+import { lookTickLength, poseColors, sampleLookTicks, samplePathLine } from './.build/src/path-line.js';
 import { AUTO_KEY_COLOR, BLOCKED_COLOR } from './.build/src/path/colors.js';
 
 const keys = [0, 40, 80].map(x => ({ position: new Vec3(x, 1, 0), target: new Vec3(x, 1, -1), fov: 60 }));
@@ -69,6 +69,47 @@ const pathLineChecks = {
     'path: fewer than two keys give no lines': async () => {
         const { positions } = samplePathLine(curve, [0], { ...base, auto: [false] });
         assert.equal(positions.length, 0);
+    },
+
+    'path: a dashed line keeps every other segment'() {
+        const solid = samplePathLine(curve, frames, base);
+        const dashed = samplePathLine(curve, frames, { ...base, dashed: true });
+        assert.equal(dashed.positions.length * 2, solid.positions.length);
+        assert.equal(dashed.colors.length, dashed.positions.length);
+        assert.deepEqual(dashed.positions.slice(0, 6), solid.positions.slice(0, 6));
+        assert.deepEqual(dashed.positions.slice(6, 12), solid.positions.slice(12, 18));
+    },
+
+    'path: look ticks run from the camera towards its target at each step'() {
+        // the camera turns from looking at -z to looking at +x
+        const turning = [
+            { position: new Vec3(0, 1, 0), target: new Vec3(0, 1, -1), fov: 60 },
+            { position: new Vec3(10, 1, 0), target: new Vec3(11, 1, 0), fov: 60 }
+        ];
+        const c = buildCameraCurve(turning, [0, 30], { duration: 60, smoothness: 0, loop: false });
+        const ticks = sampleLookTicks(c, [0, 30], { step: 10, length: 2, duration: 60 });
+        // frames 0, 10, 20, 30
+        assert.equal(ticks.length / 6, 4);
+        const tick = n => ticks.slice(n * 6, n * 6 + 6);
+        const [x0, y0, z0, x1, y1, z1] = tick(0);
+        assert.deepEqual([x0, y0, z0], [0, 1, 0]);
+        assert.ok(Math.abs(Math.hypot(x1 - x0, y1 - y0, z1 - z0) - 2) < 1e-6, 'tick length');
+        assert.ok(z1 < z0, 'first tick looks along -z');
+        const last = tick(3);
+        assert.ok(last[3] > last[0] && Math.abs(last[5] - last[2]) < 1e-6, 'last tick looks along +x');
+    },
+
+    'path: look ticks wrap through the loop and skip a missing curve'() {
+        const c = buildCameraCurve(keys, frames, { duration: 120, smoothness: 1, loop: true });
+        const ticks = sampleLookTicks(c, frames, { step: 20, length: 1, duration: 120, loop: true });
+        // frames 0 to 120 (the first key again), every 20
+        assert.equal(ticks.length / 6, 7);
+        assert.deepEqual(sampleLookTicks(null, frames, { step: 20, length: 1, duration: 120 }), []);
+    },
+
+    'path: the look tick length follows the spread of the keys'() {
+        assert.ok(Math.abs(lookTickLength(keys) - 80 * 0.03) < 1e-9);
+        assert.equal(lookTickLength([keys[0]]), 0.1, 'at least the minimum');
     }
 };
 

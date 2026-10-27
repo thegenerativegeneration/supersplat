@@ -7,6 +7,7 @@ import { Events } from './.build/src/events.js';
 import { registerTimingEvents } from './.build/src/timing-events.js';
 import { fallbackAppendFrames, registerViewKeyEvents } from './.build/src/view-keys.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
+import { progressCounts } from './progress-counts.mjs';
 
 const setup = (frames, lingers = [], sample = async poses => poses.map((_, i) => (i === 1 ? null : 1)), poseAt = null, total = 181) => {
     const events = new Events();
@@ -102,8 +103,81 @@ const timingEventsChecks = {
         assert.equal(popups.length, 1);
         assert.equal(ops.length, 1);
         assert.deepEqual(sortedKeys(events), [0, 10, 25]);
-    }
-    ,
+    },
+
+    async 'balance: a look-ahead change while sampling counts as changed'() {
+        for (const change of [p => (p.lookAhead = true), p => (p.turnIn = 3)]) {
+            const { events, popups } = setup([0, 10, 20], [], async (poses, ev) => {
+                change(ev.invoke('camera.poses')[1]);
+                return poses.map(() => 1);
+            });
+            const result = await events.invoke('timing.balance');
+            assert.deepEqual(result, { ok: false, reason: 'keysChanged' });
+            assert.equal(popups.length, 1);
+            assert.deepEqual(sortedKeys(events), [0, 10, 20]);
+        }
+    },
+
+    async 'balance: a smoothness change while sampling counts as changed'() {
+        const { events, ops, popups } = setup([0, 10, 20], [], async (poses, ev) => {
+            ev.functions.delete('timeline.smoothness');
+            ev.function('timeline.smoothness', () => 0.5);
+            return poses.map(() => 1);
+        });
+        const result = await events.invoke('timing.balance');
+        assert.deepEqual(result, { ok: false, reason: 'keysChanged' });
+        assert.equal(popups.length, 1);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 10, 20]);
+    },
+
+    async 'balance: samples in batches of at most four, in order'() {
+        const sizes = [];
+        const seen = [];
+        const { events } = setup([0, 10, 20, 30, 40, 50, 60, 70, 80], [], async (poses) => {
+            sizes.push(poses.length);
+            seen.push(...poses.map(p => p.position.x));
+            return poses.map(p => p.position.x + 1);
+        });
+        const result = await events.invoke('timing.balance');
+        assert.equal(result.ok, true);
+        assert.deepEqual(sizes, [4, 4, 1]);
+        assert.deepEqual(seen, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    },
+
+    async 'balance: cancel returns at once while a sampling batch hangs'() {
+        let calls = 0;
+        const { events, ops } = setup([0, 10, 20, 30, 40, 50], [], () => {
+            calls++;
+            return new Promise(() => {});
+        });
+        const pending = events.invoke('timing.balance');
+        await new Promise(resolve => setTimeout(resolve, 0));
+        events.fire('progressCancel');
+        let timer;
+        const result = await Promise.race([pending, new Promise((resolve) => {
+            timer = setTimeout(() => resolve('timeout'), 1000);
+        })]);
+        clearTimeout(timer);
+        assert.deepEqual(result, { ok: false, reason: 'cancelled' });
+        assert.equal(calls, 1);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 10, 20, 30, 40, 50]);
+    },
+
+    async 'balance: cancel during sampling retimes nothing'() {
+        const { events, ops, popups } = setup([0, 10, 20], [], async (poses, ev) => {
+            ev.fire('progressCancel');
+            return poses.map(() => 1);
+        });
+        const counts = progressCounts(events);
+        const result = await events.invoke('timing.balance');
+        assert.deepEqual(result, { ok: false, reason: 'cancelled' });
+        assert.equal(popups.length, 0);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 10, 20]);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
 
     'views: fallback compresses existing and spaces new keys'() {
         const frames = fallbackAppendFrames([0, 90, 180], 2, 181);
@@ -176,6 +250,22 @@ const timingEventsChecks = {
         assert.equal(popups.length, 1);
         assert.equal(ops.length, 1);
         assert.equal(sortedKeys(events).length, 3);
+    },
+
+    async 'views: add as keys cancelled appends nothing'() {
+        const { events, ops, popups } = setup([0, 10], [], async (poses, ev) => {
+            ev.fire('progressCancel');
+            return poses.map(() => 1);
+        });
+        const counts = progressCounts(events);
+        const result = await events.invoke('views.addKeys', [
+            { position: { x: 5, y: 0, z: 0 }, direction: { x: 0, y: 0, z: -1 }, fov: 50, depth: 2 }
+        ]);
+        assert.deepEqual(result, { ok: false, reason: 'cancelled' });
+        assert.equal(popups.length, 0);
+        assert.equal(ops.length, 0);
+        assert.deepEqual(sortedKeys(events), [0, 10]);
+        assert.deepEqual(counts, { start: 1, end: 1 });
     }
 };
 

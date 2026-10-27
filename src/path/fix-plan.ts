@@ -6,9 +6,10 @@ import type { Route } from './route';
 import { balanceTiming, type BalanceInput, type BalanceResult } from '../anim/balance-timing';
 import type { CurvePose } from '../anim/camera-curve';
 import type { Vec3Like } from '../candidates/occupancy';
+import type { ProgressFn } from '../compute/protocol';
 
 // a user key; distance is the sampled scene distance (non-finite: unknown);
-// orbit: id of the orbit the key belongs to
+// orbit: id of the orbit the key belongs to; lookAhead and turnIn come with CurvePose
 type FixKey = CurvePose & { name: string, linger: number, distance: number, orbit?: string };
 
 type RouteFn = (grid: NavGrid, from: Vec3Like, to: Vec3Like) => Route | null;
@@ -22,7 +23,9 @@ type FixPlanInput = {
     keepOrder: boolean,
     timeline: Omit<BalanceInput, 'keys'>,
     // routes each pair on its own instead of keyRoutes (for checks)
-    route?: RouteFn
+    route?: RouteFn,
+    // the routes and detours stages
+    onProgress?: ProgressFn
 };
 
 type FixPlan = {
@@ -78,14 +81,14 @@ const pairRoutes = (grid: NavGrid, positions: Vec3Like[], route: RouteFn): KeyRo
 // as one: routed from its last key to the next block's first, kept or left
 // out whole, and without detours between its keys.
 const planFixPath = (input: FixPlanInput): FixPlan => {
-    const { keys, grid, eyeHeight, keepOrder, timeline } = input;
+    const { keys, grid, eyeHeight, keepOrder, timeline, onProgress } = input;
     const start = performance.now();
     const blocks = orbitBlocks(keys);
     // routes run between block ends only; node a is key ends[a]
     const ends = blockEnds(blocks);
     const node = new Map(ends.map((k, a) => [k, a]));
     const positions = ends.map(k => keys[k].position);
-    const routes = input.route ? pairRoutes(grid, positions, input.route) : keyRoutes(grid, positions);
+    const routes = input.route ? pairRoutes(grid, positions, input.route) : keyRoutes(grid, positions, onProgress);
     const tour = orderBlocks(blocks, ends, routes.length, { loop: timeline.loop, keepOrder });
     const inTour = new Set(tour);
     const unreachable = keys.map((_, i) => i).filter(i => !inTour.has(i));
@@ -94,6 +97,8 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
     const segments = n < 2 ? 0 : timeline.loop ? n : n - 1;
     const fixed = segmentsInBlocks(blocks, tour, segments);
     const segmentRoutes = fixed.map((inBlock, s) => (inBlock ? [] : routes.points(node.get(tour[s]), node.get(tour[(s + 1) % n]))));
+    // the keys left without a Dijkstra need none
+    onProgress?.('routes', positions.length, positions.length);
 
     const user = new Map<CurvePose, FixKey>(keys.map(k => [k, k]));
     // the Balance result behind each frames array retime returns; planDetours
@@ -104,7 +109,16 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
             ...timeline,
             keys: poses.map((p) => {
                 const key = user.get(p);
-                return { position: p.position, target: p.target, fov: p.fov, linger: key?.linger ?? 0, distance: key?.distance ?? NaN };
+                return {
+                    position: p.position,
+                    target: p.target,
+                    fov: p.fov,
+                    linger: key?.linger ?? 0,
+                    distance: key?.distance ?? NaN,
+                    lookAhead: key?.lookAhead,
+                    turnIn: key?.turnIn,
+                    auto: !key
+                };
             })
         });
         const frames = 'frames' in balance ? balance.frames : evenFrames(poses.length, timeline.frames, timeline.loop);
@@ -121,7 +135,8 @@ const planFixPath = (input: FixPlanInput): FixPlan => {
         grid,
         eyeHeight,
         retime,
-        curveOpts: { duration: timeline.frames, smoothness: timeline.smoothness, loop: timeline.loop }
+        curveOpts: { duration: timeline.frames, smoothness: timeline.smoothness, loop: timeline.loop, frameRate: timeline.frameRate },
+        onProgress
     });
 
     const poses = plan.poses.map((p, i) => ({ pose: p.pose, frame: plan.frames[i], key: p.auto ? null : user.get(p.pose) }));

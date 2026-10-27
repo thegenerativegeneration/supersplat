@@ -1,16 +1,18 @@
 import { Vec3 } from 'playcanvas';
 
-import { estimateEyeHeight, estimateTiltDeg, proposeBox, type Box } from './candidates/estimate';
 import { runGeneration, THUMB_HEIGHT, THUMB_WIDTH, type GenerateOptions } from './candidates/generate';
 import { readOpaquePoints, type OpaquePoints } from './candidates/read-points';
 import type { Candidate } from './candidates/sample';
 import type { Scored } from './candidates/score';
+import type { Estimate, ProgressFn } from './compute/protocol';
+import { computeOf } from './compute/scene-compute';
 import { ElementType } from './element';
 import { Events } from './events';
 import { Scene } from './scene';
 import { Splat } from './splat';
+import { canvasOf, claimRendering, createViewCapture } from './view-capture';
 
-type Pose = { position: Vec3, target: Vec3 };
+const copyPrepared = (p: Estimate): Estimate => ({ ...p, box: { min: { ...p.box.min }, max: { ...p.box.max } } });
 
 const targetOf = (cand: Candidate, depth: number) => new Vec3(
     cand.position.x + cand.direction.x * depth,
@@ -18,30 +20,16 @@ const targetOf = (cand: Candidate, depth: number) => new Vec3(
     cand.position.z + cand.direction.z * depth
 );
 
-// premultiplied rgba over black, so alpha is dropped
-const thumbnailOf = (rgba: Uint8Array) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = THUMB_WIDTH;
-    canvas.height = THUMB_HEIGHT;
-    const pixels = new Uint8ClampedArray(rgba);
-    for (let i = 3; i < pixels.length; i += 4) pixels[i] = 255;
-    canvas.getContext('2d').putImageData(new ImageData(pixels, THUMB_WIDTH, THUMB_HEIGHT), 0, 0);
-    return canvas;
-};
-
 const registerCandidateEvents = (events: Events, scene: Scene) => {
     let points: Promise<OpaquePoints> | null = null;
+    // the scene estimate for the points it was made from
+    let estimate: { points: Promise<OpaquePoints>, result: Promise<Estimate> } | null = null;
+    let lastEstimate: Estimate | null = null;
     let running = false;
-    // box and eye height of the last Suggest Views run in this session
-    let lastSettings: { box: Box, eyeHeight: number } | null = null;
 
     const invalidate = () => {
         points = null;
     };
-    // a new or loaded project starts without the last run's settings
-    events.on('scene.clear', () => {
-        lastSettings = null;
-    });
     // only splats matter: the area box joins and leaves the scene as well
     for (const name of ['scene.elementAdded', 'scene.elementRemoved']) {
         events.on(name, (element: { type: ElementType }) => element?.type === ElementType.splat && invalidate());
@@ -50,9 +38,23 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         events.on(name, invalidate);
     }
 
+    // progress of reading the points and estimating from them, for every
+    // caller waiting on them
+    const readProgress: ProgressFn = (stage, done, total) => events.fire('candidates.readProgress', stage, done, total);
+
+    // the result of start, with the read progress going to onProgress while it is pending
+    const reporting = async <T>(onProgress: ProgressFn | undefined, start: () => Promise<T>) => {
+        const handle = onProgress && events.on('candidates.readProgress', onProgress);
+        try {
+            return await start();
+        } finally {
+            handle?.off();
+        }
+    };
+
     const scenePoints = () => {
         if (!points) {
-            const pending = readOpaquePoints(scene.getElementsByType(ElementType.splat) as Splat[]);
+            const pending = readOpaquePoints(scene.getElementsByType(ElementType.splat) as Splat[], undefined, readProgress);
             pending.catch(() => {
                 if (points === pending) points = null;
             });
@@ -62,39 +64,40 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
     };
 
     // the cached opaque splat centres (x, y, z triples) and extents of the visible layers
-    events.function('candidates.cloud', () => scenePoints());
+    events.function('candidates.cloud', (onProgress?: ProgressFn) => reporting(onProgress, scenePoints));
 
-    events.function('candidates.lastSettings', () => lastSettings);
+    // Area box, eye height and tilt estimated from the scene alone by the
+    // scene compute, made once per points array. Suggest Views edits its
+    // copy; Fix Path and Orbit use it as it is.
+    events.function('candidates.prepare', (onProgress?: ProgressFn): Promise<Estimate> => reporting(onProgress, async () => {
+        const cloud = scenePoints();
+        if (estimate?.points !== cloud) {
+            const result = cloud.then((read) => {
+                readProgress('estimate');
+                const compute = computeOf(events);
+                return compute.run('estimate', { version: compute.pointsVersion(read) });
+            });
+            const entry = { points: cloud, result };
+            result.then((p) => {
+                if (estimate === entry) lastEstimate = p;
+            }, () => {
+                if (estimate === entry) estimate = null;
+            });
+            estimate = entry;
+        }
+        return copyPrepared(await estimate.result);
+    }));
 
-    events.function('candidates.prepare', async () => {
-        const { points: pts } = await scenePoints();
-        const box = proposeBox(pts);
-        return {
-            box,
-            eyeHeight: estimateEyeHeight(pts, box),
-            tiltDeg: estimateTiltDeg(pts),
-            points: pts.length / 3
-        };
-    });
+    // the last finished estimate, null before one or after the splats changed
+    events.function('candidates.estimated', () => (lastEstimate && estimate?.points === points ? copyPrepared(lastEstimate) : null));
 
-    events.function('candidates.generate', async (opts: GenerateOptions, signal: AbortSignal): Promise<Scored[]> => {
+    events.function('candidates.generate', (opts: GenerateOptions, signal: AbortSignal): Promise<Scored[]> => claimRendering(events, async () => {
         if (running || scene.lockedRenderMode) throw new Error('candidates.generate: the editor is already rendering');
         running = true;
-        lastSettings = {
-            box: { min: { ...opts.box.min }, max: { ...opts.box.max } },
-            eyeHeight: opts.eyeHeight
-        };
         try {
             const { points: pts, extents } = await scenePoints();
-            const { camera } = scene;
-            const fov = opts.fov ?? camera.fov;
-            const saved = events.invoke('camera.getPose');
-            const user: Pose = {
-                position: new Vec3(saved.position.x, saved.position.y, saved.position.z),
-                target: new Vec3(saved.target.x, saved.target.y, saved.target.z)
-            };
-            const savedFov = camera.fov;
-            const savedOrtho = camera.ortho;
+            const fov = opts.fov ?? scene.camera.fov;
+            const capture = createViewCapture(events, scene);
             const depths = new Map<string, number>();
             const start = performance.now();
             let rendered = 0;
@@ -107,25 +110,12 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
                     return out;
                 },
                 renderAt: async (cand) => {
-                    // locked mode renders only frames we ask for, always sorted and
-                    // never stochastic, and keeps the viewport from showing candidates
-                    scene.lockedRenderMode = true;
-                    scene.lockedRender = true;
-                    camera.fov = cand.fov;
-                    camera.setPose(new Vec3(cand.position.x, cand.position.y, cand.position.z), targetOf(cand, depths.get(cand.id) ?? 1), 0);
-                    const rgba = await events.invoke('render.offscreen', THUMB_WIDTH, THUMB_HEIGHT) as Uint8Array;
+                    const view = { position: new Vec3(cand.position.x, cand.position.y, cand.position.z), target: targetOf(cand, depths.get(cand.id) ?? 1), fov: cand.fov };
+                    const rgba = await capture.render(view, THUMB_WIDTH, THUMB_HEIGHT);
                     rendered++;
-                    return { rgba, thumbnail: thumbnailOf(rgba) };
+                    return { rgba, thumbnail: canvasOf(rgba, THUMB_WIDTH, THUMB_HEIGHT) };
                 },
-                restore: () => {
-                    // unlock first so a throwing camera call can't leave the editor locked
-                    scene.lockedRenderMode = false;
-                    scene.forceRender = true;
-                    camera.fov = savedFov;
-                    camera.setPose(user.position, user.target, 0);
-                    camera.ortho = savedOrtho;
-                    camera.onUpdate(0);
-                },
+                restore: capture.restore,
                 onProgress: (done, total) => events.fire('candidates.progress', done, total),
                 onAdded: (scored, thumbnail) => events.fire('candidates.added', scored, thumbnail),
                 onLevels: levels => events.fire('candidates.levels', levels)
@@ -137,7 +127,7 @@ const registerCandidateEvents = (events: Events, scene: Scene) => {
         } finally {
             running = false;
         }
-    });
+    }));
 };
 
 export { registerCandidateEvents };

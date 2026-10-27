@@ -13,7 +13,8 @@ import { buildCameraCurve } from './anim/camera-curve';
 import { Pose } from './camera-poses';
 import { Element, ElementType } from './element';
 import type { PathMarkers } from './fix-path-events';
-import { poseColors, samplePathLine } from './path-line';
+import { BEFORE_PATH_COLOR, LOOK_TICK_COLOR, USER_KEY_COLOR, type Rgb } from './path/colors';
+import { lookTickLength, poseColors, sampleLookTicks, samplePathLine } from './path-line';
 import { vertexShader, fragmentShader } from './shaders/debug-shader';
 
 // temp vectors for frustum geometry calculation (module-scope to avoid allocations)
@@ -34,6 +35,12 @@ const VERTS_PER_CAMERA = LINES_PER_CAMERA * 2;
 // line segments per span between two keys
 const PATH_SAMPLES = 24;
 
+// look-direction ticks per second of the shot
+const LOOK_TICKS_PER_SECOND = 4;
+
+// where each key is, to tell whether a route is the current one
+const poseSignature = (poses: readonly Pose[]) => poses.map(p => `${p.frame}:${p.position.x},${p.position.y},${p.position.z}:${p.target.x},${p.target.y},${p.target.z}`).sort().join('|');
+
 class CameraPoseGizmos extends Element {
     entity: Entity;
     mesh: Mesh;
@@ -43,6 +50,8 @@ class CameraPoseGizmos extends Element {
     pathMesh: Mesh;
     blocked: number[] = [];
     unreachable: string[] = [];
+    // the keys before the last Fix Path run, while its marks are up
+    before: Pose[] | null = null;
     dirty = true;
 
     constructor() {
@@ -111,9 +120,12 @@ class CameraPoseGizmos extends Element {
         events.on('timeline.smoothness', markDirty);
         events.on('timeline.loop', markDirty);
         events.on('timeline.frames', markDirty);
+        events.on('keys.selectionChanged', markDirty);
+        events.on('timeline.frameRate', markDirty);
         events.on('path.markers', (markers: PathMarkers) => {
             this.blocked = markers.blocked;
             this.unreachable = markers.unreachable;
+            this.before = markers.before ?? null;
             markDirty();
         });
     }
@@ -140,28 +152,68 @@ class CameraPoseGizmos extends Element {
         this.pathEntity.enabled = visible && this.pathMesh.primitive[0].count > 0;
     }
 
-    // the camera curve as lines, coloured per segment
+    // the camera curve as lines coloured per segment, ticks along it towards
+    // where the camera looks and, after Fix Path, the old route dashed
     private rebuildPath() {
         const { events } = this.scene;
         const poses = events.invoke('camera.poses') as Pose[];
-        const duration = events.invoke('timeline.frames') as number;
-        const loop = events.invoke('timeline.loop') as boolean;
+        const timeline = {
+            duration: events.invoke('timeline.frames') as number,
+            smoothness: events.invoke('timeline.smoothness') as number,
+            loop: events.invoke('timeline.loop') as boolean,
+            frameRate: events.invoke('timeline.frameRate') as number
+        };
+        const { duration, loop } = timeline;
+        const curveOf = (keys: Pose[]) => buildCameraCurve(keys.map(p => ({ ...p, fov: p.fov ?? 60 })), keys.map(p => p.frame), timeline);
         const frames = poses.map(p => p.frame);
-        const curve = buildCameraCurve(poses.map(p => ({ ...p, fov: p.fov ?? 60 })), frames, {
-            duration, smoothness: events.invoke('timeline.smoothness'), loop
+        const curve = curveOf(poses);
+
+        const positions: number[] = [];
+        const colors: number[] = [];
+        const add = (line: { positions: number[], colors: number[] }) => {
+            positions.push(...line.positions);
+            colors.push(...line.colors);
+        };
+        const solid = (linePositions: number[], rgb: Rgb) => ({
+            positions: linePositions,
+            colors: linePositions.map((_, i) => rgb[i % 3])
         });
-        if (!curve) {
+
+        if (curve) {
+            add(samplePathLine(curve, frames, {
+                samplesPerSegment: PATH_SAMPLES,
+                blocked: this.blocked,
+                auto: poses.map(p => !!p.auto),
+                loop,
+                duration
+            }));
+            const frameRate = events.invoke('timeline.frameRate') as number;
+            add(solid(sampleLookTicks(curve, frames, {
+                step: Math.max(1, frameRate / LOOK_TICKS_PER_SECOND),
+                length: lookTickLength(poses.filter(p => p.frame < duration)),
+                duration,
+                loop
+            }), LOOK_TICK_COLOR));
+        }
+
+        const before = this.before && poseSignature(this.before) !== poseSignature(poses) ? this.before : null;
+        const beforeCurve = before && curveOf(before);
+        if (beforeCurve) {
+            add(samplePathLine(beforeCurve, before.map(p => p.frame), {
+                samplesPerSegment: PATH_SAMPLES,
+                blocked: [],
+                auto: before.map(() => false),
+                loop,
+                duration,
+                color: BEFORE_PATH_COLOR,
+                dashed: true
+            }));
+        }
+
+        if (positions.length === 0) {
             this.pathMesh.primitive[0].count = 0;
             return;
         }
-
-        const { positions, colors } = samplePathLine(curve, frames, {
-            samplesPerSegment: PATH_SAMPLES,
-            blocked: this.blocked,
-            auto: poses.map(p => !!p.auto),
-            loop,
-            duration
-        });
         const rgba = new Uint8Array(positions.length / 3 * 4);
         for (let i = 0; i < positions.length / 3; i++) {
             for (let c = 0; c < 3; c++) rgba[i * 4 + c] = Math.round(colors[i * 3 + c] * 255);
@@ -234,8 +286,11 @@ class CameraPoseGizmos extends Element {
             pushLine(tmpTR, tmpUpTip);
         }
 
-        // per camera: unreachable and parked keys red, detour keys in the auto colour
-        poseColors(poses, this.unreachable, this.scene.events.invoke('timeline.frames')).forEach((rgb, p) => {
+        // per camera: unreachable and parked keys red, detour keys in the auto
+        // colour, selected keys in the user-key orange
+        const selected = new Set(this.scene.events.invoke('keys.selected') as string[]);
+        poseColors(poses, this.unreachable, this.scene.events.invoke('timeline.frames')).forEach((color, p) => {
+            const rgb = selected.has(poses[p].id) ? USER_KEY_COLOR : color;
             for (let i = p * VERTS_PER_CAMERA; i < (p + 1) * VERTS_PER_CAMERA; i++) {
                 for (let c = 0; c < 3; c++) colors[i * 4 + c] = Math.round(rgb[c] * 255);
                 colors[i * 4 + 3] = 255;

@@ -1,14 +1,17 @@
-import { CubicSpline } from './spline';
+import { buildViewSpline } from './look-ahead-spline';
 import type { Vec3Like } from '../candidates/occupancy';
 
-type CurvePose = { position: Vec3Like, target: Vec3Like, fov: number };
+// lookAhead, turnIn and auto: see ViewKey in look-ahead-spline.ts
+type CurvePose = { position: Vec3Like, target: Vec3Like, fov: number, lookAhead?: boolean, turnIn?: number, auto?: boolean };
 
-type CurveOptions = { duration: number, smoothness: number, loop: boolean };
+// frameRate times the look-ahead turns, which are in seconds
+type CurveOptions = { duration: number, smoothness: number, loop: boolean, frameRate: number };
 
 /**
  * Build the camera spline for the given keys. Keys at or beyond the duration
  * are ignored. Returns null with fewer than two usable keys. When not looping
- * the spline clamps, holding the outer poses beyond the first/last key.
+ * the spline clamps, holding the outer poses beyond the first/last key. Keys
+ * with look ahead change where the camera looks on the way to them.
  */
 const buildCameraCurve = (poses: CurvePose[], frames: number[], opts: CurveOptions) => {
     const order = poses.map((_, i) => i)
@@ -17,22 +20,11 @@ const buildCameraCurve = (poses: CurvePose[], frames: number[], opts: CurveOptio
 
     if (order.length < 2) return null;
 
-    const times = order.map(i => frames[i]);
-    const points: number[] = [];
-    for (const i of order) {
-        const p = poses[i];
-        points.push(p.position.x, p.position.y, p.position.z);
-        points.push(p.target.x, p.target.y, p.target.z);
-        points.push(p.fov);
-    }
-
-    const spline = opts.loop ?
-        CubicSpline.fromPointsLooping(opts.duration, times, points, opts.smoothness) :
-        CubicSpline.fromPoints(times, points, opts.smoothness);
+    const spline = buildViewSpline(order.map(i => poses[i]), order.map(i => frames[i]), opts);
     const result: number[] = [];
 
     return (frame: number, out: CurvePose): CurvePose => {
-        spline.evaluate(frame, result);
+        spline(frame, result);
         out.position.x = result[0];
         out.position.y = result[1];
         out.position.z = result[2];

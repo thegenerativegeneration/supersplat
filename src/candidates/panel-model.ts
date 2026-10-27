@@ -67,5 +67,8 @@ const busyInputAction = (e: BusyInput): 'pass' | 'block' | 'cancel' => {
 
 const showTiltWarning = (tiltDeg: number) => tiltDeg > TILT_WARN_DEG;
 
-export { PAGE_SIZE, busyInputAction, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems };
+// the filled percentage of the panel bar, or null for an unknown total (the bar then pulses)
+const barPercent = (done?: number, total?: number): number | null => (done !== undefined && total > 0 ? Math.round(100 * done / total) : null);
+
+export { PAGE_SIZE, barPercent, busyInputAction, candidatePose, eyePreviewPose, levelOptions, showTiltWarning, togglePick, visibleItems };
 export type { ViewPose };

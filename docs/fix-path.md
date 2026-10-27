@@ -7,7 +7,7 @@ Fix Path repairs a camera shot in one click. It puts the keys in a good order, r
 - Orders the keys. The first key stays first. The tool picks the rest for the shortest way through the scene.
 - Keys that can't be reached are **parked**: moved after the end of the shot, so they don't play. See [Parked keys](#parked-keys).
 - Routes the camera between keys through free space, like a person walking.
-- Keys far from the scan or outside the **Area** box (e.g. a high overview) are reached by a straight move to the nearest part of the route. The straight move is checked against the scan, also outside the box.
+- Keys far from the scan or outside the estimated area (e.g. a high overview) are reached by a straight move to the nearest part of the route. The straight move is checked against the scan, also outside the area.
 - Adds **detour keys** where the camera would hit walls, floors or objects. They get their own colour.
 - Balances the timing, like [Balance](balance-timing.md).
 - Your own keys keep their position and view. Only their order and time change.
@@ -17,7 +17,7 @@ Fix Path repairs a camera shot in one click. It puts the keys in a good order, r
 ## Before you start
 
 - Straighten the scene first. See [Suggest Views](view-candidates.md).
-- Fix Path uses the **Area** box and **Eye height** of [Suggest Views](view-candidates.md) if you used it in this session. Otherwise it estimates both.
+- Fix Path estimates its own area from the scan. Suggest Views settings don't change it.
 - Hidden and locked splats are ignored.
 
 ## Fix the path
@@ -28,17 +28,19 @@ Fix Path repairs a camera shot in one click. It puts the keys in a good order, r
 
 The button is disabled with fewer than two keys. Detour keys are not counted.
 
+A longer run shows a progress bar with **Cancel**. Cancel leaves the keys as they were.
+
 ## Options
 
 Click the gear next to **Fix Path**.
 
 - **Keep my order**: keeps your key order and only adds detour keys. Default off.
 - **Allow flying**: lets the camera fly where walking can't reach, for example up to a gallery. Default on. The camera still prefers walking at eye height. Off means walking only (stairs work if the scan has them).
+- **Eye height**: camera height above the floor on walking routes. Starts at the scene estimate; once changed, the estimate is shown below it. Separate from the Suggest Views eye height. A new or loaded project starts from the estimate again.
 - **Smallest opening**: the lowest free band the camera may pass, measured above a sill, railing or stair tread. Default 0.8 m, range 0.4–2.0 m, for an eye height of 1.6 m; default and range scale with the eye height. In metres when the scene looks metric, else in scene units. Rounds to steps of a quarter of the eye height (0.4 m).
   - Lower: the camera squeezes through lower bands, e.g. over a gallery railing, through a window over a desk, or on stairs under a low, sloping ceiling. It dips down there; at the default as low as 0.4 m above the sill.
   - Higher: low bands stay closed; rooms behind them are parked. Above the eye height it acts like the eye height, so normal doors (2 m) always pass.
   - Low passages cost extra, so normal routes keep to eye height.
-- **Eye height**: shown for information. "(estimated)" means Suggest Views was not used. To change it, use Suggest Views.
 
 Click outside the box or press Escape to close it.
 
@@ -74,6 +76,8 @@ With camera poses shown, the camera path is drawn as a line.
 - The line follows keys, smoothness, loop and length.
 - Red camera: a key that could not be reached (parked).
 - Light blue camera: a detour key.
+- Short pale yellow ticks, 4 per second of the shot: where the camera looks at that moment. A fan of ticks means a fast turn.
+- Dashed light grey line: the route before the last Fix Path run, to compare with the new one. It disappears with the detour colours.
 
 ## Parked keys
 
@@ -103,5 +107,5 @@ With camera poses shown, the camera path is drawn as a line.
 - Rooms reachable only through bands lower than **Smallest opening**, or through stairs the scan missed, stay unreachable. Lower **Smallest opening** to reach them, then play the shot: the scan may show a gap where there is glass or a lost ceiling.
 - The path check uses the scan's splats, including the size of large ones. Sparse walls with gaps may still leak, so the camera can pass through them. Play the shot to check.
 - Very large scans (over 500,000 solid splats) are thinned to 500,000 for the check. Thin roofs and walls can then leak again.
-- The route stays inside the **Area** box. Only the straight moves to keys outside it leave the box.
+- The route stays inside the estimated area. Only the straight moves to keys outside it leave the area.
 - Fix Path does not check while you drag keys by hand.

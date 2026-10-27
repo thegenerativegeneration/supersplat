@@ -16,7 +16,7 @@ A live version of this tool is available at: https://superspl.at/editor
 
 To learn more about using SuperSplat, please refer to the [User Guide](https://developer.playcanvas.com/user-manual/gaussian-splatting/editing/supersplat/).
 
-Guides: [Balance timing](docs/balance-timing.md) · [Suggest views](docs/view-candidates.md) · [Fix path](docs/fix-path.md) · [Orbit](docs/orbit.md)
+Guides: [Editing keys](docs/editing-keys.md) · [Balance timing](docs/balance-timing.md) · [Suggest views](docs/view-candidates.md) · [Fix path](docs/fix-path.md) · [Orbit](docs/orbit.md)
 
 ## Local Development
 

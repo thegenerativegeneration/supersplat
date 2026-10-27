@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import { Vec3 } from 'playcanvas';
 
 import { registerCameraPosesEvents } from './.build/src/camera-poses.js';
+import { inlineTransport } from './.build/src/compute/inline-transport.js';
+import { createSceneCompute } from './.build/src/compute/scene-compute.js';
 import { Events } from './.build/src/events.js';
 import { registerOrbitEvents } from './.build/src/orbit-events.js';
 import { registerTrackManagerEvents } from './.build/src/track-manager.js';
+import { i18n } from './.build/src/ui/localization.js';
+import { progressCounts } from './progress-counts.mjs';
 
 const EYE = 1.6;
 const BOX = { min: { x: -20, y: -1, z: -20 }, max: { x: 20, y: 6, z: 20 } };
@@ -50,17 +54,28 @@ const setup = (points, poses = [], opts = {}) => {
     events.function('camera.sampleDistances', list => Promise.resolve(list.map(() => 2)));
     const cloud = { points: new Float32Array(points), extents: undefined };
     events.function('candidates.cloud', () => Promise.resolve(cloud));
-    const prepared = { calls: 0 };
-    events.function('candidates.lastSettings', () => (opts.prepare ? null : { box: BOX, eyeHeight: EYE }));
-    events.function('candidates.prepare', () => {
-        prepared.calls++;
-        return Promise.resolve({ box: BOX, eyeHeight: EYE, points: points.length / 3 });
-    });
+    events.function('candidates.prepare', () => Promise.resolve({ box: BOX, eyeHeight: EYE, points: points.length / 3 }));
     const popups = [];
     events.function('showPopup', (args) => {
         popups.push(args);
         return Promise.resolve({ action: 'ok' });
     });
+
+    if (opts.onRun || opts.failOp) {
+        // the inline compute, calling onRun once each run is on its way;
+        // runs of failOp reject
+        const base = createSceneCompute([() => inlineTransport()]);
+        const compute = {
+            pointsVersion: cloud => base.pointsVersion(cloud),
+            run: (op, args, runOpts) => {
+                if (op === opts.failOp) return Promise.reject(new Error(`${op} failed`));
+                const pending = base.run(op, args, runOpts);
+                opts.onRun?.(op, events);
+                return pending;
+            }
+        };
+        events.function('compute', () => compute);
+    }
 
     registerCameraPosesEvents(events);
     registerTrackManagerEvents(events);
@@ -69,7 +84,7 @@ const setup = (points, poses = [], opts = {}) => {
     const ops = [];
     events.on('edit.add', op => ops.push(op));
     events.fire('camera.loadPoses', poses);
-    return { events, ops, popups, prepared };
+    return { events, ops, popups };
 };
 
 const byFrame = events => events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame);
@@ -179,15 +194,6 @@ const orbitEventsChecks = {
         assert.equal(result.added, 17);
     },
 
-    async 'orbit: plans reuse the prepared settings of the same points'() {
-        const { events, prepared } = setup(FAR, [], { prepare: true });
-        await events.invoke('orbit.plan', SPEC);
-        await events.invoke('orbit.plan', { ...SPEC, radius: 3 });
-        await events.invoke('orbit.add', SPEC);
-        await events.invoke('orbit.defaults');
-        assert.equal(prepared.calls, 1);
-    },
-
     async 'orbit: the circle stays inside the area box'() {
         const { events } = setup(FAR);
         const near = await events.invoke('orbit.plan', { ...SPEC, centre: { x: 18, y: 0, z: 0 }, radius: 4 });
@@ -216,7 +222,77 @@ const orbitEventsChecks = {
         assert.equal(result.reason, 'blocked');
         assert.equal(result.added, 0);
         assert.equal(ops.length, 0);
+    },
+
+    async 'orbit: a failed curve check keeps the added keys and reports no blocks'() {
+        const { events, ops, popups } = setup(WALL, [pose('camera_0', 0, 6), pose('camera_1', 30, 5)], { failOp: 'orbitCheck' });
+        const counts = progressCounts(events);
+        const warn = console.warn;
+        const warns = [];
+        console.warn = (...args) => warns.push(args);
+        let result;
+        try {
+            result = await events.invoke('orbit.add', SPEC);
+        } finally {
+            console.warn = warn;
+        }
+        assert.equal(result.ok, true);
+        assert.equal(result.added, 17);
+        assert.equal(result.orbitBlocked, false);
+        assert.equal(result.joinBlocked, false, 'not checked, so not reported');
+        assert.equal(byFrame(events).length, 19);
+        assert.equal(ops.length, 1);
+        assert.equal(popups.length, 0);
+        assert.equal(warns.length, 1);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
+
+    async 'orbit: add cancelled during planning adds nothing and no undo op'() {
+        const { events, ops, popups } = setup(FAR, [pose('camera_0', 0, -10)], {
+            onRun: (op, ev) => op === 'orbitPlan' && ev.fire('progressCancel')
+        });
+        const counts = progressCounts(events);
+        const before = summary(events);
+        const result = await events.invoke('orbit.add', SPEC);
+        assert.equal(result.ok, false);
+        assert.equal(result.reason, 'cancelled');
+        assert.equal(result.added, 0);
+        assert.deepEqual(summary(events), before);
+        assert.equal(ops.length, 0);
+        assert.equal(popups.length, 0);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
+
+    async 'orbit: cancel is locked once the keys are appended'() {
+        const { events, ops, popups } = setup(FAR);
+        const counts = progressCounts(events);
+        const updates = [];
+        events.on('progressUpdate', update => updates.push(update));
+        events.on('track.appendPoses', () => events.fire('progressCancel'));
+        const result = await events.invoke('orbit.add', SPEC);
+        assert.equal(result.ok, true);
+        assert.equal(result.added, 17);
+        assert.equal(result.orbitBlocked, false);
+        assert.equal(byFrame(events).length, 17);
+        assert.equal(ops.length, 1);
+        assert.equal(popups.length, 0);
+        const locked = updates.filter(u => u.cancellable === false);
+        assert.deepEqual(locked, [{ text: i18n.t('progress.checking'), cancellable: false }]);
+        assert.deepEqual(counts, { start: 1, end: 1 });
+    },
+
+    async 'orbit: previews superseded while dragging return only the newest plan'() {
+        const { events } = setup(FAR);
+        const runs = [1, 2, 3, 4].map(radius => events.invoke('orbit.plan', { ...SPEC, radius }));
+        const settled = await Promise.allSettled(runs);
+        assert.deepEqual(settled.map(s => s.status), ['fulfilled', 'rejected', 'rejected', 'fulfilled']);
+        settled.filter(s => s.status === 'rejected').forEach(({ reason }) => {
+            assert.equal(reason.name, 'AbortError');
+            assert.equal(reason.message, 'superseded');
+        });
+        assert.equal(settled[0].value.radius, 1);
+        assert.equal(settled[3].value.radius, 4);
     }
 };
 
-export { orbitEventsChecks };
+export { BOX, EYE, FAR, orbitEventsChecks, SPEC };

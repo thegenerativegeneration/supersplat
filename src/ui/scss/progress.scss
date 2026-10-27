@@ -9,6 +9,15 @@
     pointer-events: all;
     cursor: progress;
 
+    // input stays blocked while the dialog waits to be revealed
+    &.pending {
+        background-color: transparent;
+
+        #dialog {
+            visibility: hidden;
+        }
+    }
+
     #dialog {
         position: absolute;
         left: 50%;

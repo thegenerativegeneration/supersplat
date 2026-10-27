@@ -189,6 +189,40 @@ const checks = {
             }
             device.destroy();
         }
+    },
+
+    async 'viewport: a key thumbnail is never busy and never shows its 160x100 target'() {
+        const { api, scene, events } = setup();
+        const frame = { view: new Mat4(), projection: new Mat4(), target: { width: 800, height: 600 } };
+        scene.camera = { captureFrame: () => ({ ...frame, target: { ...frame.target } }) };
+        scene.canvas = { getBoundingClientRect: () => ({ x: 0, y: 0, width: 800, height: 600 }) };
+        const before = api.viewport.info();
+
+        events.fire('thumbs.capture', true);
+        scene.lockedRenderMode = true;
+        frame.target = { width: 160, height: 100 };
+        frame.projection = new Mat4().setPerspective(70, 1.6, 0.1, 100);
+        assert.deepEqual(api.viewport.info(), before);
+        api.viewport.assertIdle();
+        let rendered = null;
+        const ready = api.viewport.ready().then((r) => {
+            rendered = r;
+        });
+        await Promise.resolve();
+        assert.equal(rendered, null, 'ready waits for the thumbnail');
+
+        scene.lockedRenderMode = false;
+        frame.target = { width: 800, height: 600 };
+        frame.projection = new Mat4();
+        events.fire('thumbs.capture', false);
+        events.fire('postrender');
+        await ready;
+        assert.equal(rendered, true);
+        assert.deepEqual(api.viewport.info(), before);
+
+        // other locked renders stay busy
+        scene.lockedRenderMode = true;
+        assert.throws(() => api.viewport.assertIdle(), { code: 'busy' });
     }
 };
 

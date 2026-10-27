@@ -4,6 +4,9 @@ import { Color, createGraphicsDevice } from 'playcanvas';
 import { registerCameraPosesEvents } from './camera-poses';
 import { registerCandidateEvents } from './candidate-events';
 import { CommandQueue } from './command-queue';
+import { inlineTransport } from './compute/inline-transport';
+import { createSceneCompute } from './compute/scene-compute';
+import { workerTransport } from './compute/worker-transport';
 import { registerDocEvents } from './doc';
 import { EditHistory } from './edit-history';
 import { registerEditorEvents } from './editor';
@@ -12,6 +15,10 @@ import { Events } from './events';
 import { initFileHandler } from './file-handler';
 import { registerFixPathEvents } from './fix-path-events';
 import { registerIframeApi } from './iframe-api';
+import { registerKeyPickEvents } from './key-pick';
+import { registerKeyPick3dEvents } from './key-pick-3d';
+import { registerKeySelectionEvents } from './key-selection';
+import { registerKeyThumbnailEvents } from './key-thumbnails';
 import { registerOrbitEvents } from './orbit-events';
 import { registerPreferences } from './preferences';
 import { registerPublishEvents } from './publish';
@@ -118,6 +125,13 @@ const main = async () => {
     // instead of falling back, producing an empty export.
     WorkerQueue.maxWorkers = 0;
 
+    // CPU-heavy scene work runs in a worker, or inline when it cannot start
+    const compute = createSceneCompute([
+        () => workerTransport(new URL('./scene-compute-worker.js', import.meta.url)),
+        () => inlineTransport()
+    ]);
+    events.function('compute', () => compute);
+
     // register events that only need the events object (before UI is created)
     registerTimelineEvents(events);
     registerCameraPosesEvents(events);
@@ -126,6 +140,7 @@ const main = async () => {
     registerViewKeyEvents(events);
     registerFixPathEvents(events);
     registerOrbitEvents(events);
+    registerKeySelectionEvents(events);
     registerTransformHandlerEvents(events);
     registerPublishEvents(events);
     registerIframeApi(events);
@@ -304,6 +319,9 @@ const main = async () => {
     registerDocEvents(scene, events);
     registerRenderEvents(scene, events);
     registerCandidateEvents(events, scene);
+    registerKeyPickEvents(events, scene);
+    registerKeyPick3dEvents(events, scene);
+    registerKeyThumbnailEvents(events, scene);
     initFileHandler(scene, events, editorUI.appContainer.dom);
 
     // apply stored user preferences and start capturing changes to them.

@@ -56,6 +56,8 @@ class BalanceControls extends Container {
                     } else {
                         await events.invoke('showPopup', { type: 'info', header: i18n.t('popup.balance.report'), message: text });
                     }
+                } else if (result?.reason === 'cancelled') {
+                    showStatus(i18n.t('status.cancelled'));
                 }
             } catch (error) {
                 await events.invoke('showPopup', {

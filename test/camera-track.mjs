@@ -35,6 +35,87 @@ export const setup = (frames, total = { frames: 181 }) => {
 const sortedKeys = events => [...events.invoke('track.keys')].sort((a, b) => a - b);
 
 const cameraTrackChecks = {
+    async 'track: every key has a unique id that survives move, retime, undo and save/load'() {
+        const { events, ops } = setup([[0], [30], [60]]);
+        const ids = () => events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame).map(p => p.id);
+        const before = ids();
+        assert.ok(before.every(Boolean));
+        assert.equal(new Set(before).size, 3);
+
+        events.fire('track.moveKey', 30, 40);
+        assert.deepEqual(ids(), before);
+        events.fire('track.retime', [0, 100, 180]);
+        assert.deepEqual(ids(), before);
+        await ops[1].undo();
+        assert.deepEqual(ids(), before);
+
+        const other = setup([]);
+        other.events.invoke('docDeserialize.poseSets', events.invoke('docSerialize.poseSets'));
+        assert.deepEqual(other.events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame).map(p => p.id), before);
+    },
+
+    'track: addKey after a delete never repeats a name'() {
+        const { events } = setup([[0], [30], [60]]);
+        events.function('camera.getPose', () => ({ position: new Vec3(9, 0, 0), target: new Vec3(9, 0, -1), fov: 60 }));
+        events.fire('track.removeKey', 0);
+        events.fire('track.addKey', 90);
+        events.fire('track.copyKey', 90, 120);
+        const names = events.invoke('camera.poses').map(p => p.name);
+        assert.equal(new Set(names).size, names.length);
+        assert.deepEqual(names.slice().sort(), ['camera_1', 'camera_2', 'camera_3', 'camera_4']);
+    },
+
+    'track: old files without ids or with duplicate names load with unique ids and names, and play the same curve'() {
+        const curveAt = (events) => {
+            const seen = [];
+            events.on('camera.setPose', pose => seen.push([pose.position.x, pose.position.y, pose.position.z, pose.target.x, pose.fov]));
+            return (frame) => {
+                seen.length = 0;
+                events.fire('timeline.frame', frame);
+                return seen.at(-1);
+            };
+        };
+        const poses = [0, 1, 2].map(i => ({ name: 'camera_0', frame: i * 60, position: [i, i * 2, 0], target: [i, 0, -1], fov: 60 }));
+        const { events } = setup([]);
+        const at = curveAt(events);
+        events.invoke('docDeserialize.poseSets', [{ name: 'set0', poses }]);
+        const loaded = events.invoke('camera.poses');
+        assert.equal(new Set(loaded.map(p => p.id)).size, 3);
+        assert.deepEqual(loaded.map(p => p.name), ['camera_0', 'camera_1', 'camera_2']);
+
+        const frames = [0, 15, 30, 45, 60, 75, 90, 105, 120, 150];
+        const first = frames.map(at);
+        const again = setup([]);
+        const atAgain = curveAt(again.events);
+        again.events.invoke('docDeserialize.poseSets', events.invoke('docSerialize.poseSets'));
+        assert.deepEqual(frames.map(atAgain), first);
+        assert.ok(first.every(Boolean));
+    },
+
+    async 'track: lookAhead and turnIn survive copyPose, undo and save/load'() {
+        const { events, ops } = setup([[0], [30], [60]]);
+        const poses = events.invoke('camera.poses').map(p => ({ ...p }));
+        poses[1].lookAhead = true;
+        poses[1].turnIn = 0.5;
+        events.fire('track.replacePath', poses);
+        const keyAt = (ev, frame) => ev.invoke('camera.poses').find(p => p.frame === frame);
+        assert.equal(keyAt(events, 30).lookAhead, true);
+        assert.equal(keyAt(events, 30).turnIn, 0.5);
+
+        events.fire('track.setLinger', 0, 1);
+        await ops[1].undo();
+        assert.equal(keyAt(events, 30).lookAhead, true);
+        assert.equal(keyAt(events, 30).turnIn, 0.5);
+
+        const sets = events.invoke('docSerialize.poseSets');
+        assert.ok(!('lookAhead' in sets[0].poses[0]));
+        const other = setup([]);
+        other.events.invoke('docDeserialize.poseSets', sets);
+        assert.equal(keyAt(other.events, 30).lookAhead, true);
+        assert.equal(keyAt(other.events, 30).turnIn, 0.5);
+        assert.equal(keyAt(other.events, 0).lookAhead, undefined);
+    },
+
     async 'track: setLinger is one undo step and survives snapshot/restore'() {
         const { events, ops } = setup([[0], [30], [60]]);
         events.fire('track.setLinger', 30, 1.5);
@@ -151,6 +232,97 @@ const cameraTrackChecks = {
         const parked = name => !!events.invoke('camera.poses').find(p => p.name === name).parked;
         assert.equal(parked('near'), false);
         assert.equal(parked('far'), true);
+    },
+
+    'keys: moveKeys keeps spacing and is one undo step'() {
+        const { events, ops } = setup([[0], [30], [60], [90]]);
+        const ids = events.invoke('camera.poses').filter(p => p.frame === 30 || p.frame === 60).map(p => p.id);
+        events.fire('track.moveKeys', ids, 15);
+        assert.deepEqual(sortedKeys(events), [0, 15 + 30, 15 + 60, 90]);
+        assert.equal(ops.length, 1);
+        ops[0].undo();
+        assert.deepEqual(sortedKeys(events), [0, 30, 60, 90]);
+    },
+
+    'keys: a move onto an unselected key\'s frame is refused, changes nothing and adds no undo op'() {
+        const { events, ops } = setup([[0], [30], [60]]);
+        const refusals = [];
+        events.on('track.refused', reason => refusals.push(reason));
+        events.fire('track.setLinger', 0, 1);
+        const id = frame => events.invoke('camera.poses').find(p => p.frame === frame).id;
+
+        events.fire('track.moveKeys', [id(30)], 30);
+        assert.deepEqual(refusals, ['frameTaken']);
+        events.fire('track.moveKeys', [id(0)], -5);
+        assert.deepEqual(refusals, ['frameTaken', 'outOfRange']);
+        events.fire('track.moveKeys', ['nope'], 5);
+        assert.deepEqual(refusals, ['frameTaken', 'outOfRange', 'unknownKey']);
+        events.fire('track.copyKeys', [id(0)], 30);
+        assert.equal(refusals.at(-1), 'frameTaken');
+        assert.deepEqual(sortedKeys(events), [0, 30, 60]);
+        assert.equal(ops.length, 1);
+
+        ops[0].undo();
+        assert.equal(events.invoke('camera.poses').find(p => p.frame === 0).linger, undefined);
+    },
+
+    'keys: a group move where one key would land on an unselected key\'s frame is refused as a whole'() {
+        const { events, ops } = setup([[0], [30], [60]]);
+        const refusals = [];
+        events.on('track.refused', reason => refusals.push(reason));
+        events.fire('track.setLinger', 0, 1);
+        const ids = events.invoke('camera.poses').filter(p => p.frame <= 30).map(p => p.id);
+
+        events.fire('track.moveKeys', ids, 30);
+        assert.deepEqual(refusals, ['frameTaken']);
+        events.fire('track.copyKeys', ids, 30);
+        assert.deepEqual(refusals, ['frameTaken', 'frameTaken']);
+        assert.deepEqual(sortedKeys(events), [0, 30, 60]);
+        assert.equal(ops.length, 1);
+
+        ops[0].undo();
+        assert.equal(events.invoke('camera.poses').find(p => p.frame === 0).linger, undefined);
+    },
+
+    'keys: updateKeys on a detour clears auto; a linger change keeps orbit, a target change clears it'() {
+        const { events } = setup([[0], [60]]);
+        const detour = { name: 'detour', frame: 30, position: new Vec3(5, 0, 0), target: new Vec3(5, 0, -1), fov: 60, auto: true, orbit: 'o1' };
+        events.fire('track.replacePath', [...events.invoke('camera.poses'), detour]);
+        const get = () => events.invoke('camera.poses').find(p => p.frame === 30);
+
+        events.fire('track.updateKeys', [{ id: get().id, linger: 2 }]);
+        assert.equal(get().auto, undefined);
+        assert.equal(get().linger, 2);
+        assert.equal(get().orbit, 'o1');
+
+        events.fire('track.updateKeys', [{ id: get().id, target: new Vec3(6, 0, -1) }]);
+        assert.equal(get().orbit, undefined);
+    },
+
+    'keys: copyKeys gives new ids and keeps lookAhead'() {
+        const { events } = setup([[0], [60]]);
+        const detour = { name: 'detour', frame: 30, position: new Vec3(5, 0, 0), target: new Vec3(5, 0, -1), fov: 60, auto: true, orbit: 'o1', lookAhead: true, turnIn: 2, linger: 1 };
+        events.fire('track.replacePath', [...events.invoke('camera.poses'), detour]);
+        const source = events.invoke('camera.poses').find(p => p.frame === 30);
+        events.fire('track.copyKeys', [source.id], 100);
+        const copy = events.invoke('camera.poses').find(p => p.frame === 130);
+        assert.ok(copy.id && copy.id !== source.id);
+        assert.equal(copy.lookAhead, true);
+        assert.equal(copy.turnIn, 2);
+        assert.equal(copy.linger, 1);
+        assert.equal(copy.auto, undefined);
+        assert.equal(copy.orbit, undefined);
+        assert.equal(new Set(events.invoke('camera.poses').map(p => p.name)).size, 4);
+    },
+
+    'keys: removeKeys removes exactly the ids'() {
+        const { events, ops } = setup([[0], [30], [60], [90]]);
+        const ids = events.invoke('camera.poses').filter(p => p.frame === 30 || p.frame === 90).map(p => p.id);
+        events.fire('track.removeKeys', [...ids, 'nope']);
+        assert.deepEqual(sortedKeys(events), [0, 60]);
+        assert.equal(ops.length, 1);
+        events.fire('track.removeKeys', ['nope']);
+        assert.equal(ops.length, 1);
     },
 
     'track: a copied or replaced auto key is a normal key'() {

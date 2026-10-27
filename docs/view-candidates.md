@@ -46,6 +46,7 @@ Suggest Views looks at your scene and proposes camera views. No photos needed. Y
 - Total length stays the **Total Frames** value.
 - The view then jumps to the pose of the current frame, same as Balance.
 - One Ctrl+Z undoes it.
+- A longer run shows a progress bar with **Cancel**. Cancel leaves the keys as they were and keeps your picks.
 - If Balance can't fit the keys, they are still added and a **Couldn't Balance Timing** box explains why. See [Errors](balance-timing.md#errors).
 - In that case the new keys sit at an even spacing after the old ones. With more picks than frames, some keys may sit past the end.
 - If you change camera keys while Balance is working, nothing is added. A box says so, and your picks stay.

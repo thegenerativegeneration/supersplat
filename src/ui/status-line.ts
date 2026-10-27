@@ -15,12 +15,12 @@ const reportText = (lines: ReportLine[]) => lines.map((line) => {
     return i18n.t(line.key, params);
 }).join('\n');
 
-// whether the scene is probably in metres, from the last Suggest Views box
+// whether the scene is probably in metres, from the estimated area box
 const sceneIsMetric = (events: Events) => {
-    const last = events.functions.has('candidates.lastSettings') ?
-        events.invoke('candidates.lastSettings') as { box: Box } | null :
+    const estimate = events.functions.has('candidates.estimated') ?
+        events.invoke('candidates.estimated') as { box: Box } | null :
         null;
-    return last ? looksMetric(last.box) : false;
+    return estimate ? looksMetric(estimate.box) : false;
 };
 
 // A non-modal line above an anchor element that hides itself after a while.

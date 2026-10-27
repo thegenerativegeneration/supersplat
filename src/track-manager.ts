@@ -2,6 +2,7 @@ import { AnimTrack } from './anim-track';
 import { CameraAnimTrack, Pose } from './camera-poses';
 import { AnimTrackEditOp } from './edit-ops';
 import { Events } from './events';
+import { KeyChange, KeyRefusal } from './key-ops';
 
 /**
  * Manages the active animation track and provides undo-wrapped
@@ -30,6 +31,16 @@ const registerTrackManagerEvents = (events: Events) => {
         events.fire('edit.add', new AnimTrackEditOp(name, track, before, after), true);
     };
 
+    // Like trackEdit for ops that refuse with a reason; a refusal adds no undo op
+    const keyEdit = (name: string, editFn: (track: CameraAnimTrack) => true | KeyRefusal | false) => {
+        let result: true | KeyRefusal | false = false;
+        trackEdit(name, (track) => {
+            result = editFn(track as CameraAnimTrack);
+            return result === true;
+        });
+        if (typeof result === 'string') events.fire('track.refused', result);
+    };
+
     // Get keys from active track
     events.function('track.keys', () => {
         const track = getActiveTrack();
@@ -56,6 +67,23 @@ const registerTrackManagerEvents = (events: Events) => {
     // Copy key in active track
     events.on('track.copyKey', (fromFrame: number, toFrame: number) => {
         trackEdit('copyKey', track => track.copyKey(fromFrame, toFrame));
+    });
+
+    // Change, move, copy and remove several keys by id
+    events.on('track.updateKeys', (changes: KeyChange[]) => {
+        keyEdit('updateKeys', track => track.updateKeys(changes));
+    });
+
+    events.on('track.moveKeys', (ids: string[], offset: number) => {
+        keyEdit('moveKeys', track => track.moveKeys(ids, offset));
+    });
+
+    events.on('track.copyKeys', (ids: string[], offset: number) => {
+        keyEdit('copyKeys', track => track.copyKeys(ids, offset));
+    });
+
+    events.on('track.removeKeys', (ids: string[]) => {
+        trackEdit('removeKeys', track => (track as CameraAnimTrack).removeKeys(ids));
     });
 
     // Set how long the camera holds at a key

@@ -13,13 +13,24 @@ import { EditorError } from './.build/src/editor-command.js';
 import { Events } from './.build/src/events.js';
 import { runSelectionGesture } from './.build/src/selection-gesture.js';
 import { balanceTimingChecks } from './balance-timing.mjs';
+import { cameraKeyframesChecks } from './camera-keyframes.mjs';
 import { candidatesChecks } from './candidates.mjs';
 import { candidatesPanelChecks } from './candidates-panel.mjs';
+import { keyEditorModelChecks } from './key-editor-model.mjs';
+import { keyMarkerGesturesChecks } from './key-marker-gestures.mjs';
+import { keyPick3dChecks } from './key-pick-3d.mjs';
+import { keyPickChecks } from './key-pick.mjs';
+import { keySelectionChecks } from './key-selection.mjs';
+import { keyThumbnailsChecks } from './key-thumbnails.mjs';
+import { lookAheadChecks } from './look-ahead.mjs';
 import { isovistChecks } from './isovist.mjs';
 import { cameraTrackChecks } from './camera-track.mjs';
+import { computeClientChecks } from './compute-client.mjs';
+import { computeHandlerChecks } from './compute-handler.mjs';
 import { fixPlanBalanceChecks } from './fix-plan-balance.mjs';
 import { editorCommandChecks } from './editor-commands.mjs';
 import { fixPathChecks } from './fix-path.mjs';
+import { fixPathCancelChecks } from './fix-path-cancel.mjs';
 import { fixPathEventsChecks } from './fix-path-events.mjs';
 import { fixPathOrbitChecks } from './fix-path-orbit.mjs';
 import { fixPathOverviewChecks } from './fix-path-overview.mjs';
@@ -31,8 +42,10 @@ import { orbitKeyChecks } from './orbit-keys.mjs';
 import { orbitPathChecks } from './orbit-path.mjs';
 import { orbitPreviewChecks, orbitReadoutChecks } from './orbit-readout.mjs';
 import { pathLineChecks } from './path-line.mjs';
+import { progressHandleChecks } from './progress-handle.mjs';
 import { pathMarkersChecks } from './path-markers.mjs';
 import { timingEventsChecks } from './timing-events.mjs';
+import { viewCaptureChecks } from './view-capture.mjs';
 import { webmcpChecks } from './webmcp.mjs';
 
 const barrier = () => {
@@ -88,6 +101,16 @@ const checks = {
     ...candidatesPanelChecks,
     ...isovistChecks,
     ...cameraTrackChecks,
+    ...keyEditorModelChecks,
+    ...keyMarkerGesturesChecks,
+    ...keyPick3dChecks,
+    ...keyPickChecks,
+    ...keySelectionChecks,
+    ...keyThumbnailsChecks,
+    ...lookAheadChecks,
+    ...cameraKeyframesChecks,
+    ...computeHandlerChecks,
+    ...computeClientChecks,
     ...orbitEventsChecks,
     ...orbitKeyChecks,
     ...orbitPathChecks,
@@ -97,6 +120,7 @@ const checks = {
     ...editorCommandChecks,
     ...fixPathChecks,
     ...fixPathEventsChecks,
+    ...fixPathCancelChecks,
     ...fixPathOrbitChecks,
     ...fixPathOverviewChecks,
     ...fixPathQualityChecks,
@@ -104,7 +128,9 @@ const checks = {
     ...occupancyExtentChecks,
     ...pathLineChecks,
     ...pathMarkersChecks,
+    ...progressHandleChecks,
     ...timingEventsChecks,
+    ...viewCaptureChecks,
     ...webmcpChecks,
 
     async 'enqueue is strictly FIFO'() {

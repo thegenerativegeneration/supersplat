@@ -12,6 +12,7 @@ Balance spreads your camera keys in time so the camera moves at an even speed th
 - With loop off, Balance always puts the first key at frame 0 and the last key at the final frame. A pre-roll or post-roll you set by hand is replaced; use linger on the end keys instead.
 - Keys beyond **Total Frames** are pulled back into range. Keys parked by [Fix Path](fix-path.md#parked-keys) stay where they are.
 - One Ctrl+Z undoes the whole Balance.
+- A longer run shows a progress bar with **Cancel**. Cancel leaves the keys as they were.
 - Turn cap (on by default): the view turns at most 20°/s where Total Frames allows. [Fix Path](fix-path.md) does the same.
 - Speed readout after a run: "Speed: avg … , peak … , fastest turn …°/s".
 - Warning when Total Frames is too low for the cap: "Too few frames to keep turns below 20°/s; fastest turn …°/s. Increase Total Frames for a calmer shot." The shot is still balanced.
@@ -28,8 +29,8 @@ The number next to **Balance** ("How much turning counts compared to moving") se
 
 Linger makes the camera slow down at a key, or stop at the start or end.
 
-1. Right-click a key.
-2. Enter **Linger (s)**. 0 turns it off.
+1. Right-click a key (timeline marker, thumbnail or 3D camera). The [key editor](editing-keys.md#key-editor) opens.
+2. Enter **Linger (s)**. 0 turns it off. With several keys selected, it applies to all.
 3. Click **Balance** again. Linger does not re-time the keys by itself.
 
 Lingering keys show a band on the timeline.

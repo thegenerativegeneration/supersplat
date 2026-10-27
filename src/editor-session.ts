@@ -88,7 +88,7 @@ const createEditorSession = (events: Events, scene: Scene, queue: CommandQueue, 
         background: (events.invoke('bgClr') as Color).clone(),
         ...Object.fromEntries(Object.entries(VIEW_QUERIES).map(([key, name]) => [key, events.invoke(name)]))
     });
-    const viewportInfo = () => {
+    const liveViewport = () => {
         const frame = scene.camera.captureFrame();
         const rect = scene.canvas.getBoundingClientRect();
         // Token describes the displayed camera and coordinate system, including
@@ -103,21 +103,40 @@ const createEditorSession = (events: Events, scene: Scene, queue: CommandQueue, 
             renderSize: frame.target
         };
     };
+    // A key thumbnail borrows the camera between two commands (they share the
+    // command queue), so it never holds a command up, and callers keep seeing
+    // the live viewport as it was when the thumbnail started.
+    let viewportDuringThumbnail: ReturnType<typeof liveViewport> | null = null;
+    events.on('thumbs.capture', (capturing: boolean) => {
+        viewportDuringThumbnail = capturing ? liveViewport() : null;
+    });
+    const viewportInfo = () => viewportDuringThumbnail ?? liveViewport();
+    const rendering = () => !!scene.lockedRenderMode && !viewportDuringThumbnail;
     const checkView = (token: string) => {
         if (viewportInfo().viewToken !== token) throw new EditorError('stale_view', 'The camera or viewport changed. Inspect the scene and use its new viewToken.');
     };
     const assertIdle = () => {
-        if (busy || scene.lockedRenderMode) throw new EditorError('busy', 'The editor is loading or rendering. Wait for it to finish.');
+        if (busy || rendering()) throw new EditorError('busy', 'The editor is loading or rendering. Wait for it to finish.');
     };
     const read = () => ({
         document: { name: events.invoke('doc.name') ?? null, unsavedChanges: !!events.invoke('scene.dirty') },
         camera: cameraInfo(),
         viewport: viewportInfo(),
         view: viewInfo(),
-        busy: busy > 0 || !!scene.lockedRenderMode,
+        busy: busy > 0 || rendering(),
         bounds: allSplats().length ? scene.bound.clone() : null
     });
-    const ready = () => {
+    const ready = (): Promise<boolean> => {
+        // the repaint after a thumbnail is the frame that shows the result
+        if (viewportDuringThumbnail) {
+            return new Promise((resolve) => {
+                const handle = events.on('thumbs.capture', (capturing: boolean) => {
+                    if (capturing) return;
+                    handle.off();
+                    resolve(ready());
+                });
+            });
+        }
         if (scene.lockedRenderMode) return Promise.resolve(false);
         return new Promise<boolean>((resolve) => {
             let handle: ReturnType<Events['on']> = null;

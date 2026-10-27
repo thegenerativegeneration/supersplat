@@ -1,0 +1,203 @@
+import { DEFAULT_TURN_IN, VERTICAL, forwardOf, headingOf, limitTurnRate, lookAheadView, normalized, planTurns, turnBetween, type StretchViews, type TurnPlan } from './look-ahead';
+import { CubicSpline } from './spline';
+import type { Vec3Like } from '../candidates/occupancy';
+
+type ViewKey = {
+    position: Vec3Like,
+    target: Vec3Like,
+    fov: number,
+    lookAhead?: boolean,
+    turnIn?: number,
+    // a detour key: on a look-ahead stretch only its position counts
+    auto?: boolean
+};
+
+type ViewSplineOptions = { duration: number, smoothness: number, loop: boolean, frameRate: number };
+
+// frames between the forward samples of a stretch
+const SAMPLE_FRAMES = 0.5;
+const MIN_SAMPLES = 16;
+// the forward follows the travel direction at most this fast, in radians per second: a guard,
+// well above the turn cap, so a reversal of travel turns the view round instead of flipping it;
+// Balance keeps ordinary bends within the cap. The heading's limit shrinks with the horizontal
+// share of the travel
+const FORWARD_TURN_LIMIT = 90 * Math.PI / 180;
+
+// a look-ahead stretch from one user key to the next with look ahead; t0 is negative when it
+// wraps in a loop. forwards: the forward view at evenly spaced frames, null without travel
+type Stretch = StretchViews & {
+    prevDistance: number, keyDistance: number,
+    forwards: Vec3Like[] | null,
+    plan: TurnPlan | null
+};
+
+const turnInOf = (key: ViewKey) => (Number.isFinite(key.turnIn) && key.turnIn >= 0 ? key.turnIn : DEFAULT_TURN_IN);
+
+const viewOf = (key: ViewKey) => {
+    const { position: p, target: q } = key;
+    const dx = q.x - p.x, dy = q.y - p.y, dz = q.z - p.z;
+    return {
+        view: normalized(dx, dy, dz) ?? { x: 0, y: 0, z: -1 },
+        distance: Math.sqrt(dx * dx + dy * dy + dz * dz)
+    };
+};
+
+// velocity of the spline's first three dimensions at time (per segment parameter, which keeps
+// the direction); clamped times use the end segments
+const velocity = (spline: CubicSpline, time: number, out: Vec3Like) => {
+    const { times, knots, dim } = spline;
+    const last = times.length - 1;
+    let seg = 0;
+    while (seg < last - 1 && time >= times[seg + 1]) seg++;
+    const t = Math.min(1, Math.max(0, (time - times[seg]) / (times[seg + 1] - times[seg])));
+    const h00 = 6 * t * t - 6 * t;
+    const h10 = 3 * t * t - 4 * t + 1;
+    const h11 = 3 * t * t - 2 * t;
+    const v = [0, 0, 0];
+    let idx = seg * dim * 3;
+    for (let i = 0; i < 3; i++) {
+        const p0 = knots[idx + 1];
+        const m0 = knots[idx + 2];
+        const m1 = knots[idx + dim * 3];
+        const p1 = knots[idx + dim * 3 + 1];
+        idx += 3;
+        v[i] = (p0 - p1) * h00 + m0 * h10 + m1 * h11;
+    }
+    out.x = v[0];
+    out.y = v[1];
+    out.z = v[2];
+    return out;
+};
+
+// velocity at a frame of a stretch; in a loop a wrapped frame (below 0) reads the curve's last
+// turn, since the looping spline reaches back only two keys before 0
+const travelVelocity = (spline: CubicSpline, frame: number, opts: ViewSplineOptions, out: Vec3Like) => {
+    return velocity(spline, opts.loop && frame < 0 ? frame + opts.duration : frame, out);
+};
+
+// The forward view at evenly spaced frames over [t0, t1]. Vertical travel keeps the heading of
+// the last travel before it, or the key view's; a standstill holds the forward around it; the
+// forward turns at most FORWARD_TURN_LIMIT, its heading less as the travel steepens. Null when
+// the stretch has no travel.
+const sampleForwards = (spline: CubicSpline, t0: number, t1: number, keyView: Vec3Like, opts: ViewSplineOptions) => {
+    const n = Math.max(MIN_SAMPLES, Math.ceil((t1 - t0) / SAMPLE_FRAMES));
+    const v = { x: 0, y: 0, z: 0 };
+    let heading = headingOf(keyView) ?? { x: 1, y: 0, z: 0 };
+    const out: (Vec3Like | null)[] = [];
+    const shares: number[] = [];
+    for (let j = 0; j <= n; j++) {
+        travelVelocity(spline, t0 + (t1 - t0) * j / n, opts, v);
+        const speed = Math.hypot(v.x, v.y, v.z);
+        const flat = Math.hypot(v.x, v.z);
+        if (flat >= VERTICAL * speed) heading = headingOf(v) ?? heading;
+        out.push(forwardOf(v, heading));
+        shares.push(speed > 0 ? flat / speed : 1);
+    }
+    const first = out.findIndex(f => f);
+    if (first < 0) return null;
+    for (let j = 0; j <= n; j++) out[j] ??= out[j > first ? j - 1 : first];
+    return limitTurnRate(out, (t1 - t0) / n / opts.frameRate, FORWARD_TURN_LIMIT, shares);
+};
+
+// the forward at frame t of the stretch, between its samples
+const forwardAt = (s: { t0: number, t1: number }, forwards: Vec3Like[], t: number) => {
+    const n = forwards.length - 1;
+    const x = Math.min(n, Math.max(0, (t - s.t0) / (s.t1 - s.t0) * n));
+    const j = Math.min(n - 1, Math.floor(x));
+    const u = x - j;
+    const a = forwards[j], b = forwards[j + 1];
+    return normalized(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u) ?? a;
+};
+
+// the key indices of the look-ahead stretches: each arrives at a user key with look ahead, from
+// the user key before it (from > to when it wraps in a loop, from === to for a lone key)
+const lookAheadStretches = (keys: ViewKey[], loop: boolean) => {
+    const users = keys.map((_, i) => i).filter(i => !keys[i].auto);
+    return users.flatMap((to, u) => {
+        if (!keys[to].lookAhead || (u === 0 && !loop)) return [];
+        return [{ from: users[(u + users.length - 1) % users.length], to }];
+    });
+};
+
+// the stretches arriving at the user keys with look ahead; none without a frame rate to time
+// the turns
+const stretchesOf = (keys: ViewKey[], times: number[], spline: CubicSpline, opts: ViewSplineOptions) => {
+    const out: Stretch[] = [];
+    if (!(opts.frameRate > 0)) return out;
+    lookAheadStretches(keys, opts.loop).forEach(({ from, to }) => {
+        const prev = viewOf(keys[from]);
+        const key = viewOf(keys[to]);
+        const views: StretchViews = {
+            t0: from < to ? times[from] : times[from] - opts.duration,
+            t1: times[to],
+            frameRate: opts.frameRate,
+            prevView: prev.view,
+            keyView: key.view,
+            prevTurnIn: keys[from].lookAhead ? turnInOf(keys[from]) : DEFAULT_TURN_IN,
+            turnIn: turnInOf(keys[to])
+        };
+        const forwards = sampleForwards(spline, views.t0, views.t1, key.view, opts);
+        out.push({
+            ...views,
+            prevDistance: prev.distance,
+            keyDistance: key.distance,
+            forwards,
+            plan: forwards && planTurns(views, t => forwardAt(views, forwards, t))
+        });
+    });
+    return out;
+};
+
+/**
+ * The camera spline through keys at the ascending times, as [px, py, pz, tx, ty, tz, fov].
+ * On a stretch arriving at a key with look ahead, the target follows lookAheadView at a view
+ * distance blended between the stretch's two user keys; a stretch without travel turns from
+ * one key view to the other. Without look ahead it is the plain spline.
+ */
+const buildViewSpline = (keys: ViewKey[], times: number[], opts: ViewSplineOptions) => {
+    const points: number[] = [];
+    for (const k of keys) {
+        points.push(k.position.x, k.position.y, k.position.z);
+        points.push(k.target.x, k.target.y, k.target.z);
+        points.push(k.fov);
+    }
+    const spline = opts.loop ?
+        CubicSpline.fromPointsLooping(opts.duration, times, points, opts.smoothness) :
+        CubicSpline.fromPoints(times, points, opts.smoothness);
+
+    const stretches = stretchesOf(keys, times, spline, opts);
+    if (stretches.length === 0) {
+        return (frame: number, result: number[]) => {
+            spline.evaluate(frame, result);
+            return result;
+        };
+    }
+
+    // one view-rule input per stretch, its t and forward set per frame
+    const inputs = stretches.map(s => s.forwards && { ...s.plan, t: 0, t0: s.t0, t1: s.t1, frameRate: s.frameRate, forward: s.forwards[0], prevView: s.prevView, keyView: s.keyView });
+
+    return (frame: number, result: number[]) => {
+        spline.evaluate(frame, result);
+        for (let k = 0; k < stretches.length; k++) {
+            const s = stretches[k];
+            const t = frame > s.t1 && opts.loop ? frame - opts.duration : frame;
+            if (!(t > s.t0 && t <= s.t1)) continue;
+            const u = (t - s.t0) / (s.t1 - s.t0);
+            const input = inputs[k];
+            if (input) {
+                input.t = t;
+                input.forward = forwardAt(s, s.forwards, t);
+            }
+            const dir = input ? lookAheadView(input) : turnBetween(s.prevView, s.keyView, u);
+            const distance = s.prevDistance + (s.keyDistance - s.prevDistance) * u;
+            result[3] = result[0] + dir.x * distance;
+            result[4] = result[1] + dir.y * distance;
+            result[5] = result[2] + dir.z * distance;
+            break;
+        }
+        return result;
+    };
+};
+
+export { buildViewSpline, lookAheadStretches, travelVelocity };
+export type { ViewKey, ViewSplineOptions };

@@ -150,6 +150,16 @@ body.candidates-busy #canvas-container {
         overflow: hidden;
     }
 
+    .candidates-bar.pulsate {
+        animation: candidates-bar-pulse 1s ease infinite alternate-reverse;
+    }
+
+    @keyframes candidates-bar-pulse {
+        to {
+            background-color: #404040;
+        }
+    }
+
     .candidates-bar-fill {
         height: 100%;
         width: 0;

@@ -29,8 +29,8 @@ The number next to **Balance** ("How much turning counts compared to moving") se
 
 Linger makes the camera slow down at a key, or stop at the start or end.
 
-1. Right-click a key.
-2. Enter **Linger (s)**. 0 turns it off.
+1. Right-click a key (timeline marker, thumbnail or 3D camera). The [key editor](editing-keys.md#key-editor) opens.
+2. Enter **Linger (s)**. 0 turns it off. With several keys selected, it applies to all.
 3. Click **Balance** again. Linger does not re-time the keys by itself.
 
 Lingering keys show a band on the timeline.

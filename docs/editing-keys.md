@@ -82,7 +82,8 @@ For a key with **Look Ahead** on, on the way from the previous key:
 - The camera path stays where it is. Only the view changes.
 - **Turn-in** is a minimum. Click **Balance** after turning look ahead on: it gives large turns more time, so they stay at most 20°/s where **Total Frames** allows.
 - On a short stretch between two keys there is no time to face forward: the turns take all of it.
-- The forward direction itself turns at most 20°/s, so on sharp bends it lags behind the travel direction.
+- The camera follows bends in the path. Sharp corners turn the view fast; Balance reports them when they pass 20°/s.
+- The camera turns round at most 90°/s when the path doubles back, and hardly turns while going straight up or down.
 - The look ticks along the 3D path show where the camera looks.
 - Video, HTML viewer export and Publish show the same view.
 

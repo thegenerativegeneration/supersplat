@@ -209,8 +209,7 @@ const lookAheadChecks = {
         nearDeg(angleDeg(viewAt(still, 90), yaw(90)), 0, 1e-6, 'standing key');
     },
 
-    'look: no frame turns faster than the cap on the triangle of detours or the courtyard'() {
-        const perFrame = 20 / 30 * 1.05;
+    'look: no frame turns faster than the guard, nor after Balance faster than the cap'() {
         // one look-ahead key on a triangle of detours: the travel sweeps across the opposite of
         // its view during the turn-in, at the frames that once flipped the view
         const triangle = [
@@ -220,19 +219,31 @@ const lookAheadChecks = {
         ];
         const fixed = buildCameraCurve(triangle, [0, 200, 400], { duration: 600, smoothness: 1, loop: true, frameRate: 30 });
         const fixedStep = maxStep(fixed, 0, 600, 0.25) * 4;
-        assert.ok(fixedStep <= perFrame, `triangle at fixed frames: ${fixedStep}° per frame`);
+        assert.ok(fixedStep <= 90 / 30 * 1.05, `triangle at fixed frames: ${fixedStep}° per frame`);
 
+        // level travel along +x, then a climb whose spline overshoots back in x
+        const climb = [
+            key([0, 0, 0], yaw(0)),
+            { ...key([10, 0, 0], yaw(0)), auto: true },
+            { ...key([10, 12, 0], yaw(90)), auto: true },
+            key([10, 24, 0], yaw(180), { lookAhead: true })
+        ].map(k => ({ ...k, linger: 0, distance: 5 }));
+
+        // the forward turns round the triangle's sharp corners, faster than the cap even in 60 s,
+        // and Balance reports how fast
         const settings = { frameRate: 30, smoothness: 1, rotationWeight: 1, maxTurnDegPerSec: 20 };
         const cases = [
-            ['triangle', triangle, { ...settings, frames: 600, loop: true }],
-            ['courtyard', BASELINE.balance[0].input.keys.map(k => ({ ...k, lookAhead: true })), { ...settings, frames: 1800, loop: false }]
+            ['triangle', triangle, { ...settings, frames: 600, loop: true }, true],
+            ['triangle, 60 s', triangle, { ...settings, frames: 1800, loop: true }, true],
+            ['climb', climb, { ...settings, frames: 900, loop: false }, false],
+            ['courtyard', BASELINE.balance[0].input.keys.map(k => ({ ...k, lookAhead: true })), { ...settings, frames: 1800, loop: false }, false]
         ];
-        for (const [name, keys, timing] of cases) {
+        for (const [name, keys, timing, limited] of cases) {
             const result = balanceTiming({ ...timing, keys });
-            assert.equal(result.turnLimited, undefined, name);
+            assert.equal(result.turnLimited !== undefined, limited, `${name}: turn limited ${result.turnLimited}`);
             const curve = buildCameraCurve(keys, result.frames, { duration: timing.frames, smoothness: 1, loop: timing.loop, frameRate: 30 });
             const step = maxStep(curve, 0, timing.loop ? timing.frames : timing.frames - 1, 0.25) * 4;
-            assert.ok(step <= perFrame, `${name}: ${step}° per frame`);
+            assert.ok(step <= (result.turnLimited ?? 20) * 1.05 / 30, `${name}: ${step}° per frame, Balance ${result.turnLimited}`);
         }
     },
 
@@ -255,7 +266,35 @@ const lookAheadChecks = {
             const v = unit(viewAt(climb, f));
             assert.ok(Math.abs(v.y) < 0.98, `frame ${f}: y ${v.y}`);
         }
-        assert.ok(maxStep(climb, 0, 399, 0.25) * 4 <= 20 / 30 * 1.05, 'the climb turns within the cap');
+        assert.ok(maxStep(climb, 0, 399, 0.25) * 4 <= 90 / 30 * 1.05, 'the climb turns within the guard');
+        // the same climb ending in a view along +x: the small sideways overshoot while climbing
+        // hardly turns the heading
+        const straight = buildCameraCurve([
+            key([0, 0, 0], yaw(0)),
+            { ...key([10, 0, 0], yaw(0)), auto: true },
+            { ...key([10, 12, 0], yaw(90)), auto: true },
+            key([10, 24, 0], yaw(0), { lookAhead: true })
+        ], [0, 100, 200, 399], opts);
+        for (let f = 100; f <= 399; f += 1) {
+            const v = viewAt(straight, f);
+            const turned = Math.abs(Math.atan2(v.z, v.x) / DEG);
+            assert.ok(turned < 30, `frame ${f}: heading ${turned}° off +x`);
+        }
+    },
+
+    'look: between the turns the view keeps up with a bend of 45°/s'() {
+        // three quarters of a circle of radius 10 in 6 s, keys every 45° looking along it; with
+        // no turn-in time the turns are short and the view faces forward almost throughout
+        const at = a => key([10 * Math.cos(a * DEG), 0, 10 * Math.sin(a * DEG)], yaw(a + 90));
+        const angles = [0, 45, 90, 135, 180, 225, 270];
+        const last = angles.length - 1;
+        const keys = angles.map((a, i) => ({ ...at(a), ...(i === 0 || i === last ? { lookAhead: true, turnIn: 0 } : { auto: true }) }));
+        const curve = buildCameraCurve(keys, angles.map((_, i) => i * 30), { duration: 200, smoothness: 1, loop: false, frameRate: 30 });
+        for (let f = 35; f <= 145; f += 5) {
+            const a = curve(f - 0.5, newPose()).position, b = curve(f + 0.5, newPose()).position;
+            const view = viewAt(curve, f);
+            nearDeg(angleDeg(v3(view.x, 0, view.z), v3(b.x - a.x, 0, b.z - a.z)), 0, 3, `frame ${f}`);
+        }
     },
 
     'look: the spline velocity matches a finite difference of the curve, across the loop seam'() {

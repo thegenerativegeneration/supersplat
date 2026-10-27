@@ -78,8 +78,9 @@ const registerKeySelectionEvents = (events: Events) => {
         apply(new Set(ids), ids.length ? ids[ids.length - 1] : null);
     });
 
+    // the measure and orient tools take Delete for their own points
     events.on('keys.focus', (value: boolean) => {
-        focus = value;
+        focus = value && !['measure', 'orient'].includes(events.invoke('tool.active'));
     });
 
     events.on('keys.delete', () => {

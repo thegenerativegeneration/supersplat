@@ -1,4 +1,4 @@
-import { DEFAULT_TURN_IN, MAX_TURN_DEG_PER_SEC, VERTICAL, forwardOf, headingOf, limitTurnRate, lookAheadView, normalized, planTurns, turnBetween, type StretchViews, type TurnPlan } from './look-ahead';
+import { DEFAULT_TURN_IN, VERTICAL, forwardOf, headingOf, limitTurnRate, lookAheadView, normalized, planTurns, turnBetween, type StretchViews, type TurnPlan } from './look-ahead';
 import { CubicSpline } from './spline';
 import type { Vec3Like } from '../candidates/occupancy';
 
@@ -17,9 +17,11 @@ type ViewSplineOptions = { duration: number, smoothness: number, loop: boolean, 
 // frames between the forward samples of a stretch
 const SAMPLE_FRAMES = 0.5;
 const MIN_SAMPLES = 16;
-// the forward follows the travel direction at most this fast, in radians per second, and lags
-// behind sharper bends; a reversal of travel turns it round instead of flipping it
-const FORWARD_TURN_LIMIT = MAX_TURN_DEG_PER_SEC * Math.PI / 180;
+// the forward follows the travel direction at most this fast, in radians per second: a guard,
+// well above the turn cap, so a reversal of travel turns the view round instead of flipping it;
+// Balance keeps ordinary bends within the cap. The heading's limit shrinks with the horizontal
+// share of the travel
+const FORWARD_TURN_LIMIT = 90 * Math.PI / 180;
 
 // a look-ahead stretch from one user key to the next with look ahead; t0 is negative when it
 // wraps in a loop. forwards: the forward view at evenly spaced frames, null without travel
@@ -75,21 +77,26 @@ const travelVelocity = (spline: CubicSpline, frame: number, opts: ViewSplineOpti
 
 // The forward view at evenly spaced frames over [t0, t1]. Vertical travel keeps the heading of
 // the last travel before it, or the key view's; a standstill holds the forward around it; the
-// forward turns at most FORWARD_TURN_LIMIT. Null when the stretch has no travel.
+// forward turns at most FORWARD_TURN_LIMIT, its heading less as the travel steepens. Null when
+// the stretch has no travel.
 const sampleForwards = (spline: CubicSpline, t0: number, t1: number, keyView: Vec3Like, opts: ViewSplineOptions) => {
     const n = Math.max(MIN_SAMPLES, Math.ceil((t1 - t0) / SAMPLE_FRAMES));
     const v = { x: 0, y: 0, z: 0 };
     let heading = headingOf(keyView) ?? { x: 1, y: 0, z: 0 };
     const out: (Vec3Like | null)[] = [];
+    const shares: number[] = [];
     for (let j = 0; j <= n; j++) {
         travelVelocity(spline, t0 + (t1 - t0) * j / n, opts, v);
-        if (Math.hypot(v.x, v.z) >= VERTICAL * Math.hypot(v.x, v.y, v.z)) heading = headingOf(v) ?? heading;
+        const speed = Math.hypot(v.x, v.y, v.z);
+        const flat = Math.hypot(v.x, v.z);
+        if (flat >= VERTICAL * speed) heading = headingOf(v) ?? heading;
         out.push(forwardOf(v, heading));
+        shares.push(speed > 0 ? flat / speed : 1);
     }
     const first = out.findIndex(f => f);
     if (first < 0) return null;
     for (let j = 0; j <= n; j++) out[j] ??= out[j > first ? j - 1 : first];
-    return limitTurnRate(out, (t1 - t0) / n / opts.frameRate, FORWARD_TURN_LIMIT);
+    return limitTurnRate(out, (t1 - t0) / n / opts.frameRate, FORWARD_TURN_LIMIT, shares);
 };
 
 // the forward at frame t of the stretch, between its samples

@@ -10,9 +10,11 @@ const toggle = { shift: false, toggle: true };
 
 const withKeys = () => {
     const ctx = setup([[0], [30], [60], [90], [120]]);
+    const tool = { active: null };
+    ctx.events.function('tool.active', () => tool.active);
     registerKeySelectionEvents(ctx.events);
     const poses = ctx.events.invoke('camera.poses').slice().sort((a, b) => a.frame - b.frame);
-    return { ...ctx, poses, pid: poses.map(p => p.id) };
+    return { ...ctx, tool, poses, pid: poses.map(p => p.id) };
 };
 
 const keySelectionChecks = {
@@ -116,6 +118,22 @@ const keySelectionChecks = {
             assert.equal(events.invoke('camera.poses').length, 5, name);
             assert.deepEqual(events.invoke('keys.selected'), [pid[2]], name);
         }
+    },
+
+    'selection: a key click leaves Delete with the measure and orient tools'() {
+        for (const name of ['measure', 'orient']) {
+            const { events, tool, pid } = withKeys();
+            tool.active = name;
+            events.fire('keys.select', pid[1], plain);
+            events.fire('keys.focus', true);
+            assert.equal(events.invoke('keys.focused'), false, name);
+            assert.deepEqual(events.invoke('keys.selected'), [pid[1]], name);
+        }
+        const { events, tool, pid } = withKeys();
+        tool.active = 'rectSelection';
+        events.fire('keys.select', pid[1], plain);
+        events.fire('keys.focus', true);
+        assert.equal(events.invoke('keys.focused'), true, 'another tool');
     },
 
     'selection: key focus survives tool exit, unchanged splat state and the timeline opening'() {

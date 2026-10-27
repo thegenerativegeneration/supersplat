@@ -44,6 +44,9 @@ type BalanceResult =
 
 const MAX_ITERATIONS = 10;
 const SAMPLES_PER_SEGMENT = 32;
+// a look-ahead view follows the path's bends, so its turn peaks are short: shots with look ahead
+// sample each segment at least this often per frame
+const LOOK_AHEAD_SAMPLES_PER_FRAME = 2;
 const MIN_DISTANCE = 1e-3;
 // a sampled peak this far above the turn cap counts as missing it
 const TURN_TOLERANCE = 0.05;
@@ -183,6 +186,9 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
         return { ok: false, reason: 'lingerTooLong' };
     }
 
+    const lookAhead = keys.some(k => k.lookAhead);
+    const samplesOf = (t0: number, t1: number) => (lookAhead ? Math.max(SAMPLES_PER_SEGMENT, Math.ceil((t1 - t0) * LOOK_AHEAD_SAMPLES_PER_FRAME)) : SAMPLES_PER_SEGMENT);
+
     const dist = keys.map(sceneDistance);
     const poses = keys.map(k => [
         k.position.x, k.position.y, k.position.z,
@@ -238,15 +244,16 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
             const d1 = dist[(s + 1) % n];
             const t0 = boundaries[s];
             const t1 = boundaries[s + 1];
-            const sampleTime = (t1 - t0) / SAMPLES_PER_SEGMENT / frameRate;
+            const samples = samplesOf(t0, t1);
+            const sampleTime = (t1 - t0) / samples / frameRate;
             let cost = 0;
             let maxAngle = 0;
             // a view vector this short flips direction within one sample, so its turn is left out of the peak
             const shortView = 0.1 * Math.min(d0, d1);
             let prevD = d0;
             spline(t0, prev);
-            for (let i = 1; i <= SAMPLES_PER_SEGMENT; i++) {
-                const t = i / SAMPLES_PER_SEGMENT;
+            for (let i = 1; i <= samples; i++) {
+                const t = i / samples;
                 const d = Math.pow(d0, 1 - t) * Math.pow(d1, t);
                 spline(t0 + (t1 - t0) * t, cur);
                 cost += stepCost(prev, cur, prevD, d, rotationWeight);

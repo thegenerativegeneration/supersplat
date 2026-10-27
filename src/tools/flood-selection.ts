@@ -2,6 +2,7 @@ import { Container, NumericInput } from '@playcanvas/pcui';
 
 import { Events } from '../events';
 import { opFromModifiers } from '../select-op';
+import { claimRendering } from '../view-capture';
 
 type Pt = {x : number, y: number };
 
@@ -67,7 +68,8 @@ class FloodSelection {
                 imageData = context.createImageData(width, height);
             }
 
-            const data = await (events.invoke('render.offscreen', width, height) as Promise<Uint8Array>);
+            // a key thumbnail in flight shares the offscreen target, so it finishes first
+            const data = await claimRendering(events, () => events.invoke('render.offscreen', width, height) as Promise<Uint8Array>);
             let current: Pt = {
                 ...point
             };

@@ -1,5 +1,5 @@
 import { MAX_TURN_DEG_PER_SEC } from './look-ahead';
-import { buildViewSpline } from './look-ahead-spline';
+import { buildViewSpline, lookAheadStretches } from './look-ahead-spline';
 
 type Point3 = { x: number, y: number, z: number };
 
@@ -44,8 +44,8 @@ type BalanceResult =
 
 const MAX_ITERATIONS = 10;
 const SAMPLES_PER_SEGMENT = 32;
-// a look-ahead view follows the path's bends, so its turn peaks are short: shots with look ahead
-// sample each segment at least this often per frame
+// a look-ahead view follows the path's bends, so its turn peaks are short: the peak turn of a
+// segment on a look-ahead stretch is sampled at least this often per frame
 const LOOK_AHEAD_SAMPLES_PER_FRAME = 2;
 const MIN_DISTANCE = 1e-3;
 // a sampled peak this far above the turn cap counts as missing it
@@ -156,6 +156,23 @@ const allocate = (available: number, costs: number[], minimums: number[], floorC
     }
 };
 
+// the peak view turn over [t0, t1] of the spline, in degrees per second, sampled at least
+// LOOK_AHEAD_SAMPLES_PER_FRAME times a frame; views shorter than shortView are left out
+const densePeakTurn = (spline: (frame: number, result: number[]) => number[], t0: number, t1: number, frameRate: number, shortView: number) => {
+    const samples = Math.max(SAMPLES_PER_SEGMENT, Math.ceil((t1 - t0) * LOOK_AHEAD_SAMPLES_PER_FRAME));
+    let prev = spline(t0, []);
+    let cur: number[] = [];
+    let maxAngle = 0;
+    for (let i = 1; i <= samples; i++) {
+        spline(t0 + (t1 - t0) * i / samples, cur);
+        if (viewLength(prev) >= shortView && viewLength(cur) >= shortView) {
+            maxAngle = Math.max(maxAngle, viewAngle(prev, cur));
+        }
+        [prev, cur] = [cur, prev];
+    }
+    return maxAngle * 180 / Math.PI / ((t1 - t0) / samples / frameRate);
+};
+
 const balanceTiming = (input: BalanceInput): BalanceResult => {
     const { keys, frames, frameRate, smoothness, loop, rotationWeight, maxTurnDegPerSec } = input;
     const cap = maxTurnDegPerSec !== undefined && maxTurnDegPerSec > 0 ? maxTurnDegPerSec : undefined;
@@ -186,8 +203,15 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
         return { ok: false, reason: 'lingerTooLong' };
     }
 
-    const lookAhead = keys.some(k => k.lookAhead);
-    const samplesOf = (t0: number, t1: number) => (lookAhead ? Math.max(SAMPLES_PER_SEGMENT, Math.ceil((t1 - t0) * LOOK_AHEAD_SAMPLES_PER_FRAME)) : SAMPLES_PER_SEGMENT);
+    // segments on a look-ahead stretch; segment s runs from key s to the next
+    const onStretch = new Array<boolean>(segs).fill(false);
+    for (const { from, to } of lookAheadStretches(keys, loop)) {
+        let s = from;
+        do {
+            onStretch[s] = true;
+            s = (s + 1) % n;
+        } while (s !== to);
+    }
 
     const dist = keys.map(sceneDistance);
     const poses = keys.map(k => [
@@ -244,16 +268,15 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
             const d1 = dist[(s + 1) % n];
             const t0 = boundaries[s];
             const t1 = boundaries[s + 1];
-            const samples = samplesOf(t0, t1);
-            const sampleTime = (t1 - t0) / samples / frameRate;
+            const sampleTime = (t1 - t0) / SAMPLES_PER_SEGMENT / frameRate;
             let cost = 0;
             let maxAngle = 0;
             // a view vector this short flips direction within one sample, so its turn is left out of the peak
             const shortView = 0.1 * Math.min(d0, d1);
             let prevD = d0;
             spline(t0, prev);
-            for (let i = 1; i <= samples; i++) {
-                const t = i / samples;
+            for (let i = 1; i <= SAMPLES_PER_SEGMENT; i++) {
+                const t = i / SAMPLES_PER_SEGMENT;
                 const d = Math.pow(d0, 1 - t) * Math.pow(d1, t);
                 spline(t0 + (t1 - t0) * t, cur);
                 cost += stepCost(prev, cur, prevD, d, rotationWeight);
@@ -269,6 +292,9 @@ const balanceTiming = (input: BalanceInput): BalanceResult => {
             }
             costs.push(cost);
             peakTurn[s] = maxAngle * 180 / Math.PI / sampleTime;
+            if (onStretch[s]) {
+                peakTurn[s] = Math.max(peakTurn[s], densePeakTurn(spline, t0, t1, frameRate, shortView));
+            }
             if (cap !== undefined && peakTurn[s] > cap) {
                 // turn speed scales inversely with the segment's frames
                 minimums[s] = Math.max(minimums[s], (t1 - t0) * peakTurn[s] / cap - share[s]);

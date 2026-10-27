@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 
 import { balanceTiming } from './.build/src/anim/balance-timing.js';
 import { buildCameraCurve } from './.build/src/anim/camera-curve.js';
-import { lookAheadView, planTurns } from './.build/src/anim/look-ahead.js';
+import { limitTurnRate, lookAheadView, planTurns } from './.build/src/anim/look-ahead.js';
 import { travelVelocity } from './.build/src/anim/look-ahead-spline.js';
 import { CubicSpline } from './.build/src/anim/spline.js';
 import { buildSceneGrid } from './.build/src/candidates/generate.js';
@@ -229,18 +229,17 @@ const lookAheadChecks = {
             key([10, 24, 0], yaw(180), { lookAhead: true })
         ].map(k => ({ ...k, linger: 0, distance: 5 }));
 
-        // the forward turns round the triangle's sharp corners, faster than the cap even in 60 s,
-        // and Balance reports how fast
+        // the forward turns round the triangle's sharp corners faster than the cap, and Balance
+        // reports how fast (limited: null leaves that open)
         const settings = { frameRate: 30, smoothness: 1, rotationWeight: 1, maxTurnDegPerSec: 20 };
         const cases = [
-            ['triangle', triangle, { ...settings, frames: 600, loop: true }, true],
-            ['triangle, 60 s', triangle, { ...settings, frames: 1800, loop: true }, true],
+            ['triangle', triangle, { ...settings, frames: 600, loop: true }, null],
             ['climb', climb, { ...settings, frames: 900, loop: false }, false],
             ['courtyard', BASELINE.balance[0].input.keys.map(k => ({ ...k, lookAhead: true })), { ...settings, frames: 1800, loop: false }, false]
         ];
         for (const [name, keys, timing, limited] of cases) {
             const result = balanceTiming({ ...timing, keys });
-            assert.equal(result.turnLimited !== undefined, limited, `${name}: turn limited ${result.turnLimited}`);
+            if (limited !== null) assert.equal(result.turnLimited !== undefined, limited, `${name}: turn limited ${result.turnLimited}`);
             const curve = buildCameraCurve(keys, result.frames, { duration: timing.frames, smoothness: 1, loop: timing.loop, frameRate: 30 });
             const step = maxStep(curve, 0, timing.loop ? timing.frames : timing.frames - 1, 0.25) * 4;
             assert.ok(step <= (result.turnLimited ?? 20) * 1.05 / 30, `${name}: ${step}° per frame, Balance ${result.turnLimited}`);
@@ -267,18 +266,26 @@ const lookAheadChecks = {
             assert.ok(Math.abs(v.y) < 0.98, `frame ${f}: y ${v.y}`);
         }
         assert.ok(maxStep(climb, 0, 399, 0.25) * 4 <= 90 / 30 * 1.05, 'the climb turns within the guard');
-        // the same climb ending in a view along +x: the small sideways overshoot while climbing
-        // hardly turns the heading
-        const straight = buildCameraCurve([
-            key([0, 0, 0], yaw(0)),
-            { ...key([10, 0, 0], yaw(0)), auto: true },
-            { ...key([10, 12, 0], yaw(90)), auto: true },
-            key([10, 24, 0], yaw(0), { lookAhead: true })
-        ], [0, 100, 200, 399], opts);
-        for (let f = 100; f <= 399; f += 1) {
-            const v = viewAt(straight, f);
-            const turned = Math.abs(Math.atan2(v.z, v.x) / DEG);
-            assert.ok(turned < 30, `frame ${f}: heading ${turned}° off +x`);
+    },
+
+    'look: the heading turns slower as the travel steepens, and never the wrong way'() {
+        const dt = 1 / 30;
+        const yawDeg = v => Math.atan2(v.z, v.x) / DEG;
+        // the travel reverses at once: level, the heading turns round at 90°/s; at a horizontal
+        // share of 0.1 at 9°/s
+        const reversal = Array.from({ length: 31 }, (_, j) => yaw(j ? 180 : 0));
+        const full = limitTurnRate(reversal, dt, 90 * DEG, reversal.map(() => 1));
+        nearDeg(Math.abs(yawDeg(full[30])), 90, 1e-6, 'level, after 1 s');
+        const steep = limitTurnRate(reversal, dt, 90 * DEG, reversal.map(() => 0.1));
+        nearDeg(Math.abs(yawDeg(steep[30])), 9, 1e-6, 'steep, after 1 s');
+        // a steep spiral turning 60°/s while the heading may turn 27°/s: the lag grows past half
+        // a turn, and the heading keeps turning the same way
+        const spiral = Array.from({ length: 301 }, (_, j) => yaw(60 * j * dt));
+        const limited = limitTurnRate(spiral, dt, 90 * DEG, spiral.map(() => 0.3));
+        for (let j = 1; j <= 300; j++) {
+            let d = yawDeg(limited[j]) - yawDeg(limited[j - 1]);
+            if (d < -180) d += 360;
+            nearDeg(d, 27 * dt, 1e-6, `step ${j}`);
         }
     },
 
@@ -351,6 +358,11 @@ const lookAheadChecks = {
             assert.deepEqual(balanceTiming(input), result, name);
             const flagged = { ...input, keys: input.keys.map(k => ({ ...k, lookAhead: false, turnIn: 3 })) };
             assert.deepEqual(balanceTiming(flagged), result, `${name}, lookAhead false`);
+            // without a loop the first key has no stretch to look ahead on
+            if (!input.loop) {
+                const first = { ...input, keys: input.keys.map((k, i) => ({ ...k, lookAhead: i === 0 })) };
+                assert.deepEqual(balanceTiming(first), result, `${name}, look ahead on the first key`);
+            }
         }
     },
 

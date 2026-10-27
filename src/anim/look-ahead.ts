@@ -76,15 +76,19 @@ const forwardOf = (velocity: Vec3Like, heading: Vec3Like) => {
 // Limits the forward samples, dt seconds apart, to turn at most maxRate radians per second in yaw
 // and pitch, so a reversal of travel turns the view round instead of flipping it. yawShares, when
 // given, scales the yaw limit at each sample (the horizontal share of the travel there), so the
-// heading barely turns while the travel is near vertical.
+// heading barely turns while the travel is near vertical. The sample yaws are unwrapped, so a
+// heading that lags by more than half a turn still turns the way the travel did.
 const limitTurnRate = (forwards: Vec3Like[], dt: number, maxRate: number, yawShares?: number[]) => {
     let yaw = yawOf(forwards[0]);
     let pitch = pitchOf(forwards[0]);
+    let target = yaw;
     return forwards.map((f, j) => {
         if (j > 0) {
-            let dy = yawOf(f) - yaw;
-            while (dy > Math.PI) dy -= 2 * Math.PI;
-            while (dy <= -Math.PI) dy += 2 * Math.PI;
+            let turn = yawOf(f) - target;
+            while (turn > Math.PI) turn -= 2 * Math.PI;
+            while (turn <= -Math.PI) turn += 2 * Math.PI;
+            target += turn;
+            let dy = target - yaw;
             if (yawShares) {
                 const maxYaw = maxRate * dt * yawShares[j];
                 dy = Math.min(maxYaw, Math.max(-maxYaw, dy));

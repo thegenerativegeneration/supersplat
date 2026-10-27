@@ -109,15 +109,22 @@ const forwardAt = (s: { t0: number, t1: number }, forwards: Vec3Like[], t: numbe
     return normalized(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u) ?? a;
 };
 
-// the stretches arriving at the user keys with look ahead, each from the user key before it;
-// none without a frame rate to time the turns
-const stretchesOf = (keys: ViewKey[], times: number[], spline: CubicSpline, opts: ViewSplineOptions) => {
+// the key indices of the look-ahead stretches: each arrives at a user key with look ahead, from
+// the user key before it (from > to when it wraps in a loop, from === to for a lone key)
+const lookAheadStretches = (keys: ViewKey[], loop: boolean) => {
     const users = keys.map((_, i) => i).filter(i => !keys[i].auto);
+    return users.flatMap((to, u) => {
+        if (!keys[to].lookAhead || (u === 0 && !loop)) return [];
+        return [{ from: users[(u + users.length - 1) % users.length], to }];
+    });
+};
+
+// the stretches arriving at the user keys with look ahead; none without a frame rate to time
+// the turns
+const stretchesOf = (keys: ViewKey[], times: number[], spline: CubicSpline, opts: ViewSplineOptions) => {
     const out: Stretch[] = [];
     if (!(opts.frameRate > 0)) return out;
-    users.forEach((to, u) => {
-        if (!keys[to].lookAhead || (u === 0 && !opts.loop)) return;
-        const from = users[(u + users.length - 1) % users.length];
+    lookAheadStretches(keys, opts.loop).forEach(({ from, to }) => {
         const prev = viewOf(keys[from]);
         const key = viewOf(keys[to]);
         const views: StretchViews = {
@@ -166,15 +173,22 @@ const buildViewSpline = (keys: ViewKey[], times: number[], opts: ViewSplineOptio
         };
     }
 
+    // one view-rule input per stretch, its t and forward set per frame
+    const inputs = stretches.map(s => s.forwards && { ...s.plan, t: 0, t0: s.t0, t1: s.t1, frameRate: s.frameRate, forward: s.forwards[0], prevView: s.prevView, keyView: s.keyView });
+
     return (frame: number, result: number[]) => {
         spline.evaluate(frame, result);
-        for (const s of stretches) {
+        for (let k = 0; k < stretches.length; k++) {
+            const s = stretches[k];
             const t = frame > s.t1 && opts.loop ? frame - opts.duration : frame;
             if (!(t > s.t0 && t <= s.t1)) continue;
             const u = (t - s.t0) / (s.t1 - s.t0);
-            const dir = s.forwards ?
-                lookAheadView({ ...s.plan, t, t0: s.t0, t1: s.t1, frameRate: s.frameRate, forward: forwardAt(s, s.forwards, t), prevView: s.prevView, keyView: s.keyView }) :
-                turnBetween(s.prevView, s.keyView, u);
+            const input = inputs[k];
+            if (input) {
+                input.t = t;
+                input.forward = forwardAt(s, s.forwards, t);
+            }
+            const dir = input ? lookAheadView(input) : turnBetween(s.prevView, s.keyView, u);
             const distance = s.prevDistance + (s.keyDistance - s.prevDistance) * u;
             result[3] = result[0] + dir.x * distance;
             result[4] = result[1] + dir.y * distance;
@@ -185,5 +199,5 @@ const buildViewSpline = (keys: ViewKey[], times: number[], opts: ViewSplineOptio
     };
 };
 
-export { buildViewSpline, travelVelocity };
+export { buildViewSpline, lookAheadStretches, travelVelocity };
 export type { ViewKey, ViewSplineOptions };

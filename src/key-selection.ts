@@ -1,5 +1,6 @@
 import type { Pose } from './camera-poses';
 import { Events } from './events';
+import type { Splat } from './splat';
 
 // toggle = Cmd on macOS, Ctrl elsewhere
 type Gesture = { shift: boolean, toggle: boolean };
@@ -40,6 +41,10 @@ const sameIds = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b
  * pointerdown clears it. A key surface in the DOM carries the `data-key-surface`
  * attribute so the generic listener leaves focus alone; other surfaces (such as
  * 3D camera hits) fire `keys.focus(true)` themselves after the pointerdown.
+ *
+ * Splat work from the keyboard or the API also clears focus: a select command,
+ * a change of the splat selection or the active layer, a tool activating, and the
+ * timeline panel or key strip hiding.
  */
 const registerKeySelectionEvents = (events: Events) => {
     let selected = new Set<string>();
@@ -91,11 +96,32 @@ const registerKeySelectionEvents = (events: Events) => {
     };
     ['track.keysLoaded', 'track.keyRemoved', 'track.keysCleared', 'track.keyMoved', 'track.keyAdded'].forEach(name => events.on(name, dropStale));
 
+    const unfocus = () => {
+        focus = false;
+    };
+    // the commands clear focus as they fire; their ops change the selection later
+    ['select.all', 'select.none', 'select.invert', 'select.hide', 'select.unhide', 'selection.changed'].forEach(name => events.on(name, unfocus));
+
+    // undo, redo and API edits reach the splat selection without a select command
+    const numSelected = new WeakMap<Splat, number>();
+    events.on('splat.stateChanged', (splat: Splat) => {
+        if ((numSelected.get(splat) ?? 0) !== splat.numSelected) unfocus();
+        numSelected.set(splat, splat.numSelected);
+    });
+
+    events.on('tool.activated', (name: string | null) => {
+        if (name) unfocus();
+    });
+    events.on('statusBar.panelChanged', (panel: string | null) => {
+        if (panel !== 'timeline') unfocus();
+    });
+    events.on('timeline.keyStrip', (shown: boolean) => {
+        if (!shown) unfocus();
+    });
+
     if (typeof document !== 'undefined') {
         document.addEventListener('pointerdown', (e) => {
-            if (!(e.target instanceof Element && e.target.closest('[data-key-surface]'))) {
-                focus = false;
-            }
+            if (!(e.target instanceof Element && e.target.closest('[data-key-surface]'))) unfocus();
         }, true);
     }
 };

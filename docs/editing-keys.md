@@ -68,7 +68,7 @@ Right-click a key (or double-click a tile). The editor follows the selection.
 ## Delete
 
 - Delete or Backspace removes the selected keys when your last click was on a key (tile, marker, 3D camera or the editor).
-- After a click in the scene, Delete removes selected splats as before. Keys stay.
+- After a click in the scene, a selection shortcut (⌘A / Ctrl+A, ⌘I / Ctrl+I, …), an undo that changes the splat selection, a tool switch or hiding the timeline, Delete removes selected splats as before. Keys stay.
 - While typing in an editor field, Delete and Backspace edit the text.
 
 ## Look ahead

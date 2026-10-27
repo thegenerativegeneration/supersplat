@@ -79,6 +79,58 @@ const keySelectionChecks = {
         assert.equal(events.invoke('keys.focused'), false);
     },
 
+    'selection: splat work after a key click sends Delete back to the splats'() {
+        const keyClick = (events, id) => {
+            events.fire('keys.select', id, plain);
+            events.fire('keys.focus', true);
+        };
+        const splat = { numSelected: 0 };
+        const cases = [
+            ['select all', e => e.fire('select.all')],
+            ['select none', e => e.fire('select.none')],
+            ['invert', e => e.fire('select.invert')],
+            ['eyedropper', e => e.fire('tool.activated', 'eyedropperSelection')],
+            ['active layer', e => e.fire('selection.changed', {}, null)],
+            ['undo of a selection', (e) => {
+                splat.numSelected++;
+                e.fire('splat.stateChanged', splat);
+            }],
+            ['timeline hidden', e => e.fire('statusBar.panelChanged', null)],
+            ['strip hidden', e => e.fire('timeline.keyStrip', false)]
+        ];
+        for (const [name, splatWork] of cases) {
+            const { events, ops, pid } = withKeys();
+            let splatDeletes = 0;
+            // mirrors the routing line at the top of the select.delete handler in editor.ts
+            events.on('select.delete', () => {
+                if (events.invoke('keys.focused')) return events.fire('keys.delete');
+                splatDeletes++;
+            });
+            keyClick(events, pid[2]);
+            assert.equal(events.invoke('keys.focused'), true, name);
+            splatWork(events);
+            const before = ops.length;
+            events.fire('select.delete');
+            assert.equal(splatDeletes, 1, name);
+            assert.equal(ops.length, before, name);
+            assert.equal(events.invoke('camera.poses').length, 5, name);
+            assert.deepEqual(events.invoke('keys.selected'), [pid[2]], name);
+        }
+    },
+
+    'selection: key focus survives tool exit, unchanged splat state and the timeline opening'() {
+        const { events, pid } = withKeys();
+        const splat = { numSelected: 3 };
+        events.fire('splat.stateChanged', splat);
+        events.fire('keys.select', pid[1], plain);
+        events.fire('keys.focus', true);
+        events.fire('tool.activated', null);
+        events.fire('splat.stateChanged', splat);
+        events.fire('statusBar.panelChanged', 'timeline');
+        events.fire('timeline.keyStrip', true);
+        assert.equal(events.invoke('keys.focused'), true);
+    },
+
     'selection: a plain click moves the playhead to the key'() {
         const { events, pid } = withKeys();
         const frames = [];

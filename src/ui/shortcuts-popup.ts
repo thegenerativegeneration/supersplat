@@ -2,6 +2,7 @@ import { Container, Label } from '@playcanvas/pcui';
 
 import { Events } from '../events';
 import { ShortcutManager } from '../shortcut-manager';
+import { toggleKeyName } from './key-marker-gestures';
 import { i18n } from './localization';
 
 // Popup display configuration - maps shortcuts to categories and locale keys
@@ -102,10 +103,19 @@ const popupConfig: Record<string, CategoryConfig> = {
             { id: 'timeline.nextKey', localeKey: 'popup.shortcuts.next-key' },
             { id: 'track.addKey', localeKey: 'popup.shortcuts.add-key' },
             { id: 'track.removeKey', localeKey: 'popup.shortcuts.remove-key' }
-        ],
+        ]
+    },
+    // on strip tiles, timeline markers and 3D cameras; drags on timeline markers only
+    keys: {
+        localeKey: 'popup.shortcuts.keys',
+        shortcuts: [],
         hints: [
-            { displayKey: 'Ctrl + Click', localeKey: 'popup.shortcuts.stamp-key' },
-            { displayKey: 'Shift + Drag', localeKey: 'popup.shortcuts.copy-key' }
+            { displayKey: 'Click', localeKey: 'popup.shortcuts.select-key' },
+            { displayKey: 'Shift + Click', localeKey: 'popup.shortcuts.select-key-range' },
+            { displayKey: `${toggleKeyName} + Click`, localeKey: 'popup.shortcuts.toggle-key' },
+            { displayKey: 'Drag', localeKey: 'popup.shortcuts.move-keys' },
+            { displayKey: 'Alt + Drag', localeKey: 'popup.shortcuts.copy-key' },
+            { displayKey: 'Right-click', localeKey: 'popup.shortcuts.edit-key' }
         ]
     },
     other: {
@@ -121,7 +131,7 @@ const popupConfig: Record<string, CategoryConfig> = {
 };
 
 // Category display order
-const categoryOrder = ['navigation', 'camera', 'show', 'selection', 'tools', 'playback', 'other'];
+const categoryOrder = ['navigation', 'camera', 'show', 'selection', 'tools', 'playback', 'keys', 'other'];
 
 class ShortcutsPopup extends Container {
     constructor(events: Events, args = {}) {

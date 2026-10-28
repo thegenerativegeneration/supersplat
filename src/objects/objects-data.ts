@@ -7,6 +7,8 @@ type SceneObject = {
     // the segmenter's class and the closest words by language feature, with their cosine
     cls: string | null;
     alt: [string, number][];
+    // names from image crops, if computed: SigLIP2 words with cosine, and a vision-language model's name
+    names?: { siglip?: [string, number][], siglip_dim?: [string, number][], vlm?: string };
     structure: boolean;
     count: number;
     min: [number, number, number];

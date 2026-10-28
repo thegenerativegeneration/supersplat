@@ -19,6 +19,7 @@ import { registerKeyPickEvents } from './key-pick';
 import { registerKeyPick3dEvents } from './key-pick-3d';
 import { registerKeySelectionEvents } from './key-selection';
 import { registerKeyThumbnailEvents } from './key-thumbnails';
+import { registerObjectEvents } from './objects/object-events';
 import { registerOrbitEvents } from './orbit-events';
 import { registerPreferences } from './preferences';
 import { registerPublishEvents } from './publish';
@@ -319,6 +320,7 @@ const main = async () => {
     registerDocEvents(scene, events);
     registerRenderEvents(scene, events);
     registerCandidateEvents(events, scene);
+    registerObjectEvents(events);
     registerKeyPickEvents(events, scene);
     registerKeyPick3dEvents(events, scene);
     registerKeyThumbnailEvents(events, scene);

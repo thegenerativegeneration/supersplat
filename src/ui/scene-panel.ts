@@ -4,6 +4,7 @@ import { Events } from '../events';
 import { ClipboardMenu } from './clipboard-menu';
 import { ColorPanel } from './color-panel';
 import { i18n } from './localization';
+import { ObjectsPanel } from './objects-panel';
 import { SplatList } from './splat-list';
 import sceneImportSvg from './svg/import.svg';
 import sceneNewSvg from './svg/new.svg';
@@ -99,6 +100,7 @@ class ScenePanel extends Container {
 
         this.append(sceneHeader);
         this.append(splatListContainer);
+        this.append(new ObjectsPanel(events));
         this.append(new Transform(events, clipboardMenu));
         this.append(new ColorPanel(events, clipboardMenu));
     }

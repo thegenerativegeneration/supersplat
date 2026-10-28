@@ -1,0 +1,101 @@
+@use 'colors.scss' as *;
+
+// objects section of the scene panel (objects-panel.ts); rows styled like the splat list
+#objects-section {
+    .objects-bar {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        padding: 0 4px 0 10px;
+
+        .objects-info {
+            flex-grow: 1;
+            flex-shrink: 1;
+            margin: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: $text-secondary;
+        }
+
+        .objects-load {
+            flex-grow: 0;
+            flex-shrink: 0;
+            margin: 2px 0;
+        }
+    }
+
+    .objects-list {
+        max-height: 300px;
+        overflow: auto;
+        padding: 4px 0;
+    }
+
+    .objects-children {
+        padding-left: 18px;
+    }
+
+    .objects-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        padding: 0 2px;
+        cursor: pointer;
+
+        &.selected {
+            background-color: $bcg-darker;
+
+            .objects-text {
+                color: $text-primary;
+            }
+        }
+
+        &.hidden-object .objects-text {
+            opacity: 0.5;
+        }
+
+        &:hover .objects-text {
+            color: $text-primary;
+        }
+
+        .objects-arrow {
+            flex-shrink: 0;
+            width: 12px;
+            height: 12px;
+            margin: 0 3px;
+            color: $text-secondary;
+            transition: transform 0.1s ease-out;
+        }
+
+        &.expanded .objects-arrow {
+            transform: rotate(90deg);
+        }
+
+        .objects-text {
+            flex-grow: 1;
+            flex-shrink: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .objects-count {
+            flex-shrink: 0;
+            margin: 0 4px;
+            color: $text-secondary;
+            font-size: 11px;
+        }
+
+        .objects-eye {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            color: $text-secondary;
+
+            &:hover {
+                color: $text-primary;
+            }
+        }
+    }
+}

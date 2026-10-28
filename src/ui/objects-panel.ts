@@ -7,7 +7,7 @@ import arrowSvg from './svg/arrow.svg';
 import hiddenSvg from './svg/hidden.svg';
 import selectBoxSvg from './svg/select-box.svg';
 import shownSvg from './svg/shown.svg';
-import { ObjectsData, SceneObject } from '../objects/objects-data';
+import { ObjectsData, ObjectsState, SceneObject } from '../objects/objects-data';
 
 const createSvg = (svgString: string) => {
     const decodedStr = decodeURIComponent(svgString.substring('data:image/svg+xml,'.length));
@@ -16,15 +16,19 @@ const createSvg = (svgString: string) => {
 
 const formatCount = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `${n}`);
 
-// one line of the tree: optional expand arrow, text, Gaussian count, eye toggle
+// one line of the tree: optional expand arrow, text, Gaussian count, eye toggle. `slots` index ObjectsData.objects
 class ObjectRow extends Container {
     ids: number[];
-    eye: (hidden: boolean) => void;
+    slots: number[];
+    allHidden = false;
+    allSelected = false;
     arrow: PcuiElement | null = null;
+    render: (state: ObjectsState) => void;
 
-    constructor(text: string, count: number, ids: number[], tooltip: string, group: boolean) {
+    constructor(text: string, count: number, objects: { id: number, slot: number }[], tooltip: string, group: boolean) {
         super({ class: ['objects-row', group ? 'objects-group' : 'objects-item'] });
-        this.ids = ids;
+        this.ids = objects.map(o => o.id);
+        this.slots = objects.map(o => o.slot);
         if (group) {
             this.arrow = new PcuiElement({ dom: createSvg(arrowSvg), class: 'objects-arrow' });
             this.append(this.arrow);
@@ -38,11 +42,26 @@ class ObjectRow extends Container {
         this.append(countLabel);
         this.append(shown);
         this.append(hidden);
-        this.eye = (isHidden: boolean) => {
-            shown.hidden = isHidden;
-            hidden.hidden = !isHidden;
-            this.class[isHidden ? 'add' : 'remove']('hidden-object');
+
+        // all / some / none of the row's Gaussians hidden or selected, from the splat's own flags
+        this.render = (state: ObjectsState) => {
+            let total = 0, numHidden = 0, numSelected = 0;
+            this.slots.forEach((k) => {
+                total += state.total[k];
+                numHidden += state.hidden[k];
+                numSelected += state.selected[k];
+            });
+            const visible = total - numHidden;
+            this.allHidden = total > 0 && numHidden === total;
+            this.allSelected = visible > 0 && numSelected === visible;
+            shown.hidden = this.allHidden;
+            hidden.hidden = !this.allHidden;
+            this.class[this.allHidden ? 'add' : 'remove']('hidden-object');
+            this.class[numHidden > 0 && !this.allHidden ? 'add' : 'remove']('partly-hidden');
+            this.class[this.allSelected ? 'add' : 'remove']('selected');
+            this.class[numSelected > 0 && !this.allSelected ? 'add' : 'remove']('partly-selected');
         };
+
         [shown, hidden].forEach(e => e.dom.addEventListener('click', (event: MouseEvent) => {
             event.stopPropagation();
             this.emit('toggleHidden', this);
@@ -64,15 +83,15 @@ const tooltipOf = (o: SceneObject) => [
 
 // groups by name (collapsed), larger groups first; walls, floors and ceilings last
 const groupsOf = (objects: SceneObject[]) => {
-    const byName = new Map<string, SceneObject[]>();
-    objects.forEach((o) => {
+    const byName = new Map<string, { o: SceneObject, slot: number }[]>();
+    objects.forEach((o, slot) => {
         if (!byName.has(o.name)) byName.set(o.name, []);
-        byName.get(o.name).push(o);
+        byName.get(o.name).push({ o, slot });
     });
     const groups = [...byName.entries()].map(([name, list]) => ({
         name,
-        list: list.sort((a, b) => b.count - a.count),
-        structure: list.every(o => o.structure)
+        list: list.sort((a, b) => b.o.count - a.o.count),
+        structure: list.every(({ o }) => o.structure)
     }));
     return groups.sort((a, b) => (Number(a.structure) - Number(b.structure)) ||
         (b.list.length - a.list.length) || a.name.localeCompare(b.name));
@@ -102,69 +121,45 @@ class ObjectsPanel extends PanelSection {
         };
         load.on('click', () => picker.click());
 
-        const hidden = new Set<number>();
-        let rows: { row: ObjectRow, children: ObjectRow[] }[] = [];
-        let picked = new Set<ObjectRow>();
-
-        const refreshEyes = () => rows.forEach(({ row, children }) => {
-            children.forEach(c => c.eye(hidden.has(c.ids[0])));
-            row.eye(row.ids.every(id => hidden.has(id)));
-        });
-
-        const setPicked = (next: Set<ObjectRow>) => {
-            picked.forEach(r => r.class.remove('selected'));
-            next.forEach(r => r.class.add('selected'));
-            picked = next;
-        };
+        let rows: ObjectRow[] = [];
 
         const wire = (row: ObjectRow) => {
-            row.on('pick', (r: ObjectRow, add: boolean) => {
-                setPicked(add ? new Set([...picked, r]) : new Set([r]));
-                events.fire('objects.select', r.ids, add);
+            // shift-click adds, or removes a row that is already fully selected
+            row.on('pick', (r: ObjectRow, shift: boolean) => {
+                events.fire('objects.select', r.ids, shift ? (r.allSelected ? 'remove' : 'add') : 'set');
             });
-            row.on('focus', (r: ObjectRow) => {
-                setPicked(new Set([r]));
-                events.fire('objects.focus', r.ids);
-            });
-            row.on('toggleHidden', (r: ObjectRow) => {
-                const hide = !r.ids.every(id => hidden.has(id));
-                r.ids.forEach(id => (hide ? hidden.add(id) : hidden.delete(id)));
-                events.fire('objects.setHidden', r.ids, hide);
-                refreshEyes();
-            });
+            row.on('focus', (r: ObjectRow) => events.fire('objects.focus', r.ids));
+            row.on('toggleHidden', (r: ObjectRow) => events.fire('objects.setHidden', r.ids, !r.allHidden));
+            rows.push(row);
         };
 
         const build = (data: ObjectsData | null) => {
             list.clear();
             rows = [];
-            picked = new Set();
-            hidden.clear();
             info.text = data ? `${data.segmenter} · ${data.objects.length} · ${data.file}` : i18n.t('objects.none');
             if (!data) return;
-            groupsOf(data.objects).forEach(({ name, list: objects }) => {
-                const count = objects.reduce((s, o) => s + o.count, 0);
-                const row = new ObjectRow(`${name} (${objects.length})`, count, objects.map(o => o.id), name, true);
+            groupsOf(data.objects).forEach(({ name, list: members }) => {
+                const count = members.reduce((s, { o }) => s + o.count, 0);
+                const row = new ObjectRow(`${name} (${members.length})`, count, members.map(({ o, slot }) => ({ id: o.id, slot })),
+                    name, true);
                 const box = new Container({ class: 'objects-children', hidden: true });
-                const children = objects.map((o) => {
-                    const child = new ObjectRow(`${o.name} ${o.id}`, o.count, [o.id], tooltipOf(o), false);
+                wire(row);
+                members.forEach(({ o, slot }) => {
+                    const child = new ObjectRow(`${o.name} ${o.id}`, o.count, [{ id: o.id, slot }], tooltipOf(o), false);
                     wire(child);
                     box.append(child);
-                    return child;
                 });
-                wire(row);
                 row.on('toggleExpand', () => {
                     box.hidden = !box.hidden;
                     row.class[box.hidden ? 'remove' : 'add']('expanded');
                 });
-                row.class[box.hidden ? 'remove' : 'add']('expanded');
                 list.append(row);
                 list.append(box);
-                rows.push({ row, children });
             });
-            refreshEyes();
         };
 
         events.on('objects.changed', build);
+        events.on('objects.state', (state: ObjectsState | null) => state && rows.forEach(r => r.render(state)));
         build(null);
     }
 }

@@ -50,7 +50,15 @@
             }
         }
 
+        &.partly-selected {
+            background-color: rgba($bcg-darker, 0.5);
+        }
+
         &.hidden-object .objects-text {
+            opacity: 0.5;
+        }
+
+        &.partly-hidden .objects-eye {
             opacity: 0.5;
         }
 

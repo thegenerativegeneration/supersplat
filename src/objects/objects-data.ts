@@ -21,8 +21,17 @@ type ObjectsData = {
     inst: Int32Array;
 };
 
+// per object (in the order of ObjectsData.objects): live, hidden and selected (not hidden) Gaussians
+type ObjectsState = {
+    total: Uint32Array;
+    hidden: Uint32Array;
+    selected: Uint32Array;
+};
+
 const decodeInst = (base64: string, n: number) => {
-    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const text = atob(base64);
+    const bytes = new Uint8Array(text.length);
+    for (let i = 0; i < text.length; ++i) bytes[i] = text.charCodeAt(i);
     if (bytes.length !== n * 4) {
         throw new Error(`object ids for ${bytes.length / 4} Gaussians, file has ${n}`);
     }
@@ -37,7 +46,10 @@ const decodeInst = (base64: string, n: number) => {
 
 const parseObjects = (text: string): ObjectsData => {
     const json = JSON.parse(text);
-    if (!Array.isArray(json.objects) || typeof json.inst !== 'string' || typeof json.n !== 'number') {
+    const valid = (o: any) => typeof o.id === 'number' && typeof o.name === 'string' && typeof o.count === 'number' &&
+        Array.isArray(o.alt);
+    if (!Array.isArray(json.objects) || !json.objects.every(valid) || typeof json.inst !== 'string' ||
+        typeof json.n !== 'number') {
         throw new Error('not an objects file');
     }
     return {
@@ -48,4 +60,4 @@ const parseObjects = (text: string): ObjectsData => {
     };
 };
 
-export { parseObjects, ObjectsData, SceneObject };
+export { parseObjects, ObjectsData, ObjectsState, SceneObject };

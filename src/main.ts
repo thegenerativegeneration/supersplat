@@ -20,6 +20,7 @@ import { registerKeyPick3dEvents } from './key-pick-3d';
 import { registerKeySelectionEvents } from './key-selection';
 import { registerKeyThumbnailEvents } from './key-thumbnails';
 import { registerObjectEvents } from './objects/object-events';
+import { SeedMarker } from './objects/seed-marker';
 import { registerOrbitEvents } from './orbit-events';
 import { registerPreferences } from './preferences';
 import { registerPublishEvents } from './publish';
@@ -294,6 +295,7 @@ const main = async () => {
     toolManager.register('rotate', new RotateTool(events, scene));
     toolManager.register('scale', new ScaleTool(events, scene));
     toolManager.register('measure', new MeasureTool(events, scene, editorUI.canvasContainer, editorUI.annotationContainer.dom));
+    toolManager.register('seeds', new SeedMarker(events, scene, editorUI.canvasContainer));
     toolManager.register('orient', new OrientTool(events, scene, editorUI.toolsContainer.dom, editorUI.canvasContainer, editorUI.annotationContainer.dom));
 
     const candidatesPanel = new CandidatesPanel(events, scene, editorUI.tooltips);

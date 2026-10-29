@@ -106,4 +106,74 @@
             }
         }
     }
+
+    // seed points (seeds-panel.ts)
+    .seeds-panel {
+        border-top: 1px solid $bcg-darker;
+        padding: 4px 0;
+    }
+
+    .seeds-bar {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        padding: 0 4px 0 10px;
+
+        .seeds-title {
+            flex-grow: 1;
+            margin: 0;
+            color: $text-secondary;
+        }
+
+        .seeds-button {
+            flex-shrink: 0;
+            margin: 2px 0 2px 4px;
+
+            &.active {
+                color: $text-primary;
+                background-color: $clr-hilight;
+            }
+
+            &.armed {
+                color: $text-primary;
+            }
+        }
+    }
+
+    .seeds-hint {
+        margin: 2px 10px;
+        white-space: normal;
+        color: $text-secondary;
+    }
+
+    .seeds-list {
+        max-height: 200px;
+        overflow: auto;
+    }
+
+    .seeds-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        padding: 0 4px 0 10px;
+
+        .seeds-num {
+            width: 36px;
+            flex-shrink: 0;
+            margin: 0;
+            color: $text-secondary;
+        }
+
+        .seeds-note {
+            flex-grow: 1;
+            margin: 1px 0;
+        }
+
+        .seeds-remove {
+            flex-shrink: 0;
+            margin: 1px 0 1px 4px;
+            min-width: 24px;
+            padding: 0;
+        }
+    }
 }

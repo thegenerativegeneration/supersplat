@@ -3,6 +3,7 @@ import { Button, Container, Label, Element as PcuiElement } from '@playcanvas/pc
 import { Events } from '../events';
 import { i18n } from './localization';
 import { PanelSection } from './panel-section';
+import { SeedsPanel } from './seeds-panel';
 import arrowSvg from './svg/arrow.svg';
 import hiddenSvg from './svg/hidden.svg';
 import selectBoxSvg from './svg/select-box.svg';
@@ -113,6 +114,7 @@ class ObjectsPanel extends PanelSection {
         const list = new Container({ class: 'objects-list' });
         this.content.append(bar);
         this.content.append(list);
+        this.content.append(new SeedsPanel(events));
 
         const picker = document.createElement('input');
         picker.type = 'file';

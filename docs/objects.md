@@ -22,6 +22,19 @@ The **Objects** section of the Scene Manager lists objects detected in a splat: 
 - The number on the right is the object's Gaussian count in the file; it does not change after deletes.
 - Hover a name for details: how many pieces were merged into it, the segmenter's class, and names from other methods.
 
+## Mark objects (seeds)
+
+Seeds are single points, one per object, used to measure how well objects are detected (for example one per pew).
+
+1. Select the splat in the Scene Manager.
+2. Under the objects list, click **Mark**. Each click on the splat now places a seed (an orange dot).
+3. Type a note next to a seed if you are unsure (e.g. "connected to the next pew").
+4. Click **Mark** again to stop. **×** removes a seed.
+5. Click **Save…** to download `<splat name>.seeds.json`.
+
+- Seeds are kept in the browser per splat file, so reloading the page does not lose them.
+- **Clear** removes all seeds (click twice).
+
 ## Limits
 
 - Names come from pictures of each object matched against a word list (about 1,200 everyday words). Things missing from the list get the nearest word: a wall plaque may show up as "mail slot".

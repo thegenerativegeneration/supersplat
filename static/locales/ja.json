@@ -396,6 +396,7 @@
     "objects.load-failed": "オブジェクトを読み込めませんでした",
     "objects.class": "セグメンターのクラス",
     "objects.suggestions": "近い単語",
+    "objects.parts": "{{n}} 個の断片を結合",
     "tooltip.scene.solo": "選択をソロ表示",
     "tooltip.scene.import": "シーンをインポート",
     "tooltip.scene.new": "新規シーンを作成",

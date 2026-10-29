@@ -9,6 +9,7 @@ type SceneObject = {
     alt: [string, number][];
     // names from image crops, if computed: SigLIP2 words with cosine, and a vision-language model's name
     names?: { siglip?: [string, number][], siglip_dim?: [string, number][], vlm?: string };
+    parts?: number;
     structure: boolean;
     count: number;
     min: [number, number, number];

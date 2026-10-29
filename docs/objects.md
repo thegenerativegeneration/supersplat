@@ -20,9 +20,10 @@ The **Objects** section of the Scene Manager lists objects detected in a splat: 
 - **Double-click**: select and move the camera to it (like **F**).
 - **Eye**: hide or show the object. On a group: all its objects. Ctrl+Z undoes it. A dim eye means partly hidden.
 - The number on the right is the object's Gaussian count in the file; it does not change after deletes.
-- Hover a name for details: the segmenter's class and the closest words found for the object.
+- Hover a name for details: how many pieces were merged into it, the segmenter's class, and names from other methods.
 
 ## Limits
 
-- Names are the segmenter's classes (ScanNet's 200 indoor classes), so they can be wrong in other places: church pews show up as "couch".
+- Names come from pictures of each object matched against a word list (about 1,200 everyday words). Things missing from the list get the nearest word: a wall plaque may show up as "mail slot".
+- Objects are often only part of a thing (half a pew, a piece of ceiling). Neighbouring pieces with the same name are merged; sometimes two separate things get merged too.
 - A project saved as `.ssproj` and reopened stores the Gaussians in another order; load objects on the original splat file.

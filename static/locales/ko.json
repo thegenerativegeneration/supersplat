@@ -396,6 +396,7 @@
     "objects.load-failed": "객체를 불러올 수 없습니다",
     "objects.class": "분할기 클래스",
     "objects.suggestions": "가까운 단어",
+    "objects.parts": "{{n}}개 조각을 합침",
     "tooltip.scene.solo": "선택 항목 솔로",
     "tooltip.scene.import": "장면 가져오기",
     "tooltip.scene.new": "새 장면",

@@ -396,6 +396,7 @@
     "objects.load-failed": "Could not load objects",
     "objects.class": "Segmenter class",
     "objects.suggestions": "Closest words",
+    "objects.parts": "Merged from {{n}} pieces",
     "tooltip.scene.solo": "Solo Selected",
     "tooltip.scene.import": "Import Scene",
     "tooltip.scene.new": "New Scene",

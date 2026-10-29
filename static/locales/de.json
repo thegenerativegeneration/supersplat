@@ -396,6 +396,7 @@
     "objects.load-failed": "Objekte konnten nicht geladen werden",
     "objects.class": "Klasse des Segmentierers",
     "objects.suggestions": "Nächste Wörter",
+    "objects.parts": "Aus {{n}} Teilen zusammengefügt",
     "tooltip.scene.solo": "Auswahl solo anzeigen",
     "tooltip.scene.import": "Szene importieren",
     "tooltip.scene.new": "Neue Szene",

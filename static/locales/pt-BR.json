@@ -396,6 +396,7 @@
     "objects.load-failed": "Não foi possível carregar os objetos",
     "objects.class": "Classe do segmentador",
     "objects.suggestions": "Palavras mais próximas",
+    "objects.parts": "Unido a partir de {{n}} partes",
     "tooltip.scene.solo": "Solo selecionado",
     "tooltip.scene.import": "Importar Cena",
     "tooltip.scene.new": "Nova Cena",

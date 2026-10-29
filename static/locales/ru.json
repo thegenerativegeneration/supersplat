@@ -396,6 +396,7 @@
     "objects.load-failed": "Не удалось загрузить объекты",
     "objects.class": "Класс сегментатора",
     "objects.suggestions": "Ближайшие слова",
+    "objects.parts": "Объединено из {{n}} частей",
     "tooltip.scene.solo": "Соло выбранного",
     "tooltip.scene.import": "Импортировать сцену",
     "tooltip.scene.new": "Новая сцена",

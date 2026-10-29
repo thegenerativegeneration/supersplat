@@ -396,6 +396,7 @@
     "objects.load-failed": "无法加载对象",
     "objects.class": "分割器类别",
     "objects.suggestions": "最接近的词",
+    "objects.parts": "由 {{n}} 个片段合并",
     "tooltip.scene.solo": "独显所选",
     "tooltip.scene.import": "导入场景",
     "tooltip.scene.new": "新建场景",

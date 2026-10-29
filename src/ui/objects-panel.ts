@@ -80,7 +80,7 @@ const tooltipOf = (o: SceneObject) => [
     `${o.name} #${o.id}: ${o.count} Gaussians`,
     o.parts ? i18n.t('objects.parts', { n: o.parts }) : '',
     o.cls ? `${i18n.t('objects.class')}: ${o.cls}` : '',
-    `${i18n.t('objects.suggestions')}: ${o.alt.map(([w, c]) => `${w} ${c.toFixed(3)}`).join(', ')}`,
+    o.alt.length ? `${i18n.t('objects.suggestions')}: ${o.alt.map(([w, c]) => `${w} ${c.toFixed(3)}`).join(', ')}` : '',
     o.names?.vlm ? `VLM: ${o.names.vlm}` : '',
     o.names?.siglip ? `SigLIP2: ${o.names.siglip.map(([w]) => w).join(', ')}` : ''
 ].filter(Boolean).join('\n');

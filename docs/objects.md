@@ -38,6 +38,7 @@ Seeds are single points, one per object, used to measure how well objects are de
 
 ## Limits
 
-- Names come from pictures of each object matched against a word list (about 1,200 everyday words). Things missing from the list get the nearest word: a wall plaque may show up as "mail slot".
-- Objects are often only part of a thing (half a pew, a piece of ceiling). Neighbouring pieces with the same name are merged; sometimes two separate things get merged too.
+- Objects are found in pictures of the scene with a list of about 40 general words (pew, window, pillar, wall plaque, radiator, …). Things missing from the list get a nearby word or the name "object".
+- Rows named "object" are detached parts that no listed word claimed (for example a font inside a group of pews).
+- A pew can still appear as two rows, and some faint splats of a pew may stay on the floor when it is hidden.
 - A project saved as `.ssproj` and reopened stores the Gaussians in another order; load objects on the original splat file.

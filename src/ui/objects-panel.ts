@@ -1,4 +1,4 @@
-import { Button, Container, Label, Element as PcuiElement } from '@playcanvas/pcui';
+import { Button, Container, Label, Element as PcuiElement, SelectInput } from '@playcanvas/pcui';
 
 import { Events } from '../events';
 import { i18n } from './localization';
@@ -111,8 +111,11 @@ class ObjectsPanel extends PanelSection {
         const bar = new Container({ class: 'objects-bar' });
         bar.append(info);
         bar.append(load);
+        // loaded objects files of this splat; switching shows another file without reloading
+        const fileSelect = new SelectInput({ class: 'objects-file', hidden: true });
         const list = new Container({ class: 'objects-list' });
         this.content.append(bar);
+        this.content.append(fileSelect);
         this.content.append(list);
         this.content.append(new SeedsPanel(events));
 
@@ -162,6 +165,18 @@ class ObjectsPanel extends PanelSection {
                 list.append(box);
             });
         };
+
+        let updatingFiles = false;
+        fileSelect.on('change', (value: string) => {
+            if (!updatingFiles && value !== null) events.fire('objects.use', Number(value));
+        });
+        events.on('objects.sets', (sets: { names: string[], current: number } | null) => {
+            updatingFiles = true;
+            fileSelect.options = sets ? sets.names.map((n, k) => ({ v: String(k), t: n })) : [];
+            fileSelect.value = sets ? String(sets.current) : null;
+            fileSelect.hidden = !sets;
+            updatingFiles = false;
+        });
 
         events.on('objects.changed', build);
         events.on('objects.state', (state: ObjectsState | null) => state && rows.forEach(r => r.render(state)));

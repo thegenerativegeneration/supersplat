@@ -64,15 +64,24 @@ const fileRowsOf = (splat: Splat) => {
 };
 
 type Loaded = {
+    // objects file name
+    name: string;
     data: ObjectsData;
     // position in data.objects per resource row (-1 = none), and per object id
     rowSlot: Int32Array;
     slotOf: Map<number, number>;
 };
 
+// all objects files loaded for one splat and the one shown, so files can be compared without reloading
+type Sets = { sets: Loaded[], current: number };
+
 const registerObjectEvents = (events: Events) => {
     // per splat, so switching layers (and undoing a layer delete) keeps each splat's objects
-    const loaded = new WeakMap<Splat, Loaded>();
+    const loaded = new WeakMap<Splat, Sets>();
+    const shown = (splat: Splat) => {
+        const entry = loaded.get(splat);
+        return entry.sets[entry.current];
+    };
 
     const active = () => {
         const splat = events.invoke('selection') as Splat;
@@ -82,7 +91,7 @@ const registerObjectEvents = (events: Events) => {
     // per object: live, hidden and selected Gaussian counts of the active splat, from the flags themselves, so the
     // panel follows every edit (undo, brush, unhide all, ...)
     const stateOf = (splat: Splat): ObjectsState => {
-        const { rowSlot, data } = loaded.get(splat);
+        const { rowSlot, data } = shown(splat);
         const n = data.objects.length;
         const state = { total: new Uint32Array(n), hidden: new Uint32Array(n), selected: new Uint32Array(n) };
         const { sourceRow, flags, count } = splat.instances;
@@ -109,7 +118,9 @@ const registerObjectEvents = (events: Events) => {
 
     const publish = () => {
         const splat = active();
-        events.fire('objects.changed', splat ? loaded.get(splat).data : null);
+        const entry = splat ? loaded.get(splat) : null;
+        events.fire('objects.sets', entry ? { names: entry.sets.map(l => l.name), current: entry.current } : null);
+        events.fire('objects.changed', splat ? shown(splat).data : null);
         publishState();
     };
 
@@ -129,7 +140,12 @@ const registerObjectEvents = (events: Events) => {
             const fileRows = fileRowsOf(splat);
             const rowSlot = new Int32Array(numRows);
             for (let i = 0; i < numRows; ++i) rowSlot[i] = slotOf.get(data.inst[fileRows[i]]) ?? -1;
-            loaded.set(splat, { data, rowSlot, slotOf });
+            const entry = loaded.get(splat) ?? { sets: [], current: 0 };
+            const same = entry.sets.findIndex(l => l.name === file.name);
+            const at = same >= 0 ? same : entry.sets.length;
+            entry.sets[at] = { name: file.name, data, rowSlot, slotOf };
+            entry.current = at;
+            loaded.set(splat, entry);
             publish();
         } catch (error) {
             await events.invoke('showPopup', {
@@ -142,7 +158,7 @@ const registerObjectEvents = (events: Events) => {
 
     // predicate over live instances: does the instance belong to one of the objects?
     const hitOf = (splat: Splat, ids: number[]) => {
-        const { rowSlot, slotOf, data } = loaded.get(splat);
+        const { rowSlot, slotOf, data } = shown(splat);
         const wanted = new Uint8Array(data.objects.length + 1);
         ids.forEach((id) => {
             if (slotOf.has(id)) wanted[slotOf.get(id)] = 1;
@@ -171,6 +187,14 @@ const registerObjectEvents = (events: Events) => {
         }
         return splat.numSelected > 0;
     };
+
+    events.on('objects.use', (index: number) => {
+        const splat = active();
+        const entry = splat ? loaded.get(splat) : null;
+        if (!entry || index < 0 || index >= entry.sets.length || index === entry.current) return;
+        entry.current = index;
+        publish();
+    });
 
     events.on('objects.select', (ids: number[], op: 'set' | 'add' | 'remove' = 'set') => select(ids, op));
 

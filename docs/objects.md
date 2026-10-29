@@ -11,6 +11,7 @@ The **Objects** section of the Scene Manager lists objects detected in a splat: 
 - The file must be made for this splat file. A file for a different number of Gaussians is refused with a message.
 - Objects files come from `objects_export.py` in the voice-decision project.
 - Each splat keeps its own objects. The list shows those of the splat selected in the Scene Manager.
+- Load several objects files to compare them: the dropdown under **Load…** switches between them. Loading a file with the same name again replaces it. Hidden parts stay hidden when you switch (show them again before switching to compare).
 
 ## Use the list
 

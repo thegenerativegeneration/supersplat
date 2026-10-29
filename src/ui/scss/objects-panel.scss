@@ -25,6 +25,11 @@
         }
     }
 
+    .objects-file {
+        margin: 2px 4px 2px 10px;
+        width: calc(100% - 14px);
+    }
+
     .objects-list {
         max-height: 300px;
         overflow: auto;
